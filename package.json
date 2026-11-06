@@ -1,0 +1,58 @@
+{
+  "name": "simulador-telas",
+  "productName": "Simulador de Telas",
+  "version": "1.0.0",
+  "description": "Simula telas, canaletas e marcações sobre fotos de vistoria e exporta PNG.",
+  "main": "main.js",
+  "author": "carlowxx",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/carlowxx/simulador-telas.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "release": "node scripts/release.js"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.carlowxx.simuladortelas",
+    "productName": "Simulador de Telas",
+    "files": [
+      "main.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Simulador de Telas",
+      "artifactName": "Simulador-de-Telas-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "carlowxx",
+        "repo": "simulador-telas"
+      }
+    ]
+  }
+}

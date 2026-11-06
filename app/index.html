@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulador de Telas</title>
+<style>
+:root{--bg:#121417;--panel:#1a1d21;--card:#22262b;--line:#2c3137;--text:#eceef0;--muted:#8e959c;--acc:#f7931e;--go:#22b14c}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.hide{display:none!important}
+
+/* topo */
+header{display:flex;align-items:center;gap:10px;height:64px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-weight:600;white-space:nowrap;margin-right:6px}
+.strip{display:flex;gap:8px;overflow-x:auto;flex:1;align-items:center;height:100%;padding:0 2px}
+.thumb{position:relative;flex:none;height:46px;border-radius:6px;overflow:hidden;outline:2px solid transparent;opacity:.6}
+.thumb img{height:100%;display:block}
+.thumb.sel{outline-color:var(--acc);opacity:1}
+.thumb:hover{opacity:1}
+.thumb .dot{position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--go);color:#fff;font-size:11px;line-height:16px;text-align:center}
+.add{flex:none;height:46px;padding:0 14px;border:1px dashed #4a5058;border-radius:6px;color:var(--muted)}
+.add:hover{border-color:var(--acc);color:var(--text)}
+.icon{width:38px;height:38px;border-radius:8px;font-size:18px;color:var(--muted)}
+.icon:hover{background:var(--card);color:var(--text)}
+
+/* corpo */
+.body{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 64px)}
+.step{border-radius:10px;margin-bottom:6px}
+.step.active{background:var(--card)}
+.sh{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;text-align:left;border-radius:10px}
+.step:not(.active) .sh:hover{background:#1f2327}
+.num{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid #3d434a;color:var(--muted);font-size:12px;font-weight:700;display:grid;place-items:center}
+.step.active .num{border-color:var(--acc);background:var(--acc);color:#1a1000}
+.step.done:not(.active) .num{border-color:var(--go);background:var(--go);color:#fff}
+.st{font-weight:600}
+.sum{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:10px 10px 0;border-bottom:1px solid var(--line)}
+.tabs button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 10px;border-radius:8px 8px 0 0;color:var(--muted);font-size:12px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button span{font-size:19px;line-height:1}
+.tabs button:hover{color:var(--text);background:#1f2327}
+.tabs button.on{color:var(--text);border-bottom-color:var(--acc);background:var(--card)}
+.panels{flex:1;overflow-y:auto;padding:16px}
+.panel{display:none}
+.panel.on{display:block}
+
+.foot{padding:12px 14px 14px;border-top:1px solid var(--line)}
+.sep{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 12px 6px}
+.ico{flex:none;width:26px;text-align:center;font-size:17px}
+.step.done .sum{color:var(--go)}
+.sb{display:none;padding:0 14px 14px 48px}
+.step.active .sb{display:block}
+.ins{margin:0 0 10px;color:#c9cdd1}
+.ins b{color:var(--text)}
+.dims{display:flex;align-items:center;gap:6px;margin:10px 0}
+.dims input{width:72px;padding:7px 8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);text-align:center}
+.dims input:focus{outline:2px solid var(--acc);border-color:transparent}
+.links{display:flex;gap:14px;margin-top:10px}
+.link{color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px;padding:0}
+.link:hover{color:var(--text)}
+.btn{padding:8px 14px;border-radius:8px;background:#30353b;font-weight:600}
+.btn:hover{background:#3a4047}
+.btn.go{background:var(--go);color:#fff;width:100%;padding:12px;font-size:15px}
+.btn.go:hover{filter:brightness(1.08)}
+.seg{display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:3px;margin-bottom:12px}
+.seg button{flex:1;padding:7px 4px;border-radius:6px;color:var(--muted);font-size:13px}
+.seg button.on{background:#3a4047;color:var(--text);font-weight:600}
+.sw{display:flex;gap:8px;margin:4px 0 10px}
+.sw button{width:30px;height:30px;border-radius:50%;border:2px solid #3d434a}
+.sw button.on{outline:2px solid var(--acc);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chips button{padding:6px 11px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:13px}
+.chips button.on{border-color:var(--acc);color:var(--acc);font-weight:600}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0;color:var(--muted);font-size:13px}
+.row input[type=number]{width:64px;padding:5px 6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);text-align:center}
+details{margin-top:12px}
+summary{cursor:pointer;color:var(--muted);font-size:13px}
+details .row{justify-content:space-between}
+details input[type=range]{width:130px;accent-color:var(--acc)}
+input[type=checkbox]{accent-color:var(--acc)}
+.small{font-size:12px;color:var(--muted)}
+
+/* palco */
+main{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:16px;min-height:0}
+#wrap{position:relative;line-height:0}
+#cv{display:block;box-shadow:0 6px 30px rgba(0,0,0,.55)}
+#ov{position:absolute;left:0;top:0;cursor:crosshair}
+#drop{width:min(520px,90%);padding:56px 24px;border:2px dashed #3d434a;border-radius:16px;text-align:center;color:var(--muted);cursor:pointer}
+#drop:hover,#drop.over{border-color:var(--acc);color:var(--text)}
+#drop b{display:block;font-size:18px;color:var(--text);margin-bottom:6px}
+#pill{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(20,22,25,.92);border:1px solid var(--line);border-radius:999px;padding:6px 8px 6px 16px;display:flex;gap:12px;align-items:center;font-size:13px;z-index:2}
+#pill button{padding:4px 12px;border-radius:999px;background:#5a2323;color:#ffd9d9;font-size:12px;font-weight:600}
+
+/* configurações */
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:22px;width:min(440px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 16px;font-size:17px}
+dialog h4{margin:18px 0 8px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+#artPrev{width:100%;border-radius:8px;background:#0c0d0f;display:block}
+dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--line);background:var(--bg)}
+.dlgfoot{display:flex;justify-content:flex-end;margin-top:20px}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">Simulador de Telas <span class="small" id="ver"></span></span>
+  <div class="strip" id="photos"></div>
+  <button class="add" id="bOpen">+ Fotos</button>
+  <input type="file" id="fOpen" accept="image/*" multiple hidden>
+  <button class="icon" id="bUndo" title="Desfazer (Ctrl+Z)">↶</button>
+  <button class="icon" id="bSettings" title="Arte e modelo da tela">⚙</button>
+</header>
+
+<div class="body">
+<aside id="steps">
+  <nav class="tabs">
+    <button data-tab="medida"><span>📐</span>Medida</button>
+    <button data-tab="tela"><span>🖥️</span>Tela</button>
+    <button data-tab="canaleta"><span>📏</span>Canaleta</button>
+    <button data-tab="marcacao"><span>🏷️</span>Marcações</button>
+  </nav>
+
+  <div class="panels">
+    <div class="panel" data-panel="medida">
+      <p class="ins">Medida de algo nesta parede (porta, botoeira, parede):</p>
+      <div class="dims"><input type="number" id="calW" value="90" step="0.5"> × <input type="number" id="calH" value="210" step="0.5"> cm</div>
+      <p class="ins" id="calProg"></p>
+      <div class="links"><button class="link" id="bRedoCal">Marcar de novo</button><button class="link" id="bSkipCal">Remover medida</button></div>
+    </div>
+
+    <div class="panel" data-panel="tela">
+      <p class="ins" id="scrIns"></p>
+      <div class="links" style="margin-bottom:12px"><button class="link" id="bAddScr">+ Adicionar outra tela</button></div>
+      <div id="scrPlaced" class="hide">
+        <button class="btn" id="bCenter">Centralizar na medida</button>
+        <details>
+          <summary>Ajustar luz</summary>
+          <div class="row"><label><input type="checkbox" id="sAuto"> Brilho automático</label></div>
+          <div class="row">Brilho <input type="range" id="sBright" min="0.4" max="1.2" step="0.01"></div>
+          <div class="row">Reflexo <input type="range" id="sGloss" min="0" max="1" step="0.01"></div>
+          <div class="row">Sombra <input type="range" id="sShadow" min="0" max="1" step="0.01"></div>
+          <div class="row">Granulado <input type="range" id="sNoise" min="0" max="12" step="0.5"></div>
+        </details>
+      </div>
+      <p class="small" style="margin-top:14px"><span id="modelName"></span> · <button class="link" id="bModel">trocar</button></p>
+    </div>
+
+    <div class="panel" data-panel="canaleta">
+      <div class="seg" id="canMode"><button data-mode="up">Até o teto</button><button data-mode="draw">Desenhar</button></div>
+      <p class="ins" id="canIns"></p>
+      <div class="sw" id="cColor"></div>
+      <div class="row">Largura <input type="number" id="cW" step="0.5"> <span id="cUnit">cm</span></div>
+    </div>
+
+    <div class="panel" data-panel="marcacao">
+      <div class="chips" id="mChips">
+        <button data-mk="rack">Rack existente</button>
+        <button data-mk="objeto">Objeto a remover</button>
+        <button data-mk="telarem">Tela a remover</button>
+        <button data-mk="outro">Outro…</button>
+      </div>
+      <input id="mCustom" class="hide" placeholder="Texto do rótulo" style="width:100%;padding:7px;border-radius:7px;border:1px solid var(--line);background:var(--bg);margin-bottom:10px">
+      <p class="ins">Arraste um retângulo sobre o item na foto.</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <button class="btn go" id="bExport">Baixar PNG</button>
+    <div class="links"><button class="link" id="bNext">Próxima foto →</button><button class="link" id="bExportAll">Baixar todas</button></div>
+  </div>
+</aside>
+
+<main id="stage">
+  <div id="drop"><b>Arraste as fotos da vistoria aqui</b>ou clique para escolher</div>
+  <div id="wrap" class="hide"><canvas id="cv"></canvas><canvas id="ov"></canvas></div>
+  <div id="pill" class="hide"><span id="pillTxt"></span><button id="bDel">Excluir</button></div>
+</main>
+</div>
+
+<dialog id="settings">
+  <h2>Arte e modelo da tela</h2>
+  <h4>Arte da tela</h4>
+  <canvas id="artPrev" width="400" height="160"></canvas>
+  <p class="small" id="artInfo"></p>
+  <div style="display:flex;gap:8px"><button class="btn" id="bArt">Trocar arte…</button><button class="btn" id="bArtReset">Usar provisória</button></div>
+  <input type="file" id="fArt" accept="image/*" hidden>
+  <h4>Tamanho da tela</h4>
+  <select id="preset"></select>
+  <div class="row">Largura <input type="number" id="sW" step="0.1"> cm &nbsp; Altura <input type="number" id="sH" step="0.1"> cm</div>
+  <div class="row">Moldura extra <input type="number" id="sB" step="0.1"> cm <span class="small">(0 se a arte já tem moldura)</span></div>
+  <div class="row"><input id="presetName" placeholder="Nome do novo modelo" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:var(--bg)"><button class="btn" id="bPresetSave">Salvar modelo</button></div>
+  <div class="links"><button class="link" id="bPresetDel">Excluir modelo selecionado</button></div>
+  <p class="small" id="dimInfo"></p>
+  <div class="dlgfoot"><button class="btn" id="bCloseSet">Pronto</button></div>
+</dialog>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d', {willReadFrequently: true});
+const ov = $('#ov'), octx = ov.getContext('2d');
+
+/* ---------------- matemática ---------------- */
+function solve(A, b) {
+  const n = b.length;
+  for (let i = 0; i < n; i++) {
+    let p = i;
+    for (let r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
+    [A[i], A[p]] = [A[p], A[i]]; [b[i], b[p]] = [b[p], b[i]];
+    const d = A[i][i]; if (Math.abs(d) < 1e-12) return null;
+    for (let r = i + 1; r < n; r++) { const f = A[r][i] / d; for (let c = i; c < n; c++) A[r][c] -= f * A[i][c]; b[r] -= f * b[i]; }
+  }
+  const x = new Array(n);
+  for (let i = n - 1; i >= 0; i--) { let s = b[i]; for (let c = i + 1; c < n; c++) s -= A[i][c] * x[c]; x[i] = s / A[i][i]; }
+  return x;
+}
+function homography(src, dst) {
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = src[i], [X, Y] = dst[i];
+    A.push([x, y, 1, 0, 0, 0, -x * X, -y * X]); b.push(X);
+    A.push([0, 0, 0, x, y, 1, -x * Y, -y * Y]); b.push(Y);
+  }
+  const h = solve(A, b); return h ? [...h, 1] : null;
+}
+function hApply(h, x, y) { const w = h[6] * x + h[7] * y + h[8]; return [(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w]; }
+function hInv(m) {
+  const [a, b, c, d, e, f, g, h, i] = m;
+  const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C;
+  if (Math.abs(det) < 1e-12) return null;
+  return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det, B / det, (a * i - c * g) / det, -(a * f - c * d) / det, C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+}
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+function inPoly(pt, poly) {
+  let ins = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) ins = !ins;
+  }
+  return ins;
+}
+function segDist(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+  const t = L ? clamp(((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L, 0, 1) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem('simtelas.' + k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('simtelas.' + k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+};
+
+/* ---------------- estado ---------------- */
+const PRESETS_DEFAULT = [
+  {name: 'Eletromidia padrão', W: 84, H: 38, B: 0}
+];
+// stops: [posição 0–1 na largura, cor]. Metais são semitransparentes: o reflexo da parede aparece através.
+const CAN_COLORS = {
+  inox: {name: 'Inox', stops: [[0, 'rgba(25,27,30,.9)'], [0.035, 'rgba(70,74,78,.75)'], [0.07, 'rgba(240,243,245,.6)'], [0.16, 'rgba(205,210,214,.22)'],
+    [0.5, 'rgba(170,175,180,.12)'], [0.86, 'rgba(140,145,150,.2)'], [0.94, 'rgba(70,73,77,.55)'], [1, 'rgba(18,19,21,.9)']]},
+  aluminio: {name: 'Alumínio / metal', stops: [[0, 'rgba(50,52,55,.9)'], [0.06, 'rgba(235,237,239,.75)'], [0.2, 'rgba(200,204,207,.55)'],
+    [0.8, 'rgba(185,189,193,.55)'], [0.94, 'rgba(110,114,118,.7)'], [1, 'rgba(40,42,45,.9)']]},
+  branco: {name: 'Branca', stops: [[0, '#b5b5b5'], [0.08, '#f4f4f4'], [0.5, '#ffffff'], [0.9, '#e6e6e6'], [1, '#bdbdbd']]},
+  preto:  {name: 'Preta',  stops: [[0, '#050505'], [0.08, '#2e2e2e'], [0.5, '#262626'], [0.9, '#161616'], [1, '#050505']]},
+  marrom: {name: 'Marrom', stops: [[0, '#2e1a0e'], [0.08, '#6e4a2f'], [0.5, '#664229'], [0.9, '#4e311c'], [1, '#2e1a0e']]}
+};
+let presets = store.get('presets') || PRESETS_DEFAULT.map(p => ({...p}));
+let defaults = store.get('defaults') || {preset: 0, W: presets[0].W, H: presets[0].H, B: presets[0].B, color: 'inox', canCm: 8};
+if (defaults.canCm === 2.5) defaults.canCm = 8; // versão anterior usava 2,5 cm
+const photos = [];
+let cur = null, tool = 'select', pending = [], sel = null, drag = null, fast = false, mouse = null, css = {W: 1, H: 1, sc: 1, dpr: 1};
+let artCanvas = null, artName = '';
+
+/* ---------------- arte ---------------- */
+function makeDefaultArt() {
+  // 84×38 cm, já com moldura preta de cantos arredondados (como a arte oficial)
+  const c = document.createElement('canvas'); c.width = 1680; c.height = 760;
+  const g = c.getContext('2d');
+  g.fillStyle = '#050505'; g.beginPath(); g.roundRect(0, 0, 1680, 760, 34); g.fill();
+  const x = 26, y = 26, w = 1628, h = 708;
+  g.fillStyle = '#048a0e'; g.fillRect(x, y, w, h);
+  g.fillStyle = '#222a30'; g.fillRect(x + w * 0.79, y, w * 0.21, h);
+  g.fillStyle = '#1a2126'; g.fillRect(x + 8, y + h - 60, w * 0.79 - 16, 52);
+  g.fillStyle = 'rgba(255,255,255,.5)';
+  for (let i = 0; i < 3; i++) { g.fillRect(x + w * 0.82, y + 230 + i * 130, 150, 12); g.fillRect(x + w * 0.82, y + 255 + i * 130, 230, 30); }
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '600 70px Segoe UI, sans-serif'; g.fillText('ARTE DA TELA', x + w * 0.395, y + h * 0.42);
+  g.font = '32px Segoe UI, sans-serif'; g.fillStyle = 'rgba(255,255,255,.8)';
+  g.fillText('carregue o PNG oficial no painel ao lado', x + w * 0.395, y + h * 0.53);
+  artHasFrame = true;
+  return c;
+}
+function setArtFromImage(img, name, fromUser) {
+  const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+  const src = document.createElement('canvas'); src.width = W; src.height = H;
+  const sg = src.getContext('2d'); sg.drawImage(img, 0, 0);
+  const d = sg.getImageData(0, 0, W, H).data;
+  // corta margens transparentes ou brancas ao redor da arte
+  const empty = (x, y) => { const k = (y * W + x) * 4; return d[k + 3] < 12 || (d[k] > 245 && d[k + 1] > 245 && d[k + 2] > 245); };
+  const rowEmpty = y => { for (let x = 0; x < W; x += 2) if (!empty(x, y)) return false; return true; };
+  const colEmpty = x => { for (let y = 0; y < H; y += 2) if (!empty(x, y)) return false; return true; };
+  let t = 0, b = H - 1, l = 0, r = W - 1;
+  while (t < b && rowEmpty(t)) t++; while (b > t && rowEmpty(b)) b--;
+  while (l < r && colEmpty(l)) l++; while (r > l && colEmpty(r)) r--;
+  const c = document.createElement('canvas'); c.width = r - l + 1; c.height = b - t + 1;
+  const g = c.getContext('2d'); g.drawImage(src, l, t, c.width, c.height, 0, 0, c.width, c.height);
+  // margem branca vira transparente (cantos arredondados de arte sem transparência)
+  const id = g.getImageData(0, 0, c.width, c.height), e = id.data;
+  let hasFrame = false;
+  const k0 = (Math.round(c.height / 2) * c.width + 2) * 4;
+  if (e[k0] < 40 && e[k0 + 1] < 40 && e[k0 + 2] < 40) hasFrame = true; // borda escura = arte já tem moldura
+  const flood = [];
+  const seen = new Uint8Array(c.width * c.height);
+  const isBg = i => { const k = i * 4; return e[k + 3] < 12 || (e[k] > 235 && e[k + 1] > 235 && e[k + 2] > 235); };
+  for (const [x, y] of [[0, 0], [c.width - 1, 0], [0, c.height - 1], [c.width - 1, c.height - 1]]) flood.push(y * c.width + x);
+  while (flood.length) {
+    const i = flood.pop(); if (seen[i] || !isBg(i)) continue; seen[i] = 1; e[i * 4 + 3] = 0;
+    const x = i % c.width, y = (i / c.width) | 0;
+    if (x > 0) flood.push(i - 1); if (x < c.width - 1) flood.push(i + 1); if (y > 0) flood.push(i - c.width); if (y < c.height - 1) flood.push(i + c.width);
+  }
+  g.putImageData(id, 0, 0);
+  artCanvas = c; artName = name; artHasFrame = hasFrame;
+  if (fromUser && hasFrame) { defaults.B = 0; saveDefaults(); }
+  $('#artInfo').textContent = `${name} — ${c.width}×${c.height}px` + (hasFrame ? ' · arte já tem moldura (borda = 0)' : '');
+  refreshPanels();
+}
+let artHasFrame = false;
+function useDefaultArt() { artCanvas = makeDefaultArt(); artName = ''; $('#artInfo').textContent = 'Usando arte provisória.'; }
+(function restoreArt() {
+  const saved = store.get('art');
+  if (saved && saved.data) { const im = new Image(); im.onload = () => { setArtFromImage(im, saved.name); render(); }; im.src = saved.data; }
+  useDefaultArt();
+})();
+
+/* ---------------- referência ---------------- */
+function getCalib(p) {
+  if (!p || !p.calib) return null;
+  const c = p.calib;
+  const H = homography([[0, 0], [c.w, 0], [c.w, c.h], [0, c.h]], c.pts);
+  if (!H) return null;
+  return {H, Hi: hInv(H)};
+}
+const toImg = (p, q) => hApply(getCalib(p).H, q[0], q[1]);
+const toPlane = (p, q) => hApply(getCalib(p).Hi, q[0], q[1]);
+
+function screenCorners(p, s) {
+  if (s.space === 'plane') return [[s.x, s.y], [s.x + s.W, s.y], [s.x + s.W, s.y + s.H], [s.x, s.y + s.H]].map(q => toImg(p, q));
+  return s.corners;
+}
+function canPtsImg(p, s) { return s.space === 'plane' ? s.pts.map(q => toImg(p, q)) : s.pts; }
+
+function itemsToImageSpace(p) {
+  if (!getCalib(p)) return;
+  for (const it of p.items) {
+    if (it.space !== 'plane') continue;
+    if (it.type === 'screen') { it.corners = screenCorners(p, it); }
+    if (it.type === 'can') {
+      const a = it.pts[0];
+      it.width = Math.max(1, dist(toImg(p, a), toImg(p, [a[0] + it.width, a[1]])));
+      it.pts = it.pts.map(q => toImg(p, q));
+    }
+    it.space = 'img';
+  }
+}
+
+/* ---------------- render ---------------- */
+function autoBright(p, c) {
+  const s = p.small, k = s.width / p.w;
+  const xs = c.map(q => q[0] * k), ys = c.map(q => q[1] * k);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const ex = (x1 - x0) * 0.5, ey = (y1 - y0) * 0.5;
+  x0 = clamp(Math.floor(x0 - ex), 0, s.width - 1); x1 = clamp(Math.ceil(x1 + ex), x0 + 1, s.width);
+  y0 = clamp(Math.floor(y0 - ey), 0, s.height - 1); y1 = clamp(Math.ceil(y1 + ey), y0 + 1, s.height);
+  const d = s.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data;
+  let L = 0; for (let i = 0; i < d.length; i += 4) L += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+  L /= (d.length / 4) * 255;
+  return clamp(0.66 + 0.42 * L, 0.66, 1.02);
+}
+
+function drawScreen(g, p, s, quick) {
+  const c = screenCorners(p, s);
+  if (quick) {
+    g.beginPath(); c.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.closePath();
+    g.fillStyle = '#111'; g.fill(); return;
+  }
+  const H = homography([[0, 0], [1, 0], [1, 1], [0, 1]], c); if (!H) return;
+  const Hi = hInv(H); if (!Hi) return;
+  const hpx = Math.max(dist(c[0], c[3]), dist(c[1], c[2]));
+  const wpx = Math.max(dist(c[0], c[1]), dist(c[3], c[2]));
+  if (s.shadow > 0) {
+    g.save(); g.filter = `blur(${Math.max(1, hpx * 0.06)}px)`;
+    g.fillStyle = `rgba(0,0,0,${0.6 * s.shadow})`;
+    g.beginPath(); c.forEach((q, i) => { const X = q[0], Y = q[1] + hpx * 0.04; i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+    g.closePath(); g.fill(); g.restore();
+  }
+  const xs = c.map(q => q[0]), ys = c.map(q => q[1]);
+  const x0 = Math.max(0, Math.floor(Math.min(...xs)) - 1), x1 = Math.min(p.w, Math.ceil(Math.max(...xs)) + 1);
+  const y0 = Math.max(0, Math.floor(Math.min(...ys)) - 1), y1 = Math.min(p.h, Math.ceil(Math.max(...ys)) + 1);
+  const bw = x1 - x0, bh = y1 - y0; if (bw <= 0 || bh <= 0) return;
+
+  const bu = s.B / s.W, bv = s.B / s.H;
+  const tw = clamp(Math.round(wpx * (1 - 2 * bu) * 1.5), 16, 2400), th = clamp(Math.round(hpx * (1 - 2 * bv) * 1.5), 8, 1400);
+  const tc = document.createElement('canvas'); tc.width = tw; tc.height = th;
+  const t = tc.getContext('2d'); t.imageSmoothingQuality = 'high'; t.drawImage(artCanvas, 0, 0, tw, th);
+  const td = t.getImageData(0, 0, tw, th).data;
+  const br = s.bright == null ? autoBright(p, c) : s.bright;
+  const img = g.getImageData(x0, y0, bw, bh), d = img.data;
+  const SS = [0.25, 0.75];
+  for (let j = 0; j < bh; j++) for (let i = 0; i < bw; i++) {
+    let r = 0, gg = 0, b = 0, n = 0;
+    for (const oy of SS) for (const ox of SS) {
+      const X = x0 + i + ox, Y = y0 + j + oy;
+      const w = Hi[6] * X + Hi[7] * Y + Hi[8];
+      const u = (Hi[0] * X + Hi[1] * Y + Hi[2]) / w, v = (Hi[3] * X + Hi[4] * Y + Hi[5]) / w;
+      if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+      n++;
+      if (u > bu && u < 1 - bu && v > bv && v < 1 - bv) {
+        const fx = (u - bu) / (1 - 2 * bu) * (tw - 1), fy = (v - bv) / (1 - 2 * bv) * (th - 1);
+        const ix = Math.min(tw - 2, fx | 0), iy = Math.min(th - 2, fy | 0), ax = fx - ix, ay = fy - iy;
+        const k00 = (iy * tw + ix) * 4, k10 = k00 + 4, k01 = k00 + tw * 4, k11 = k01 + 4;
+        const gl = s.gloss * Math.max(0, 1 - Math.abs(u * 0.8 + v * 0.55 - 0.6) * 3.2) * 38;
+        const al = ((td[k00 + 3] * (1 - ax) + td[k10 + 3] * ax) * (1 - ay) + (td[k01 + 3] * (1 - ax) + td[k11 + 3] * ax) * ay) / 255;
+        const kb = (j * bw + i) * 4;
+        for (let ch = 0; ch < 3; ch++) {
+          const val = (td[k00 + ch] * (1 - ax) + td[k10 + ch] * ax) * (1 - ay) + (td[k01 + ch] * (1 - ax) + td[k11 + ch] * ax) * ay;
+          const o = (val * br + gl) * al + d[kb + ch] * (1 - al);
+          if (ch === 0) r += o; else if (ch === 1) gg += o; else b += o;
+        }
+      } else {
+        const e = Math.min(Math.min(u, 1 - u) / bu, Math.min(v, 1 - v) / bv);
+        const base = e < 0.22 ? 46 : 17;
+        const gl = s.gloss * Math.max(0, 1 - Math.abs(u * 0.8 + v * 0.55 - 0.6) * 3.2) * 20;
+        r += base + gl; gg += base + gl; b += base + 2 + gl;
+      }
+    }
+    if (!n) continue;
+    const k = (j * bw + i) * 4, a = n / 4, nz = s.noise ? (Math.random() - 0.5) * s.noise * 2 * a : 0;
+    d[k] = d[k] * (1 - a) + r / 4 + nz;
+    d[k + 1] = d[k + 1] * (1 - a) + gg / 4 + nz;
+    d[k + 2] = d[k + 2] * (1 - a) + b / 4 + nz;
+  }
+  g.putImageData(img, x0, y0);
+}
+
+function canQuads(p, s) {
+  const pts = s.pts, hw = s.width / 2, out = [];
+  const map = s.space === 'plane' ? (q => toImg(p, q)) : (q => q);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    let dx = b[0] - a[0], dy = b[1] - a[1]; const L = Math.hypot(dx, dy); if (L < 1e-6) continue;
+    dx /= L; dy /= L; const nx = -dy, ny = dx, ex = dx * hw, ey = dy * hw;
+    out.push([
+      [a[0] - ex + nx * hw, a[1] - ey + ny * hw], [b[0] + ex + nx * hw, b[1] + ey + ny * hw],
+      [b[0] + ex - nx * hw, b[1] + ey - ny * hw], [a[0] - ex - nx * hw, a[1] - ey - ny * hw]
+    ].map(map));
+  }
+  return out;
+}
+function drawCan(g, p, s) {
+  const quads = canQuads(p, s); if (!quads.length) return;
+  const col = CAN_COLORS[s.color] || CAN_COLORS.inox;
+  const wpx = Math.max(1, dist(quads[0][0], quads[0][3]));
+  const path = (q, dx = 0, dy = 0) => { g.beginPath(); q.forEach((v, i) => i ? g.lineTo(v[0] + dx, v[1] + dy) : g.moveTo(v[0] + dx, v[1] + dy)); g.closePath(); };
+  g.save(); g.filter = `blur(${Math.max(1, wpx * 0.12)}px)`; g.fillStyle = 'rgba(0,0,0,.3)';
+  for (const q of quads) { path(q, wpx * 0.06, wpx * 0.04); g.fill(); }
+  g.restore();
+  for (const q of quads) {
+    const A = mid(q[0], q[1]), B = mid(q[3], q[2]);
+    const gr = g.createLinearGradient(A[0], A[1], B[0], B[1]);
+    col.stops.forEach(([pos, c]) => gr.addColorStop(pos, c));
+    path(q); g.fillStyle = gr; g.fill();
+  }
+}
+
+const MARK_COLOR = '#f7931e';
+function drawMark(g, p, s) {
+  const [ax, ay, bx, by] = s.r, x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
+  const lw = Math.max(2, p.w * 0.0045);
+  g.save(); g.strokeStyle = MARK_COLOR; g.lineWidth = lw; g.lineCap = 'butt';
+  const side = (P, Q) => {
+    const L = dist(P, Q), ux = (Q[0] - P[0]) / L, uy = (Q[1] - P[1]) / L, seg = Math.min(L * 0.28, Math.max(lw * 6, L * 0.2));
+    g.beginPath();
+    g.moveTo(P[0], P[1]); g.lineTo(P[0] + ux * seg, P[1] + uy * seg);
+    g.moveTo(Q[0], Q[1]); g.lineTo(Q[0] - ux * seg, Q[1] - uy * seg);
+    if (L > seg * 3.2) { const m = mid(P, Q), h = L * 0.12; g.moveTo(m[0] - ux * h, m[1] - uy * h); g.lineTo(m[0] + ux * h, m[1] + uy * h); }
+    g.stroke();
+  };
+  const o = lw / 2;
+  side([x0 - o, y0], [x1 + o, y0]); side([x1, y0], [x1, y1]); side([x1 + o, y1], [x0 - o, y1]); side([x0, y1], [x0, y0]);
+  if (s.label) {
+    const fs = Math.max(14, p.w * 0.034);
+    g.font = `600 ${fs}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'center';
+    const cx = clamp((x0 + x1) / 2, g.measureText(s.label).width / 2 + 4, p.w - g.measureText(s.label).width / 2 - 4);
+    let ty = y0 - fs * 0.55, base = 'bottom';
+    if (ty - fs < 0) { ty = y1 + fs * 0.45; base = 'top'; }
+    g.textBaseline = base;
+    g.lineJoin = 'round'; g.lineWidth = fs * 0.14; g.strokeStyle = 'rgba(0,0,0,.45)'; g.strokeText(s.label, cx, ty);
+    g.fillStyle = MARK_COLOR; g.fillText(s.label, cx, ty);
+  }
+  g.restore();
+}
+
+function render() {
+  if (!cur) { drawOverlay(); return; }
+  ctx.filter = 'none';
+  ctx.drawImage(cur.img, 0, 0);
+  for (const it of cur.items) if (it.type === 'can') drawCan(ctx, cur, it);
+  for (const it of cur.items) if (it.type === 'screen') drawScreen(ctx, cur, it, fast);
+  for (const it of cur.items) if (it.type === 'mark') drawMark(ctx, cur, it);
+  drawOverlay();
+}
+
+/* ---------------- overlay (guias, não sai no PNG) ---------------- */
+const CORNERS = ['superior esquerdo', 'superior direito', 'inferior direito', 'inferior esquerdo'];
+function getHandles() {
+  const H = [];
+  if (!cur) return H;
+  if (cur.calib && (cur.step === 'medida' || cur.step === 'tela') && tool !== 'calib')
+    cur.calib.pts.forEach((q, i) => H.push({pt: q, kind: 'calib', set: v => { cur.calib.pts[i] = v; }}));
+  if (sel) {
+    if (sel.type === 'screen' && sel.space === 'img') sel.corners.forEach((q, i) => H.push({pt: q, set: v => { sel.corners[i] = v; }}));
+    if (sel.type === 'can') canPtsImg(cur, sel).forEach((q, i) => H.push({pt: q, set: v => { sel.pts[i] = sel.space === 'plane' ? toPlane(cur, v) : v; }}));
+    if (sel.type === 'mark') { H.push({pt: [sel.r[0], sel.r[1]], set: v => { sel.r[0] = v[0]; sel.r[1] = v[1]; }}); H.push({pt: [sel.r[2], sel.r[3]], set: v => { sel.r[2] = v[0]; sel.r[3] = v[1]; }}); }
+  }
+  return H;
+}
+function drawOverlay() {
+  const {dpr, sc} = css;
+  octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, ov.width, ov.height);
+  if (!cur) return;
+  octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const P = q => [q[0] * sc, q[1] * sc];
+  const poly = (pts, close) => { octx.beginPath(); pts.map(P).forEach((q, i) => i ? octx.lineTo(q[0], q[1]) : octx.moveTo(q[0], q[1])); if (close) octx.closePath(); };
+  if (cur.calib && (cur.step === 'medida' || cur.step === 'tela')) {
+    octx.setLineDash([6, 4]); octx.strokeStyle = '#38c6ff'; octx.lineWidth = 1.5; poly(cur.calib.pts, true); octx.stroke(); octx.setLineDash([]);
+  }
+  if (pending.length) {
+    octx.strokeStyle = tool === 'can' ? '#ffd23f' : '#38c6ff'; octx.lineWidth = 1.5;
+    const pts = tool === 'can' ? pending.map(q => cur.calib ? toImg(cur, q) : q) : pending.slice();
+    if (mouse && tool !== 'mark') pts.push(tool === 'can' ? snapped(mouse, true) : mouse);
+    if (tool === 'mark') { const [a, b] = pending; poly([a, [b[0], a[1]], b, [a[0], b[1]]], true); }
+    else poly(pts, false);
+    octx.stroke();
+    pts.forEach(q => { const s = P(q); octx.fillStyle = '#fff'; octx.beginPath(); octx.arc(s[0], s[1], 3, 0, 7); octx.fill(); });
+  }
+  if (sel) {
+    octx.strokeStyle = '#ffd23f'; octx.lineWidth = 1.5; octx.setLineDash([4, 3]);
+    if (sel.type === 'screen') { poly(screenCorners(cur, sel), true); octx.stroke(); }
+    if (sel.type === 'can') { poly(canPtsImg(cur, sel), false); octx.stroke(); }
+    if (sel.type === 'mark') { const [a, b, c, d] = sel.r; poly([[a, b], [c, b], [c, d], [a, d]], true); octx.stroke(); }
+    octx.setLineDash([]);
+  }
+  for (const h of getHandles()) {
+    const s = P(h.pt); octx.fillStyle = h.kind === 'calib' ? '#38c6ff' : '#ffd23f'; octx.strokeStyle = '#000'; octx.lineWidth = 1;
+    octx.beginPath(); octx.rect(s[0] - 4.5, s[1] - 4.5, 9, 9); octx.fill(); octx.stroke();
+  }
+  const cornerMode = tool === 'calib' || (tool === 'screen' && !cur.calib);
+  const needLoupe = mouse && (cornerMode || tool === 'can' || tool === 'canup' || (drag && drag.kind === 'handle'));
+  if (needLoupe) {
+    const R = 62, Z = 4, m = P(mouse);
+    let lx = m[0] + 24, ly = m[1] + 24;
+    if (lx + 2 * R > css.W) lx = m[0] - 24 - 2 * R;
+    if (ly + 2 * R + 30 > css.H) ly = m[1] - 24 - 2 * R - 30;
+    const sw = (2 * R / Z) / sc;
+    octx.save(); octx.beginPath(); octx.arc(lx + R, ly + R, R, 0, 7); octx.clip();
+    octx.imageSmoothingEnabled = false;
+    octx.drawImage(cv, mouse[0] - sw / 2, mouse[1] - sw / 2, sw, sw, lx, ly, 2 * R, 2 * R);
+    octx.strokeStyle = '#ff3b3b'; octx.lineWidth = 1;
+    octx.beginPath(); octx.moveTo(lx + R, ly); octx.lineTo(lx + R, ly + 2 * R); octx.moveTo(lx, ly + R); octx.lineTo(lx + 2 * R, ly + R); octx.stroke();
+    octx.restore();
+    octx.strokeStyle = '#fff'; octx.lineWidth = 2; octx.beginPath(); octx.arc(lx + R, ly + R, R, 0, 7); octx.stroke();
+    let tag = '';
+    if (cornerMode && pending.length < 4) tag = 'canto ' + CORNERS[pending.length];
+    if (tool === 'canup') tag = 'clique no teto';
+    if (tag) {
+      octx.font = '600 12px Segoe UI'; const tw = octx.measureText(tag).width + 16;
+      octx.fillStyle = 'rgba(0,0,0,.8)'; octx.beginPath(); octx.roundRect(lx + R - tw / 2, ly + 2 * R + 8, tw, 22, 11); octx.fill();
+      octx.fillStyle = '#fff'; octx.textAlign = 'center'; octx.textBaseline = 'middle'; octx.fillText(tag, lx + R, ly + 2 * R + 19);
+      octx.textAlign = 'start'; octx.textBaseline = 'alphabetic';
+    }
+  }
+}
+
+/* ---------------- layout ---------------- */
+function fit() {
+  if (!cur) return;
+  const st = $('#stage'), aw = st.clientWidth - 32, ah = st.clientHeight - 32;
+  const sc = Math.min(aw / cur.w, ah / cur.h, 2);
+  const W = Math.max(1, Math.round(cur.w * sc)), H = Math.max(1, Math.round(cur.h * sc)), dpr = window.devicePixelRatio || 1;
+  for (const c of [cv, ov]) { c.style.width = W + 'px'; c.style.height = H + 'px'; }
+  ov.width = Math.round(W * dpr); ov.height = Math.round(H * dpr);
+  css = {W, H, sc: W / cur.w, dpr};
+  drawOverlay();
+}
+window.addEventListener('resize', fit);
+
+/* ---------------- fotos ---------------- */
+function addPhoto(img, name) {
+  const small = document.createElement('canvas'), k = 256 / img.naturalWidth;
+  small.width = 256; small.height = Math.max(1, Math.round(img.naturalHeight * k));
+  small.getContext('2d').drawImage(img, 0, 0, small.width, small.height);
+  const p = {name, img, w: img.naturalWidth, h: img.naturalHeight, small, thumb: small.toDataURL('image/jpeg', 0.7),
+    calib: null, items: [], undo: [], step: 'medida', noCal: false, exported: false};
+  photos.push(p); return p;
+}
+function loadFiles(files) {
+  const list = [...files].filter(f => f.type.startsWith('image/'));
+  let first = null, left = list.length;
+  list.forEach(f => {
+    const im = new Image();
+    const done = () => { if (--left === 0 && first) selectPhoto(first); renderList(); };
+    im.onload = () => { const p = addPhoto(im, f.name); if (!first) first = p; done(); };
+    im.onerror = done;
+    im.src = URL.createObjectURL(f);
+  });
+}
+function selectPhoto(p) {
+  cur = p; sel = null; pending = []; drag = null;
+  cv.width = p.w; cv.height = p.h;
+  $('#drop').classList.add('hide'); $('#wrap').classList.remove('hide');
+  fit(); goStep(curTab); render(); renderList();
+}
+function renderList() {
+  const box = $('#photos'); box.innerHTML = '';
+  photos.forEach(p => {
+    const d = document.createElement('button'); d.className = 'thumb' + (p === cur ? ' sel' : ''); d.title = p.name;
+    d.innerHTML = `<img src="${p.thumb}" alt="">` + (p.exported ? '<span class="dot">✓</span>' : '');
+    d.onclick = () => selectPhoto(p); box.appendChild(d);
+  });
+}
+$('#bOpen').onclick = () => $('#fOpen').click();
+$('#drop').onclick = () => $('#fOpen').click();
+$('#fOpen').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
+const stage = $('#stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); $('#drop').classList.add('over'); });
+stage.addEventListener('dragleave', () => $('#drop').classList.remove('over'));
+stage.addEventListener('drop', e => { e.preventDefault(); $('#drop').classList.remove('over'); loadFiles(e.dataTransfer.files); });
+
+/* ---------------- undo ---------------- */
+function snapshot() { return JSON.stringify({calib: cur.calib, items: cur.items}); }
+function pushUndo() { if (!cur) return; cur.undo.push(snapshot()); if (cur.undo.length > 60) cur.undo.shift(); }
+function undo() {
+  if (!cur || !cur.undo.length) return;
+  const s = JSON.parse(cur.undo.pop()); cur.calib = s.calib; cur.items = s.items; sel = null; pending = [];
+  goStep(cur.step); render();
+}
+$('#bUndo').onclick = undo;
+
+/* ---------------- opções ---------------- */
+if (!defaults.canMode || defaults.canMode === 'none') defaults.canMode = 'up';
+const MARKS = {rack: 'Rack existente', objeto: 'Objeto a ser removido', telarem: 'Tela a remover', outro: null};
+let markKind = 'rack';
+const screensOf = p => p.items.filter(i => i.type === 'screen');
+function labelText() { return MARKS[markKind] || ($('#mCustom').value || ''); }
+
+function toolForStep(n) {
+  if (!cur) return 'select';
+  if (n === 'medida') return cur.calib ? 'select' : 'calib';
+  if (n === 'tela') return screensOf(cur).length ? 'select' : 'screen';
+  if (n === 'canaleta') {
+    if (defaults.canMode === 'draw') return 'can';
+    return screensOf(cur).length ? 'canup' : 'select';
+  }
+  if (n === 'marcacao') return 'mark';
+  return 'select';
+}
+let curTab = 'medida';
+function goStep(n) {
+  curTab = n;
+  if (!cur) { refreshUI(); return; }
+  cur.step = n; pending = []; drag = null;
+  tool = toolForStep(n);
+  if (tool === 'canup') canupTarget = (sel && sel.type === 'screen') ? sel : screensOf(cur)[0];
+  refreshUI(); drawOverlay();
+}
+function afterCreate() { tool = 'select'; pending = []; refreshUI(); drawOverlay(); }
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { sel = null; goStep(b.dataset.tab); render(); });
+document.querySelectorAll('#mChips button').forEach(b => b.onclick = () => {
+  markKind = b.dataset.mk;
+  if (sel && sel.type === 'mark') { pushUndo(); sel.label = labelText(); render(); }
+  refreshUI(); if (markKind === 'outro') $('#mCustom').focus();
+});
+$('#bAddScr').onclick = () => { if (!cur) return; sel = null; setTool('screen'); render(); };
+
+/* ---------------- interação ---------------- */
+function snapped(pt, preview) {
+  const shift = window.__shift;
+  if (!cur.calib) {
+    if (shift && pending.length) { const l = pending[pending.length - 1]; return Math.abs(pt[0] - l[0]) > Math.abs(pt[1] - l[1]) ? [pt[0], l[1]] : [l[0], pt[1]]; }
+    return pt;
+  }
+  let q = toPlane(cur, pt);
+  if (shift && pending.length) { const l = pending[pending.length - 1]; q = Math.abs(q[0] - l[0]) > Math.abs(q[1] - l[1]) ? [q[0], l[1]] : [l[0], q[1]]; }
+  return preview ? toImg(cur, q) : q;
+}
+function finishCan() {
+  const pts = [];
+  for (const q of pending) if (!pts.length || dist(q, pts[pts.length - 1]) > (cur.calib ? 0.3 : 2)) pts.push(q);
+  pending = [];
+  if (pts.length >= 2) {
+    pushUndo();
+    const it = cur.calib ? {type: 'can', space: 'plane', pts, width: defaults.canCm, color: defaults.color}
+      : {type: 'can', space: 'img', pts, width: canPxDefault(), color: defaults.color};
+    cur.items.push(it); sel = it; render(); afterCreate(); return;
+  }
+  drawOverlay();
+}
+function canPxDefault() {
+  const s = screensOf(cur)[0];
+  if (s && s.space === 'img') return Math.max(3, dist(s.corners[0], s.corners[1]) * defaults.canCm / s.W);
+  return Math.max(3, Math.round(cur.w * 0.03));
+}
+function newScreenProps() { return {W: defaults.W, H: defaults.H, B: defaults.B, bright: null, gloss: 0.35, noise: 3, shadow: 0.5}; }
+let canupTarget = null;
+
+function evPt(e) { const r = ov.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cur.w, (e.clientY - r.top) / r.height * cur.h]; }
+function hitTest(pt, only) {
+  const tol = 7 / css.sc;
+  const ok = t => !only || only === t;
+  for (let i = cur.items.length - 1; i >= 0; i--) { const it = cur.items[i]; if (it.type !== 'mark' || !ok('mark')) continue;
+    const [a, b, c, d] = it.r; if (pt[0] >= Math.min(a, c) - tol && pt[0] <= Math.max(a, c) + tol && pt[1] >= Math.min(b, d) - tol && pt[1] <= Math.max(b, d) + tol) return it; }
+  if (ok('screen')) for (let i = cur.items.length - 1; i >= 0; i--) { const it = cur.items[i]; if (it.type === 'screen' && inPoly(pt, screenCorners(cur, it))) return it; }
+  if (ok('can')) for (let i = cur.items.length - 1; i >= 0; i--) { const it = cur.items[i]; if (it.type !== 'can') continue;
+    const pts = canPtsImg(cur, it), q = canQuads(cur, it), w = q.length ? dist(q[0][0], q[0][3]) / 2 : 0;
+    for (let k = 0; k < pts.length - 1; k++) if (segDist(pt, pts[k], pts[k + 1]) < Math.max(tol, w)) return it; }
+  return null;
+}
+function startMove(it, pt) {
+  sel = it; pushUndo();
+  drag = {kind: 'move', it, start: pt, startPl: cur.calib ? toPlane(cur, pt) : null, orig: JSON.parse(JSON.stringify(it))};
+  fast = it.type === 'screen';
+}
+
+ov.addEventListener('mousedown', e => {
+  if (!cur || e.button !== 0) return;
+  const pt = evPt(e); mouse = pt;
+  if (tool !== 'calib' && !(tool === 'screen' && pending.length) && tool !== 'can') {
+    const tol = 8 / css.sc;
+    const h = getHandles().find(h => dist(h.pt, pt) < tol);
+    if (h) { pushUndo(); drag = {kind: 'handle', h}; fast = true; return; }
+  }
+  if (tool === 'calib') {
+    pending.push(pt);
+    if (pending.length === 4) {
+      pushUndo();
+      if (cur.calib) itemsToImageSpace(cur);
+      cur.calib = {pts: pending.slice(), w: +$('#calW').value || 100, h: +$('#calH').value || 100};
+      pending = [];
+      if (!getCalib(cur)) { cur.calib = null; alert('Os 4 pontos não formam um retângulo válido. Tente de novo.'); goStep('medida'); return; }
+      render(); goStep('medida'); return;
+    }
+    refreshUI(); drawOverlay(); return;
+  }
+  if (tool === 'screen') {
+    if (cur.calib) {
+      pushUndo(); const q = toPlane(cur, pt), pr = newScreenProps();
+      const it = {type: 'screen', space: 'plane', x: +(q[0] - pr.W / 2).toFixed(1), y: +(q[1] - pr.H / 2).toFixed(1), ...pr};
+      cur.items.push(it); sel = it; render(); goStep('tela'); return;
+    }
+    pending.push(pt);
+    if (pending.length === 4) {
+      pushUndo(); const it = {type: 'screen', space: 'img', corners: pending.slice(), ...newScreenProps()};
+      cur.items.push(it); sel = it; pending = []; render(); goStep('tela'); return;
+    }
+    refreshUI(); drawOverlay(); return;
+  }
+  if (tool === 'canup' && canupTarget) {
+    const s = canupTarget; let it;
+    pushUndo();
+    if (s.space === 'plane') {
+      const q = toPlane(cur, pt), x = +(s.x + s.W / 2).toFixed(1), y0 = s.y + Math.min(3, s.H * 0.2);
+      it = {type: 'can', space: 'plane', pts: [[x, y0], [x, Math.min(q[1], s.y - 1)]], width: defaults.canCm, color: defaults.color};
+    } else {
+      const c = s.corners, top = mid(c[0], c[1]), bot = mid(c[3], c[2]), L = dist(top, bot);
+      const dir = [(top[0] - bot[0]) / L, (top[1] - bot[1]) / L];
+      const t = Math.max(2, (pt[0] - top[0]) * dir[0] + (pt[1] - top[1]) * dir[1]);
+      const wpx = Math.max(3, dist(c[0], c[1]) * defaults.canCm / s.W);
+      it = {type: 'can', space: 'img', pts: [[top[0] - dir[0] * L * 0.08, top[1] - dir[1] * L * 0.08], [top[0] + dir[0] * t, top[1] + dir[1] * t]], width: wpx, color: defaults.color};
+    }
+    cur.items.push(it); sel = it; render(); afterCreate(); return;
+  }
+  if (tool === 'can') { pending.push(snapped(pt, false)); drawOverlay(); return; }
+  if (tool === 'mark') {
+    const hit = hitTest(pt, 'mark');
+    if (hit) { startMove(hit, pt); render(); refreshUI(); return; }
+    pending = [pt, pt]; drag = {kind: 'mark'}; return;
+  }
+  const it = hitTest(pt); sel = it;
+  if (it) startMove(it, pt);
+  render(); refreshUI();
+});
+window.addEventListener('mousemove', e => {
+  if (!cur) return;
+  const r = ov.getBoundingClientRect();
+  const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  const pt = evPt(e);
+  mouse = inside || drag ? pt : null;
+  if (!drag) { drawOverlay(); return; }
+  if (drag.kind === 'handle') { drag.h.set(pt); drag.h.pt = pt; render(); return; }
+  if (drag.kind === 'mark') { pending[1] = pt; drawOverlay(); return; }
+  if (drag.kind === 'move') {
+    const it = drag.it, o = drag.orig;
+    if (it.space === 'plane') {
+      const q = toPlane(cur, pt), dx = q[0] - drag.startPl[0], dy = q[1] - drag.startPl[1];
+      if (it.type === 'screen') { it.x = +(o.x + dx).toFixed(1); it.y = +(o.y + dy).toFixed(1); }
+      if (it.type === 'can') it.pts = o.pts.map(v => [v[0] + dx, v[1] + dy]);
+    } else {
+      const dx = pt[0] - drag.start[0], dy = pt[1] - drag.start[1];
+      if (it.type === 'screen') it.corners = o.corners.map(v => [v[0] + dx, v[1] + dy]);
+      if (it.type === 'can') it.pts = o.pts.map(v => [v[0] + dx, v[1] + dy]);
+      if (it.type === 'mark') it.r = [o.r[0] + dx, o.r[1] + dy, o.r[2] + dx, o.r[3] + dy];
+    }
+    render();
+  }
+});
+function endDrag() {
+  if (!cur || !drag) return;
+  if (drag.kind === 'mark') {
+    const [a, b] = pending;
+    if (Math.abs(a[0] - b[0]) * css.sc > 6 && Math.abs(a[1] - b[1]) * css.sc > 6) {
+      pushUndo(); const it = {type: 'mark', r: [a[0], a[1], b[0], b[1]], label: labelText()};
+      cur.items.push(it); sel = it;
+    }
+    pending = []; drag = null; render(); refreshUI(); return;
+  }
+  drag = null; fast = false; render(); refreshUI();
+}
+window.addEventListener('mouseup', endDrag);
+window.addEventListener('pointerup', endDrag);
+ov.addEventListener('dblclick', () => { if (tool === 'can') finishCan(); });
+ov.addEventListener('mouseleave', () => { if (!drag) { mouse = null; drawOverlay(); } });
+
+function deleteSel() {
+  if (!sel || !cur) return;
+  pushUndo(); cur.items = cur.items.filter(i => i !== sel); sel = null;
+  tool = toolForStep(cur.step); render(); refreshUI();
+}
+$('#bDel').onclick = deleteSel;
+window.addEventListener('keydown', e => {
+  window.__shift = e.shiftKey;
+  const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (!typing) { e.preventDefault(); undo(); } return; }
+  if (typing || !cur || $('#settings').open) return;
+  const k = e.key.toLowerCase();
+  if (k === 'escape') { pending = []; sel = null; render(); refreshUI(); return; }
+  if (k === 'enter' && tool === 'can') { finishCan(); return; }
+  if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); deleteSel(); return; }
+  const arrows = {arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1]};
+  if (arrows[k] && sel) {
+    e.preventDefault(); if (!e.repeat) pushUndo();
+    const m = e.shiftKey ? 10 : 1, [dx, dy] = arrows[k].map(v => v * m);
+    if (sel.type === 'screen' && sel.space === 'plane') { sel.x = +(sel.x + dx).toFixed(1); sel.y = +(sel.y + dy).toFixed(1); }
+    else if (sel.type === 'screen') sel.corners = sel.corners.map(v => [v[0] + dx, v[1] + dy]);
+    else if (sel.type === 'can') sel.pts = sel.pts.map(v => [v[0] + dx, v[1] + dy]);
+    else if (sel.type === 'mark') sel.r = [sel.r[0] + dx, sel.r[1] + dy, sel.r[2] + dx, sel.r[3] + dy];
+    render();
+  }
+});
+window.addEventListener('keyup', e => { window.__shift = e.shiftKey; });
+
+/* ---------------- painel ---------------- */
+function fillColors() {
+  const box = $('#cColor'); box.innerHTML = '';
+  for (const [k, v] of Object.entries(CAN_COLORS)) {
+    const b = document.createElement('button'); b.title = v.name; b.dataset.c = k;
+    const solid = v.stops.map(s => s[1]).filter(c => c.startsWith('#'));
+    b.style.background = k === 'inox' ? 'linear-gradient(90deg,#6f757b,#e9ecee 30%,#a9aeb3 70%,#6f757b)'
+      : k === 'aluminio' ? 'linear-gradient(90deg,#8c9196,#eceef0 30%,#c3c7cb)' : solid[2] || solid[0];
+    b.onclick = () => {
+      if (sel && sel.type === 'can') { pushUndo(); sel.color = k; }
+      defaults.color = k; saveDefaults(); render(); refreshUI();
+    };
+    box.appendChild(b);
+  }
+}
+function fillPresets() {
+  const s = $('#preset'); s.innerHTML = '';
+  presets.forEach((p, i) => { const o = document.createElement('option'); o.value = i; o.textContent = `${p.name} — ${p.W} × ${p.H} cm`; s.appendChild(o); });
+  s.value = clamp(defaults.preset, 0, presets.length - 1);
+}
+function refreshPanels() { refreshUI(); }
+function refreshUI() {
+  const tabs = document.querySelectorAll('.tabs button'), panels = document.querySelectorAll('.panel');
+  const active = curTab;
+  tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === active));
+  panels.forEach(pn => pn.classList.toggle('on', pn.dataset.panel === active));
+  if (!cur) { ['#pill', '#bNext', '#bExportAll'].forEach(id => $(id).classList.add('hide')); const msg = '<span class="small">Abra uma foto da vistoria (botão + Fotos no topo) para usar esta aba.</span>';
+    $('#calProg').innerHTML = msg; $('#scrIns').innerHTML = msg; $('#canIns').innerHTML = msg;
+    $('#scrPlaced').classList.add('hide'); $('#bAddScr').classList.add('hide');
+    document.querySelectorAll('#canMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === defaults.canMode));
+    document.querySelectorAll('#cColor button').forEach(b => b.classList.toggle('on', b.dataset.c === defaults.color));
+    $('#cW').value = defaults.canCm;
+    document.querySelectorAll('#mChips button').forEach(b => b.classList.toggle('on', b.dataset.mk === markKind));
+    $('#mCustom').classList.toggle('hide', markKind !== 'outro');
+    $('#modelName').textContent = `Tela ${defaults.W} × ${defaults.H} cm`;
+    return; }
+  const scr = screensOf(cur);
+  const cm = v => String(+(+v).toFixed(1)).replace('.', ',');
+
+  // medida
+  if (cur.calib) { $('#calW').value = cur.calib.w; $('#calH').value = cur.calib.h; }
+  $('#calProg').innerHTML = tool === 'calib'
+    ? `Clique no canto <b>${CORNERS[pending.length]}</b> dele na foto <span class="small">(${pending.length + 1} de 4)</span>`
+    : cur.calib ? `Medida marcada (${cm(cur.calib.w)} × ${cm(cur.calib.h)} cm). Os quadradinhos azuis ajustam os cantos.` : 'Sem medida nesta foto.';
+  // tela
+  const target = sel && sel.type === 'screen' ? sel : scr[0];
+  $('#scrIns').innerHTML = (scr.length && tool !== 'screen') ? 'Arraste a tela para ajustar. <span class="small">Setas movem 1 cm (Shift: 10).</span>'
+    : cur.calib ? 'Clique na foto onde fica o <b>centro da tela</b>. Ela entra no tamanho real.'
+    : `Sem medida: clique nos 4 cantos da tela. Agora o <b>${CORNERS[pending.length]}</b>.`;
+  $('#bAddScr').classList.toggle('hide', !scr.length || tool === 'screen');
+  $('#scrPlaced').classList.toggle('hide', !target);
+  $('#bCenter').classList.toggle('hide', !(target && target.space === 'plane'));
+  if (target) {
+    $('#sAuto').checked = target.bright == null;
+    $('#sBright').value = target.bright == null ? autoBright(cur, screenCorners(cur, target)) : target.bright;
+    $('#sBright').disabled = target.bright == null;
+    $('#sGloss').value = target.gloss; $('#sShadow').value = target.shadow; $('#sNoise').value = target.noise;
+  }
+  $('#modelName').textContent = `Tela ${cm(defaults.W)} × ${cm(defaults.H)} cm`;
+  // canaleta
+  document.querySelectorAll('#canMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === defaults.canMode));
+  $('#canIns').innerHTML = defaults.canMode === 'up'
+    ? (scr.length ? (tool === 'canup' ? 'Clique no <b>teto</b>. A canaleta sobe reta do centro da tela.' : 'Pronto. Para fazer outra, clique em "Até o teto".') : 'Coloque a tela primeiro.')
+    : (tool === 'can' ? 'Clique os pontos do trajeto e dê <b>duplo clique</b> para terminar. <span class="small">Shift deixa reto.</span>' : 'Pronto. Para fazer outra, clique em "Desenhar".');
+  const can = sel && sel.type === 'can' ? sel : null;
+  const curColor = can ? can.color : defaults.color;
+  document.querySelectorAll('#cColor button').forEach(b => b.classList.toggle('on', b.dataset.c === curColor));
+  $('#cW').value = can ? (can.space === 'plane' ? +can.width.toFixed(1) : Math.round(can.width)) : defaults.canCm;
+  $('#cUnit').textContent = can && can.space === 'img' ? 'px' : 'cm';
+  // outra marcação
+  if (sel && sel.type === 'mark') { const k = Object.keys(MARKS).find(k => MARKS[k] === sel.label); markKind = k || 'outro'; if (!k && document.activeElement !== $('#mCustom')) $('#mCustom').value = sel.label; }
+  document.querySelectorAll('#mChips button').forEach(b => b.classList.toggle('on', b.dataset.mk === markKind));
+  $('#mCustom').classList.toggle('hide', markKind !== 'outro');
+  // exportar
+  const idx = photos.indexOf(cur);
+  $('#bNext').classList.toggle('hide', idx >= photos.length - 1);
+  $('#bExportAll').classList.toggle('hide', photos.length < 2);
+  $('#bExport').textContent = cur.exported ? 'Baixar PNG de novo' : 'Baixar PNG';
+  // seleção
+  $('#pill').classList.toggle('hide', !sel);
+  if (sel) $('#pillTxt').textContent = {screen: 'Tela selecionada', can: 'Canaleta selecionada', mark: `Marcação: ${sel.label}`}[sel.type];
+  ov.style.cursor = tool === 'select' ? 'default' : 'crosshair';
+  refreshSettings();
+}
+function saveDefaults() { store.set('defaults', defaults); }
+
+// medida
+$('#bRedoCal').onclick = () => { if (!cur) return; if (cur.calib) { pushUndo(); itemsToImageSpace(cur); cur.calib = null; render(); } goStep('medida'); };
+$('#bSkipCal').onclick = () => { if (!cur || !cur.calib) return; pushUndo(); itemsToImageSpace(cur); cur.calib = null; tool = 'select'; render(); refreshUI(); };
+['#calW', '#calH'].forEach(id => $(id).addEventListener('change', () => {
+  if (cur && cur.calib) { pushUndo(); cur.calib.w = +$('#calW').value || cur.calib.w; cur.calib.h = +$('#calH').value || cur.calib.h; render(); refreshUI(); }
+}));
+// tela
+$('#bCenter').onclick = () => {
+  const t = sel && sel.type === 'screen' ? sel : screensOf(cur)[0];
+  if (!(t && t.space === 'plane' && cur.calib)) return;
+  pushUndo(); t.x = +((cur.calib.w - t.W) / 2).toFixed(1); render(); refreshUI();
+};
+const lightTarget = () => (sel && sel.type === 'screen' ? sel : screensOf(cur)[0]);
+$('#sAuto').onchange = () => { const t = lightTarget(); if (!t) return; pushUndo(); t.bright = $('#sAuto').checked ? null : +$('#sBright').value; render(); refreshUI(); };
+const sliderTimer = {};
+function bindSlider(id, key) {
+  $(id).addEventListener('pointerdown', () => pushUndo());
+  $(id).addEventListener('input', () => {
+    const t = lightTarget(); if (!t) return; t[key] = +$(id).value;
+    clearTimeout(sliderTimer[id]); sliderTimer[id] = setTimeout(render, 30);
+  });
+}
+bindSlider('#sBright', 'bright'); bindSlider('#sGloss', 'gloss'); bindSlider('#sShadow', 'shadow'); bindSlider('#sNoise', 'noise');
+$('#bModel').onclick = () => openSettings();
+// canaleta
+document.querySelectorAll('#canMode button').forEach(b => b.onclick = () => { defaults.canMode = b.dataset.mode; saveDefaults(); sel = null; goStep('canaleta'); render(); });
+$('#cW').onchange = () => {
+  const v = +$('#cW').value; if (!(v > 0)) return;
+  if (sel && sel.type === 'can') { pushUndo(); sel.width = v; if (sel.space === 'plane') { defaults.canCm = v; saveDefaults(); } }
+  else { defaults.canCm = v; saveDefaults(); }
+  render(); refreshUI();
+};
+// passo 4
+$('#mCustom').addEventListener('input', () => { if (sel && sel.type === 'mark') { sel.label = labelText(); render(); refreshUI(); } });
+
+/* ---------------- configurações ---------------- */
+function openSettings() { fillPresets(); refreshSettings(); $('#settings').showModal(); }
+function refreshSettings() {
+  if (!$('#settings').open) return;
+  const s = sel && sel.type === 'screen' ? sel : defaults;
+  if (document.activeElement.tagName !== 'INPUT') { $('#sW').value = s.W; $('#sH').value = s.H; $('#sB').value = s.B; }
+  const pv = $('#artPrev'), g = pv.getContext('2d');
+  g.clearRect(0, 0, pv.width, pv.height);
+  if (artCanvas) { const k = Math.min(pv.width / artCanvas.width, pv.height / artCanvas.height) * 0.92;
+    const w = artCanvas.width * k, h = artCanvas.height * k; g.drawImage(artCanvas, (pv.width - w) / 2, (pv.height - h) / 2, w, h); }
+  const ratio = (s.W - 2 * s.B) / (s.H - 2 * s.B), ar = artCanvas ? artCanvas.width / artCanvas.height : ratio;
+  $('#dimInfo').textContent = Math.abs(ratio - ar) / ar > 0.04
+    ? `Atenção: a arte (${ar.toFixed(2)}) e a tela (${ratio.toFixed(2)}) têm proporções diferentes — a arte será esticada.` : '';
+}
+$('#bSettings').onclick = openSettings;
+$('#bCloseSet').onclick = () => $('#settings').close();
+$('#bArt').onclick = () => $('#fArt').click();
+$('#fArt').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const im = new Image();
+    im.onload = () => {
+      setArtFromImage(im, f.name, true);
+      if (!store.set('art', {name: f.name, data: rd.result})) $('#artInfo').textContent += ' (grande demais para lembrar; recarregue na próxima vez)';
+      render(); refreshUI();
+    };
+    im.src = rd.result;
+  };
+  rd.readAsDataURL(f); e.target.value = '';
+};
+$('#bArtReset').onclick = () => { useDefaultArt(); store.set('art', null); render(); refreshUI(); };
+function onDim() {
+  const W = +$('#sW').value, H = +$('#sH').value, B = +$('#sB').value;
+  if (!(W > 0 && H > 0 && B >= 0 && 2 * B < Math.min(W, H))) return;
+  if (sel && sel.type === 'screen') {
+    pushUndo();
+    if (sel.space === 'plane') { sel.x = +(sel.x + (sel.W - W) / 2).toFixed(1); sel.y = +(sel.y + (sel.H - H) / 2).toFixed(1); }
+    Object.assign(sel, {W, H, B});
+  }
+  Object.assign(defaults, {W, H, B}); saveDefaults();
+  render(); refreshUI();
+}
+['#sW', '#sH', '#sB'].forEach(id => $(id).addEventListener('change', onDim));
+$('#preset').onchange = () => {
+  const p = presets[+$('#preset').value]; defaults.preset = +$('#preset').value;
+  $('#sW').value = p.W; $('#sH').value = p.H; $('#sB').value = p.B; onDim();
+};
+$('#bPresetSave').onclick = () => {
+  const name = $('#presetName').value.trim(); if (!name) { $('#presetName').focus(); return; }
+  $('#presetName').value = '';
+  presets.push({name, W: +$('#sW').value, H: +$('#sH').value, B: +$('#sB').value});
+  defaults.preset = presets.length - 1; store.set('presets', presets); saveDefaults(); fillPresets();
+};
+$('#bPresetDel').onclick = () => {
+  if (presets.length <= 1) return;
+  const i = +$('#preset').value; if (!confirm(`Excluir o modelo "${presets[i].name}"?`)) return;
+  presets.splice(i, 1); defaults.preset = 0; store.set('presets', presets); saveDefaults(); fillPresets();
+};
+
+/* ---------------- exportar ---------------- */
+function baseName(n) { return n.replace(/\.[^.]+$/, ''); }
+function exportCurrent() {
+  return new Promise(res => {
+    if (!cur) return res();
+    fast = false; render();
+    cv.toBlob(b => {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = baseName(cur.name) + '_simulacao.png';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      cur.exported = true; renderList(); refreshUI(); res();
+    }, 'image/png');
+  });
+}
+$('#bExport').onclick = exportCurrent;
+$('#bNext').onclick = () => { const i = photos.indexOf(cur); if (i < photos.length - 1) selectPhoto(photos[i + 1]); };
+$('#bExportAll').onclick = async () => {
+  const keep = cur;
+  for (const p of photos) { if (!p.items.length) continue; selectPhoto(p); await exportCurrent(); await new Promise(r => setTimeout(r, 400)); }
+  if (keep) selectPhoto(keep);
+};
+
+/* ---------------- início ---------------- */
+{ const v = new URLSearchParams(location.search).get('v'); if (v) $('#ver').textContent = 'v' + v; }
+fillPresets(); fillColors();
+const pr0 = presets[clamp(defaults.preset, 0, presets.length - 1)];
+if (defaults.W == null) Object.assign(defaults, {W: pr0.W, H: pr0.H, B: pr0.B});
+refreshUI();
+// ?img=a.jpg,b.jpg carrega fotos por URL (para testes servindo a pasta localmente)
+const qs = new URLSearchParams(location.search).get('img');
+if (qs) qs.split(',').forEach(u => { const im = new Image(); im.onload = () => { const p = addPhoto(im, u.split('/').pop()); if (!cur) selectPhoto(p); renderList(); }; im.src = u; });
+</script>
+</body>
+</html>
