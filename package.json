@@ -13,11 +13,9 @@
   },
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win --publish never",
+    "build": "electron-builder --win --publish never",
+    "instalar": "powershell -ExecutionPolicy Bypass -File scripts/instalar.ps1",
     "release": "node scripts/release.js"
-  },
-  "dependencies": {
-    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -29,6 +27,7 @@
     "files": [
       "main.js",
       "app/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "directories": {
@@ -36,23 +35,16 @@
       "buildResources": "build"
     },
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.png"
-    },
-    "nsis": {
-      "oneClick": true,
-      "perMachine": false,
-      "createDesktopShortcut": "always",
-      "createStartMenuShortcut": true,
-      "shortcutName": "Simulador de Telas",
-      "artifactName": "Simulador-de-Telas-Setup-${version}.${ext}"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "carlowxx",
-        "repo": "simulador-telas"
-      }
-    ]
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Simulador-de-Telas-${version}-win.${ext}"
+    }
   }
 }

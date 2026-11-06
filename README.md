@@ -14,19 +14,32 @@ O app roda 100% no computador. As fotos não são enviadas para lugar nenhum.
 
 ## Instalar
 
-Baixe o `Simulador-de-Telas-Setup-x.y.z.exe` na página de [Releases](https://github.com/carlowxx/simulador-telas/releases/latest) e execute.
+**No PC de desenvolvimento** (com este repositório):
 
-O instalador não é assinado digitalmente. Se o Windows mostrar "O Windows protegeu o computador", clique em **Mais informações → Executar assim mesmo**.
+```bash
+npm install
+npm run build
+npm run instalar   # copia para %LOCALAPPDATA%\Programs e cria atalhos na Área de Trabalho e no Menu Iniciar
+```
 
-Depois de instalado, o app **se atualiza sozinho** sempre que sair uma versão nova.
+**Em outro PC:** baixe o `Simulador-de-Telas-x.y.z-win.zip` na página de [Releases](https://github.com/carlowxx/simulador-telas/releases/latest), extraia e abra `Simulador de Telas.exe`.
+
+Não existe instalador `.exe`, porque o Controle Inteligente de Aplicativos do Windows 11 bloqueia instaladores sem assinatura digital.
+
+## Atualizações
+
+Ao abrir, o app consulta a última Release. Se houver versão nova, ele baixa **só o `index.html`** (a interface, que não é executável) e pergunta se quer atualizar.
+
+Mudanças em `main.js` (janela, downloads, atualização) não chegam por esse caminho. Nesse caso, rode `npm run build && npm run instalar` de novo.
 
 ## Desenvolvimento
 
 ```bash
 npm install
 npm start          # abre o app em modo desenvolvimento
-npm run dist       # gera o instalador em dist/ (sem publicar)
-npm run release    # sobe a versão, gera o instalador e publica a Release no GitHub
+npm run build      # gera o app em dist/win-unpacked e o .zip
+npm run instalar   # instala/atualiza o app neste PC
+npm run release    # sobe a versão, gera o .zip e publica a Release (index.html + zip) no GitHub
 ```
 
 - O simulador inteiro fica em `app/index.html`.

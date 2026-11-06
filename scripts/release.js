@@ -1,7 +1,12 @@
-// Publica uma nova versão: sobe o número da versão, gera o instalador e cria a Release no GitHub.
+// Publica uma nova versão no GitHub.
 // Uso:  npm run release            (1.0.0 -> 1.0.1)
 //       npm run release -- minor   (1.0.1 -> 1.1.0)
 //       npm run release -- major   (1.1.0 -> 2.0.0)
+//
+// A Release leva dois arquivos:
+//   index.html  -> usado pela atualização automática dos apps já instalados (só a interface)
+//   ...-win.zip -> o app completo, para instalar num PC novo
+// Se você mudou main.js, os apps instalados precisam ser reinstalados (npm run build && npm run instalar).
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -26,15 +31,13 @@ pkg.version = next;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 console.log(`\nVersão ${next}\n`);
 
-const token = out('gh auth token');
-run('npx electron-builder --win --publish always', { env: { ...process.env, GH_TOKEN: token } });
+run('npx electron-builder --win --publish never');
+const zip = path.join('dist', `Simulador-de-Telas-${next}-win.zip`);
 
 run('git add package.json');
 run(`git commit -m "Versão ${next}"`);
 run(`git tag v${next}`);
 run('git push');
-run('git push --tags');
-
-// electron-builder cria a Release como rascunho; publica de vez
-run(`gh release edit v${next} --draft=false --title "Versão ${next}"`);
-console.log(`\nPronto! Versão ${next} publicada. Os apps instalados vão se atualizar sozinhos.\n`);
+run(`git push origin v${next}`);
+run(`gh release create v${next} "app/index.html" "${zip}" --title "Versão ${next}" --notes "Os apps instalados se atualizam sozinhos. Para instalar num PC novo, baixe o .zip, extraia e abra **Simulador de Telas.exe**."`);
+console.log(`\nPronto! Versão ${next} publicada. Os apps instalados vão se atualizar ao abrir.\n`);
