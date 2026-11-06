@@ -59,6 +59,13 @@ aside{background:var(--panel);border-right:1px solid var(--line);display:flex;fl
 .dims input{width:72px;padding:7px 8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);text-align:center}
 .dims input:focus{outline:2px solid var(--acc);border-color:transparent}
 .links{display:flex;gap:14px;margin-top:10px}
+.mrow{display:flex;align-items:center;gap:8px;margin:8px 0}
+.mrow b{width:58px;font-weight:600}
+.mrow input{width:66px;padding:6px 7px;border-radius:7px;border:1px solid var(--line);background:var(--bg);text-align:center}
+.mrow input:focus{outline:2px solid var(--acc);border-color:transparent}
+.mdot{width:12px;height:12px;border-radius:50%;flex:none}
+.btn.sm{padding:6px 11px;font-size:13px;margin-left:auto}
+.btn.sm.on{background:var(--acc);color:#1a1000}
 .link{color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px;padding:0}
 .link:hover{color:var(--text)}
 .btn{padding:8px 14px;border-radius:8px;background:#30353b;font-weight:600}
@@ -126,9 +133,11 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
   <div class="panels">
     <div class="panel" data-panel="medida">
       <p class="ins">Medida de algo nesta parede (porta, botoeira, parede):</p>
-      <div class="dims"><input type="number" id="calW" value="90" step="0.5"> × <input type="number" id="calH" value="210" step="0.5"> cm</div>
+      <div class="mrow"><span class="mdot" style="background:#2f80ff"></span><b>Largura</b><input type="number" id="calW" value="120" step="0.5"><span class="small">cm</span><button class="btn sm" id="bMeasW">Marcar</button></div>
+      <div class="mrow"><span class="mdot" style="background:#ef3b3b"></span><b>Altura</b><input type="number" id="calH" value="240" step="0.5"><span class="small">cm</span><button class="btn sm" id="bMeasH">Marcar</button></div>
+      <p class="small" style="margin:2px 0 12px">A altura é opcional. Sem ela, a tela segue a escala da largura (no olho).</p>
       <p class="ins" id="calProg"></p>
-      <div class="links"><button class="link" id="bRedoCal">Marcar de novo</button><button class="link" id="bSkipCal">Remover medida</button></div>
+      <div class="links"><button class="link" id="bDelH">Remover altura</button><button class="link" id="bSkipCal">Remover medida</button></div>
     </div>
 
     <div class="panel" data-panel="tela">
@@ -347,6 +356,44 @@ function getCalib(p) {
 const toImg = (p, q) => hApply(getCalib(p).H, q[0], q[1]);
 const toPlane = (p, q) => hApply(getCalib(p).Hi, q[0], q[1]);
 
+/* Medida por duas linhas: azul = largura (obrigatória), vermelha = altura (opcional).
+   A partir delas monta um paralelogramo (pts/w/h) que o resto do app usa como referência.
+   Sem altura, a vertical é estimada "no olho": reta para baixo, mesma escala da largura. */
+function rebuildCalib(p) {
+  const c = p.calib; if (!c) return;
+  let [A, B] = c.wl;
+  if (B[0] < A[0]) { [A, B] = [B, A]; c.wl = [A, B]; }
+  const s = dist(A, B) / c.wcm;
+  let v, h;
+  if (c.hl) {
+    const [C, D] = c.hl; v = [D[0] - C[0], D[1] - C[1]];
+    if (v[1] < 0) v = [-v[0], -v[1]];
+    h = c.hcm;
+  } else { h = 100; v = [0, s * 100]; }
+  c.pts = [A, B, [B[0] + v[0], B[1] + v[1]], [A[0] + v[0], A[1] + v[1]]];
+  c.w = c.wcm; c.h = h;
+}
+// Depois de mudar a medida, mantém as telas/canaletas no mesmo lugar da foto (o tamanho real se ajusta)
+function remapPlane(p, oldCalib) {
+  if (!oldCalib || !p.calib) return;
+  const oldH = homography([[0, 0], [oldCalib.w, 0], [oldCalib.w, oldCalib.h], [0, oldCalib.h]], oldCalib.pts);
+  const nc = getCalib(p); if (!oldH || !nc) return;
+  for (const it of p.items) {
+    if (it.space !== 'plane') continue;
+    if (it.type === 'screen') {
+      const ci = hApply(oldH, it.x + it.W / 2, it.y + it.H / 2), q = hApply(nc.Hi, ci[0], ci[1]);
+      it.x = +(q[0] - it.W / 2).toFixed(1); it.y = +(q[1] - it.H / 2).toFixed(1);
+    }
+    if (it.type === 'can') it.pts = it.pts.map(v => { const ci = hApply(oldH, v[0], v[1]); return hApply(nc.Hi, ci[0], ci[1]); });
+  }
+}
+function changeCalib(p, fn) {
+  const old = p.calib ? JSON.parse(JSON.stringify(p.calib)) : null;
+  fn(p.calib); rebuildCalib(p);
+  if (!getCalib(p)) { p.calib = old; return false; }
+  remapPlane(p, old); return true;
+}
+
 function screenCorners(p, s) {
   if (s.space === 'plane') return [[s.x, s.y], [s.x + s.W, s.y], [s.x + s.W, s.y + s.H], [s.x, s.y + s.H]].map(q => toImg(p, q));
   return s.corners;
@@ -519,8 +566,10 @@ const CORNERS = ['superior esquerdo', 'superior direito', 'inferior direito', 'i
 function getHandles() {
   const H = [];
   if (!cur) return H;
-  if (cur.calib && (cur.step === 'medida' || cur.step === 'tela') && tool !== 'calib')
-    cur.calib.pts.forEach((q, i) => H.push({pt: q, kind: 'calib', set: v => { cur.calib.pts[i] = v; }}));
+  if (cur.calib && (cur.step === 'medida' || cur.step === 'tela') && !tool.startsWith('meas')) {
+    cur.calib.wl.forEach((q, i) => H.push({pt: q, kind: 'w', set: v => changeCalib(cur, c => { c.wl[i] = v; })}));
+    if (cur.calib.hl) cur.calib.hl.forEach((q, i) => H.push({pt: q, kind: 'h', set: v => changeCalib(cur, c => { c.hl[i] = v; })}));
+  }
   if (sel) {
     if (sel.type === 'screen' && sel.space === 'img') sel.corners.forEach((q, i) => H.push({pt: q, set: v => { sel.corners[i] = v; }}));
     if (sel.type === 'can') canPtsImg(cur, sel).forEach((q, i) => H.push({pt: q, set: v => { sel.pts[i] = sel.space === 'plane' ? toPlane(cur, v) : v; }}));
@@ -535,10 +584,28 @@ function drawOverlay() {
   octx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const P = q => [q[0] * sc, q[1] * sc];
   const poly = (pts, close) => { octx.beginPath(); pts.map(P).forEach((q, i) => i ? octx.lineTo(q[0], q[1]) : octx.moveTo(q[0], q[1])); if (close) octx.closePath(); };
+  const measLine = (a, b, color, label) => {
+    const A = P(a), B = P(b);
+    octx.lineCap = 'round';
+    octx.strokeStyle = 'rgba(0,0,0,.55)'; octx.lineWidth = 6; octx.beginPath(); octx.moveTo(A[0], A[1]); octx.lineTo(B[0], B[1]); octx.stroke();
+    octx.strokeStyle = color; octx.lineWidth = 3; octx.beginPath(); octx.moveTo(A[0], A[1]); octx.lineTo(B[0], B[1]); octx.stroke();
+    octx.lineCap = 'butt';
+    if (label) {
+      const m = mid(A, B); octx.font = '700 13px Segoe UI'; const tw = octx.measureText(label).width + 14;
+      octx.fillStyle = color; octx.beginPath(); octx.roundRect(m[0] - tw / 2, m[1] - 11, tw, 22, 11); octx.fill();
+      octx.fillStyle = '#fff'; octx.textAlign = 'center'; octx.textBaseline = 'middle'; octx.fillText(label, m[0], m[1] + 1);
+      octx.textAlign = 'start'; octx.textBaseline = 'alphabetic';
+    }
+  };
+  const cmTxt = v => String(+(+v).toFixed(1)).replace('.', ',') + ' cm';
   if (cur.calib && (cur.step === 'medida' || cur.step === 'tela')) {
-    octx.setLineDash([6, 4]); octx.strokeStyle = '#38c6ff'; octx.lineWidth = 1.5; poly(cur.calib.pts, true); octx.stroke(); octx.setLineDash([]);
+    measLine(cur.calib.wl[0], cur.calib.wl[1], '#2f80ff', cmTxt(cur.calib.wcm));
+    if (cur.calib.hl) measLine(cur.calib.hl[0], cur.calib.hl[1], '#ef3b3b', cmTxt(cur.calib.hcm));
   }
-  if (pending.length) {
+  if (pending.length && tool.startsWith('meas')) {
+    const end = mouse ? measSnap(mouse) : pending[0];
+    measLine(pending[0], end, tool === 'measW' ? '#2f80ff' : '#ef3b3b', '');
+  } else if (pending.length) {
     octx.strokeStyle = tool === 'can' ? '#ffd23f' : '#38c6ff'; octx.lineWidth = 1.5;
     const pts = tool === 'can' ? pending.map(q => cur.calib ? toImg(cur, q) : q) : pending.slice();
     if (mouse && tool !== 'mark') pts.push(tool === 'can' ? snapped(mouse, true) : mouse);
@@ -555,11 +622,16 @@ function drawOverlay() {
     octx.setLineDash([]);
   }
   for (const h of getHandles()) {
-    const s = P(h.pt); octx.fillStyle = h.kind === 'calib' ? '#38c6ff' : '#ffd23f'; octx.strokeStyle = '#000'; octx.lineWidth = 1;
+    const s = P(h.pt);
+    if (h.kind === 'w' || h.kind === 'h') {
+      octx.fillStyle = '#fff'; octx.strokeStyle = h.kind === 'w' ? '#2f80ff' : '#ef3b3b'; octx.lineWidth = 3;
+      octx.beginPath(); octx.arc(s[0], s[1], 5.5, 0, 7); octx.fill(); octx.stroke(); continue;
+    }
+    octx.fillStyle = '#ffd23f'; octx.strokeStyle = '#000'; octx.lineWidth = 1;
     octx.beginPath(); octx.rect(s[0] - 4.5, s[1] - 4.5, 9, 9); octx.fill(); octx.stroke();
   }
-  const cornerMode = tool === 'calib' || (tool === 'screen' && !cur.calib);
-  const needLoupe = mouse && (cornerMode || tool === 'can' || tool === 'canup' || (drag && drag.kind === 'handle'));
+  const cornerMode = tool === 'screen' && !cur.calib;
+  const needLoupe = mouse && (cornerMode || tool.startsWith('meas') || tool === 'can' || tool === 'canup' || (drag && drag.kind === 'handle'));
   if (needLoupe) {
     const R = 62, Z = 4, m = P(mouse);
     let lx = m[0] + 24, ly = m[1] + 24;
@@ -575,6 +647,8 @@ function drawOverlay() {
     octx.strokeStyle = '#fff'; octx.lineWidth = 2; octx.beginPath(); octx.arc(lx + R, ly + R, R, 0, 7); octx.stroke();
     let tag = '';
     if (cornerMode && pending.length < 4) tag = 'canto ' + CORNERS[pending.length];
+    if (tool === 'measW') tag = (pending.length ? 'fim' : 'início') + ' da largura';
+    if (tool === 'measH') tag = (pending.length ? 'fim' : 'início') + ' da altura';
     if (tool === 'canup') tag = 'clique no teto';
     if (tag) {
       octx.font = '600 12px Segoe UI'; const tw = octx.measureText(tag).width + 16;
@@ -659,7 +733,7 @@ function labelText() { return MARKS[markKind] || ($('#mCustom').value || ''); }
 
 function toolForStep(n) {
   if (!cur) return 'select';
-  if (n === 'medida') return cur.calib ? 'select' : 'calib';
+  if (n === 'medida') return cur.calib ? 'select' : 'measW';
   if (n === 'tela') return screensOf(cur).length ? 'select' : 'screen';
   if (n === 'canaleta') {
     if (defaults.canMode === 'draw') return 'can';
@@ -677,6 +751,7 @@ function goStep(n) {
   if (tool === 'canup') canupTarget = (sel && sel.type === 'screen') ? sel : screensOf(cur)[0];
   refreshUI(); drawOverlay();
 }
+function setTool(t) { tool = t; pending = []; drag = null; refreshUI(); drawOverlay(); }
 function afterCreate() { tool = 'select'; pending = []; refreshUI(); drawOverlay(); }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { sel = null; goStep(b.dataset.tab); render(); });
 document.querySelectorAll('#mChips button').forEach(b => b.onclick = () => {
@@ -717,6 +792,12 @@ function canPxDefault() {
 function newScreenProps() { return {W: defaults.W, H: defaults.H, B: defaults.B, bright: null, gloss: 0.35, noise: 3, shadow: 0.5}; }
 let canupTarget = null;
 
+// Shift trava a linha: largura na horizontal, altura na vertical
+function measSnap(pt) {
+  if (!window.__shift || !pending.length) return pt;
+  const a = pending[0];
+  return tool === 'measH' ? [a[0], pt[1]] : [pt[0], a[1]];
+}
 function evPt(e) { const r = ov.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cur.w, (e.clientY - r.top) / r.height * cur.h]; }
 function hitTest(pt, only) {
   const tol = 7 / css.sc;
@@ -738,22 +819,24 @@ function startMove(it, pt) {
 ov.addEventListener('mousedown', e => {
   if (!cur || e.button !== 0) return;
   const pt = evPt(e); mouse = pt;
-  if (tool !== 'calib' && !(tool === 'screen' && pending.length) && tool !== 'can') {
-    const tol = 8 / css.sc;
+  if (!tool.startsWith('meas') && !(tool === 'screen' && pending.length) && tool !== 'can') {
+    const tol = 9 / css.sc;
     const h = getHandles().find(h => dist(h.pt, pt) < tol);
     if (h) { pushUndo(); drag = {kind: 'handle', h}; fast = true; return; }
   }
-  if (tool === 'calib') {
-    pending.push(pt);
-    if (pending.length === 4) {
-      pushUndo();
-      if (cur.calib) itemsToImageSpace(cur);
-      cur.calib = {pts: pending.slice(), w: +$('#calW').value || 100, h: +$('#calH').value || 100};
-      pending = [];
-      if (!getCalib(cur)) { cur.calib = null; alert('Os 4 pontos não formam um retângulo válido. Tente de novo.'); goStep('medida'); return; }
-      render(); goStep('medida'); return;
+  if (tool === 'measW' || tool === 'measH') {
+    if (!pending.length) { pending = [pt]; refreshUI(); drawOverlay(); return; }
+    const a = pending[0], b = measSnap(pt); pending = [];
+    if (dist(a, b) * css.sc < 8) { refreshUI(); drawOverlay(); return; }
+    pushUndo();
+    if (tool === 'measW') {
+      const wcm = +$('#calW').value || 100;
+      if (!cur.calib) { cur.calib = {wl: [a, b], wcm, hl: null, hcm: +$('#calH').value || 100}; rebuildCalib(cur); }
+      else changeCalib(cur, c => { c.wl = [a, b]; c.wcm = wcm; });
+    } else {
+      changeCalib(cur, c => { c.hl = [a, b]; c.hcm = +$('#calH').value || 100; });
     }
-    refreshUI(); drawOverlay(); return;
+    tool = 'select'; render(); refreshUI(); return;
   }
   if (tool === 'screen') {
     if (cur.calib) {
@@ -902,10 +985,21 @@ function refreshUI() {
   const cm = v => String(+(+v).toFixed(1)).replace('.', ',');
 
   // medida
-  if (cur.calib) { $('#calW').value = cur.calib.w; $('#calH').value = cur.calib.h; }
-  $('#calProg').innerHTML = tool === 'calib'
-    ? `Clique no canto <b>${CORNERS[pending.length]}</b> dele na foto <span class="small">(${pending.length + 1} de 4)</span>`
-    : cur.calib ? `Medida marcada (${cm(cur.calib.w)} × ${cm(cur.calib.h)} cm). Os quadradinhos azuis ajustam os cantos.` : 'Sem medida nesta foto.';
+  const cb = cur.calib;
+  if (cb && document.activeElement !== $('#calW')) $('#calW').value = cb.wcm;
+  if (cb && cb.hl && document.activeElement !== $('#calH')) $('#calH').value = cb.hcm;
+  $('#bMeasW').classList.toggle('on', tool === 'measW');
+  $('#bMeasH').classList.toggle('on', tool === 'measH');
+  $('#bMeasW').textContent = tool === 'measW' ? 'Marcando…' : (cb ? 'Refazer' : 'Marcar');
+  $('#bMeasH').textContent = tool === 'measH' ? 'Marcando…' : (cb && cb.hl ? 'Refazer' : 'Marcar');
+  $('#bMeasH').disabled = !cb; $('#bMeasH').style.opacity = cb ? '' : '.45';
+  $('#bDelH').classList.toggle('hide', !(cb && cb.hl));
+  $('#bSkipCal').classList.toggle('hide', !cb);
+  const which = tool === 'measW' ? '<b style="color:#5b9bff">largura</b> (azul)' : '<b style="color:#ff6b6b">altura</b> (vermelha)';
+  $('#calProg').innerHTML = tool.startsWith('meas')
+    ? `Clique no <b>${pending.length ? 'fim' : 'início'}</b> da ${which} na foto. <span class="small">Shift deixa reta.</span>`
+    : cb ? `Pronto: a tela entra no tamanho real${cb.hl ? '' : ' (altura no olho)'}. Arraste as bolinhas para ajustar as linhas.`
+    : 'Marque a largura de algo conhecido na parede.';
   // tela
   const target = sel && sel.type === 'screen' ? sel : scr[0];
   $('#scrIns').innerHTML = (scr.length && tool !== 'screen') ? 'Arraste a tela para ajustar. <span class="small">Setas movem 1 cm (Shift: 10).</span>'
@@ -949,11 +1043,18 @@ function refreshUI() {
 function saveDefaults() { store.set('defaults', defaults); }
 
 // medida
-$('#bRedoCal').onclick = () => { if (!cur) return; if (cur.calib) { pushUndo(); itemsToImageSpace(cur); cur.calib = null; render(); } goStep('medida'); };
+$('#bMeasW').onclick = () => { if (!cur) return; sel = null; if (curTab !== 'medida') goStep('medida'); setTool('measW'); render(); };
+$('#bMeasH').onclick = () => { if (!cur || !cur.calib) return; sel = null; if (curTab !== 'medida') goStep('medida'); setTool('measH'); render(); };
+$('#bDelH').onclick = () => { if (!cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hl = null; }); render(); refreshUI(); };
 $('#bSkipCal').onclick = () => { if (!cur || !cur.calib) return; pushUndo(); itemsToImageSpace(cur); cur.calib = null; tool = 'select'; render(); refreshUI(); };
-['#calW', '#calH'].forEach(id => $(id).addEventListener('change', () => {
-  if (cur && cur.calib) { pushUndo(); cur.calib.w = +$('#calW').value || cur.calib.w; cur.calib.h = +$('#calH').value || cur.calib.h; render(); refreshUI(); }
-}));
+$('#calW').addEventListener('change', () => {
+  const v = +$('#calW').value; if (!(v > 0) || !cur || !cur.calib) return;
+  pushUndo(); changeCalib(cur, c => { c.wcm = v; }); render(); refreshUI();
+});
+$('#calH').addEventListener('change', () => {
+  const v = +$('#calH').value; if (!(v > 0) || !cur || !cur.calib || !cur.calib.hl) return;
+  pushUndo(); changeCalib(cur, c => { c.hcm = v; }); render(); refreshUI();
+});
 // tela
 $('#bCenter').onclick = () => {
   const t = sel && sel.type === 'screen' ? sel : screensOf(cur)[0];
