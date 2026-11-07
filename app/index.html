@@ -144,9 +144,11 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
       <p class="ins" id="scrIns"></p>
       <div class="links" style="margin-bottom:12px"><button class="link" id="bAddScr">+ Adicionar outra tela</button></div>
       <div id="scrPlaced" class="hide">
+        <div class="row" style="justify-content:space-between;color:var(--text);font-size:14px;margin-bottom:2px">Inclinação para baixo <b id="tiltVal"></b></div>
+        <input type="range" id="sTilt" min="0" max="25" step="1" style="width:100%;accent-color:var(--acc);margin-bottom:12px">
         <button class="btn" id="bCenter">Centralizar na medida</button>
         <details>
-          <summary>Ajustar luz</summary>
+          <summary>Ajustar luz e sombra</summary>
           <div class="row"><label><input type="checkbox" id="sAuto"> Brilho automático</label></div>
           <div class="row">Brilho <input type="range" id="sBright" min="0.4" max="1.2" step="0.01"></div>
           <div class="row">Reflexo <input type="range" id="sGloss" min="0" max="1" step="0.01"></div>
@@ -267,16 +269,18 @@ const store = {
 const PRESETS_DEFAULT = [
   {name: 'Eletromidia padrão', W: 84, H: 38, B: 0}
 ];
-// stops: [posição 0–1 na largura, cor]. Metais são semitransparentes: o reflexo da parede aparece através.
+// stops: [posição 0–1 na largura, [r,g,b]]. Cores opacas; o brilho é ajustado pela luz da foto no local.
+// brushed: intensidade da textura escovada (metais).
 const CAN_COLORS = {
-  inox: {name: 'Inox', stops: [[0, 'rgba(25,27,30,.9)'], [0.035, 'rgba(70,74,78,.75)'], [0.07, 'rgba(240,243,245,.6)'], [0.16, 'rgba(205,210,214,.22)'],
-    [0.5, 'rgba(170,175,180,.12)'], [0.86, 'rgba(140,145,150,.2)'], [0.94, 'rgba(70,73,77,.55)'], [1, 'rgba(18,19,21,.9)']]},
-  aluminio: {name: 'Alumínio / metal', stops: [[0, 'rgba(50,52,55,.9)'], [0.06, 'rgba(235,237,239,.75)'], [0.2, 'rgba(200,204,207,.55)'],
-    [0.8, 'rgba(185,189,193,.55)'], [0.94, 'rgba(110,114,118,.7)'], [1, 'rgba(40,42,45,.9)']]},
-  branco: {name: 'Branca', stops: [[0, '#b5b5b5'], [0.08, '#f4f4f4'], [0.5, '#ffffff'], [0.9, '#e6e6e6'], [1, '#bdbdbd']]},
-  preto:  {name: 'Preta',  stops: [[0, '#050505'], [0.08, '#2e2e2e'], [0.5, '#262626'], [0.9, '#161616'], [1, '#050505']]},
-  marrom: {name: 'Marrom', stops: [[0, '#2e1a0e'], [0.08, '#6e4a2f'], [0.5, '#664229'], [0.9, '#4e311c'], [1, '#2e1a0e']]}
+  inox: {name: 'Inox', brushed: 1, stops: [[0, [52, 55, 59]], [0.05, [120, 125, 130]], [0.1, [226, 230, 233]], [0.22, [190, 195, 199]],
+    [0.55, [163, 168, 173]], [0.85, [138, 143, 148]], [0.94, [96, 100, 105]], [1, [44, 47, 51]]]},
+  aluminio: {name: 'Alumínio', brushed: 0.7, stops: [[0, [70, 73, 77]], [0.08, [236, 238, 240]], [0.25, [212, 215, 218]],
+    [0.8, [196, 199, 203]], [0.94, [140, 144, 148]], [1, [64, 67, 71]]]},
+  branco: {name: 'Branca', brushed: 0, stops: [[0, [168, 168, 168]], [0.08, [246, 246, 246]], [0.5, [238, 238, 238]], [0.9, [214, 214, 214]], [1, [158, 158, 158]]]},
+  preto:  {name: 'Preta',  brushed: 0, stops: [[0, [6, 6, 6]], [0.08, [62, 63, 65]], [0.5, [34, 35, 37]], [0.9, [22, 22, 24]], [1, [6, 6, 6]]]},
+  marrom: {name: 'Marrom', brushed: 0, stops: [[0, [40, 24, 13]], [0.08, [118, 82, 55]], [0.5, [100, 66, 41]], [0.9, [76, 48, 28]], [1, [40, 24, 13]]]}
 };
+const rgbCss = (c, f = 1) => `rgb(${clamp(c[0] * f, 0, 255) | 0},${clamp(c[1] * f, 0, 255) | 0},${clamp(c[2] * f, 0, 255) | 0})`;
 let presets = store.get('presets') || PRESETS_DEFAULT.map(p => ({...p}));
 let defaults = store.get('defaults') || {preset: 0, W: presets[0].W, H: presets[0].H, B: presets[0].B, color: 'inox', canCm: 8};
 if (defaults.canCm === 2.5) defaults.canCm = 8; // versão anterior usava 2,5 cm
@@ -363,15 +367,13 @@ function rebuildCalib(p) {
   const c = p.calib; if (!c) return;
   let [A, B] = c.wl;
   if (B[0] < A[0]) { [A, B] = [B, A]; c.wl = [A, B]; }
+  // Fotos de frente: a referência fica sempre reta (horizontal/vertical da foto).
+  // As linhas só dão a escala: px por cm na horizontal (azul) e na vertical (vermelha).
   const s = dist(A, B) / c.wcm;
-  let v, h;
-  if (c.hl) {
-    const [C, D] = c.hl; v = [D[0] - C[0], D[1] - C[1]];
-    if (v[1] < 0) v = [-v[0], -v[1]];
-    h = c.hcm;
-  } else { h = 100; v = [0, s * 100]; }
-  c.pts = [A, B, [B[0] + v[0], B[1] + v[1]], [A[0] + v[0], A[1] + v[1]]];
-  c.w = c.wcm; c.h = h;
+  const sv = c.hl ? dist(c.hl[0], c.hl[1]) / c.hcm : s;
+  const w = c.wcm, h = c.hl ? c.hcm : 100;
+  c.pts = [A, [A[0] + s * w, A[1]], [A[0] + s * w, A[1] + sv * h], [A[0], A[1] + sv * h]];
+  c.w = w; c.h = h;
 }
 // Depois de mudar a medida, mantém as telas/canaletas no mesmo lugar da foto (o tamanho real se ajusta)
 function remapPlane(p, oldCalib) {
@@ -394,9 +396,36 @@ function changeCalib(p, fn) {
   remapPlane(p, old); return true;
 }
 
+// Inclinação para baixo (tela vista de baixo): topo vem para frente, base recua para a parede.
+// Resultado: topo um pouco mais largo que a base e altura encurtada pelo cosseno do ângulo.
+const VIEW_DIST_CM = 160; // distância aproximada de quem olha
+function tiltQuad(c, s) {
+  const th = (s.tilt || 0) * Math.PI / 180;
+  if (!th) return c;
+  const t = (s.H / 2 * Math.sin(th)) / VIEW_DIST_CM;
+  const [TL, TR, BR, BL] = c;
+  const topMid = mid(TL, TR), botMid = mid(BL, BR);
+  const k = Math.cos(th);
+  const nb = [topMid[0] + (botMid[0] - topMid[0]) * k, topMid[1] + (botMid[1] - topMid[1]) * k];
+  const ht = [(TR[0] - TL[0]) / 2 * (1 + t), (TR[1] - TL[1]) / 2 * (1 + t)];
+  const hb = [(BR[0] - BL[0]) / 2 * (1 - t), (BR[1] - BL[1]) / 2 * (1 - t)];
+  return [[topMid[0] - ht[0], topMid[1] - ht[1]], [topMid[0] + ht[0], topMid[1] + ht[1]], [nb[0] + hb[0], nb[1] + hb[1]], [nb[0] - hb[0], nb[1] - hb[1]]];
+}
 function screenCorners(p, s) {
-  if (s.space === 'plane') return [[s.x, s.y], [s.x + s.W, s.y], [s.x + s.W, s.y + s.H], [s.x, s.y + s.H]].map(q => toImg(p, q));
+  if (s.space === 'plane') return tiltQuad([[s.x, s.y], [s.x + s.W, s.y], [s.x + s.W, s.y + s.H], [s.x, s.y + s.H]].map(q => toImg(p, q)), s);
   return s.corners;
+}
+// Luminância média (0–1) da foto ao redor de uma área
+function localLum(p, pts, grow = 0.5) {
+  const s = p.small, k = s.width / p.w;
+  const xs = pts.map(q => q[0] * k), ys = pts.map(q => q[1] * k);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const ex = Math.max(2, (x1 - x0) * grow), ey = Math.max(2, (y1 - y0) * grow);
+  x0 = clamp(Math.floor(x0 - ex), 0, s.width - 1); x1 = clamp(Math.ceil(x1 + ex), x0 + 1, s.width);
+  y0 = clamp(Math.floor(y0 - ey), 0, s.height - 1); y1 = clamp(Math.ceil(y1 + ey), y0 + 1, s.height);
+  const d = s.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data;
+  let L = 0; for (let i = 0; i < d.length; i += 4) L += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+  return L / ((d.length / 4) * 255);
 }
 function canPtsImg(p, s) { return s.space === 'plane' ? s.pts.map(q => toImg(p, q)) : s.pts; }
 
@@ -438,11 +467,19 @@ function drawScreen(g, p, s, quick) {
   const Hi = hInv(H); if (!Hi) return;
   const hpx = Math.max(dist(c[0], c[3]), dist(c[1], c[2]));
   const wpx = Math.max(dist(c[0], c[1]), dist(c[3], c[2]));
+  const sinT = Math.sin((s.space === 'plane' ? (s.tilt || 0) : 0) * Math.PI / 180);
   if (s.shadow > 0) {
-    g.save(); g.filter = `blur(${Math.max(1, hpx * 0.06)}px)`;
-    g.fillStyle = `rgba(0,0,0,${0.6 * s.shadow})`;
-    g.beginPath(); c.forEach((q, i) => { const X = q[0], Y = q[1] + hpx * 0.04; i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
-    g.closePath(); g.fill(); g.restore();
+    // Luz vem do teto: (1) sombra projetada na parede, abaixo da tela — mais longa quanto mais inclinada;
+    // (2) sombra de contato, curta e mais escura, onde a tela encosta no suporte.
+    const quad = (dy, grow) => {
+      const cx = (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, cy = (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4;
+      g.beginPath(); c.forEach((q, i) => { const X = cx + (q[0] - cx) * grow, Y = cy + (q[1] - cy) * grow + dy; i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+      g.closePath();
+    };
+    g.save(); g.filter = `blur(${Math.max(2, hpx * 0.13)}px)`; g.fillStyle = `rgba(0,0,0,${0.55 * s.shadow})`;
+    quad(hpx * (0.07 + 0.35 * sinT), 0.97); g.fill(); g.restore();
+    g.save(); g.filter = `blur(${Math.max(1, hpx * 0.025)}px)`; g.fillStyle = `rgba(0,0,0,${0.4 * s.shadow})`;
+    quad(hpx * 0.02, 1.015); g.fill(); g.restore();
   }
   const xs = c.map(q => q[0]), ys = c.map(q => q[1]);
   const x0 = Math.max(0, Math.floor(Math.min(...xs)) - 1), x1 = Math.min(p.w, Math.ceil(Math.max(...xs)) + 1);
@@ -491,6 +528,16 @@ function drawScreen(g, p, s, quick) {
     d[k + 2] = d[k + 2] * (1 - a) + b / 4 + nz;
   }
   g.putImageData(img, x0, y0);
+  // Parte de baixo do aparelho, visível porque a tela está inclinada e quem vê está abaixo
+  if (sinT > 0.01) {
+    const d = Math.max(1, (hpx / Math.max(0.2, Math.cos(Math.asin(sinT)))) / s.H * 4.5 * sinT); // ~4,5 cm de espessura
+    const [, , BR, BL] = c, inset = dist(BL, BR) * 0.012;
+    const gr = g.createLinearGradient(0, BL[1], 0, BL[1] + d);
+    const lum = clamp(br, 0.6, 1.05);
+    gr.addColorStop(0, `rgb(${58 * lum | 0},${60 * lum | 0},${64 * lum | 0})`); gr.addColorStop(1, `rgb(${14 * lum | 0},${15 * lum | 0},${16 * lum | 0})`);
+    g.beginPath(); g.moveTo(BL[0], BL[1]); g.lineTo(BR[0], BR[1]); g.lineTo(BR[0] - inset, BR[1] + d); g.lineTo(BL[0] + inset, BL[1] + d); g.closePath();
+    g.fillStyle = gr; g.fill();
+  }
 }
 
 function canQuads(p, s) {
@@ -512,14 +559,44 @@ function drawCan(g, p, s) {
   const col = CAN_COLORS[s.color] || CAN_COLORS.inox;
   const wpx = Math.max(1, dist(quads[0][0], quads[0][3]));
   const path = (q, dx = 0, dy = 0) => { g.beginPath(); q.forEach((v, i) => i ? g.lineTo(v[0] + dx, v[1] + dy) : g.moveTo(v[0] + dx, v[1] + dy)); g.closePath(); };
-  g.save(); g.filter = `blur(${Math.max(1, wpx * 0.12)}px)`; g.fillStyle = 'rgba(0,0,0,.3)';
-  for (const q of quads) { path(q, wpx * 0.06, wpx * 0.04); g.fill(); }
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  // sombra na parede (luz de cima e levemente da esquerda)
+  g.save(); g.filter = `blur(${Math.max(1, wpx * 0.22)}px)`; g.fillStyle = 'rgba(0,0,0,.38)';
+  for (const q of quads) { path(q, wpx * 0.14, wpx * 0.1); g.fill(); }
   g.restore();
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const q of quads) {
+    // brilho que acompanha a luz da foto naquele trecho
+    const L = localLum(p, q, 0.6), f = clamp(0.5 + 0.75 * L, 0.48, 1.15);
     const A = mid(q[0], q[1]), B = mid(q[3], q[2]);
     const gr = g.createLinearGradient(A[0], A[1], B[0], B[1]);
-    col.stops.forEach(([pos, c]) => gr.addColorStop(pos, c));
+    col.stops.forEach(([pos, c]) => gr.addColorStop(pos, rgbCss(c, f)));
     path(q); g.fillStyle = gr; g.fill();
+    g.save(); path(q); g.clip();
+    // textura escovada: riscos finos ao longo do comprimento
+    if (col.brushed) {
+      const len = dist(q[0], q[1]), n = clamp(Math.round(wpx * 1.6), 8, 140);
+      g.lineWidth = Math.max(0.5, wpx * 0.012);
+      for (let i = 0; i < n; i++) {
+        const t = rnd(), a = (0.03 + rnd() * 0.07) * col.brushed, light = rnd() > 0.45;
+        const s0 = rnd() * 0.3, s1 = 0.7 + rnd() * 0.3;
+        const P0 = lerp(lerp(q[0], q[3], t), lerp(q[1], q[2], t), s0), P1 = lerp(lerp(q[0], q[3], t), lerp(q[1], q[2], t), s1);
+        g.strokeStyle = light ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
+        g.beginPath(); g.moveTo(P0[0], P0[1]); g.lineTo(P1[0], P1[1]); g.stroke();
+      }
+      // reflexo suave que corre ao longo da peça
+      const spot = g.createLinearGradient(q[0][0], q[0][1], q[1][0], q[1][1]);
+      spot.addColorStop(0, 'rgba(255,255,255,0)'); spot.addColorStop(0.5, `rgba(255,255,255,${0.12 * col.brushed})`); spot.addColorStop(1, 'rgba(255,255,255,0)');
+      path(q); g.fillStyle = spot; g.fill();
+      void len;
+    }
+    g.restore();
+    // arestas: uma clara (pega luz) e uma escura
+    g.lineWidth = Math.max(0.8, wpx * 0.045);
+    g.strokeStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.moveTo(...lerp(q[0], q[3], 0.08)); g.lineTo(...lerp(q[1], q[2], 0.08)); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.moveTo(q[3][0], q[3][1]); g.lineTo(q[2][0], q[2][1]); g.stroke();
+    g.lineWidth = Math.max(0.6, wpx * 0.03); g.strokeStyle = 'rgba(0,0,0,.35)'; path(q); g.stroke();
   }
 }
 
@@ -789,7 +866,7 @@ function canPxDefault() {
   if (s && s.space === 'img') return Math.max(3, dist(s.corners[0], s.corners[1]) * defaults.canCm / s.W);
   return Math.max(3, Math.round(cur.w * 0.03));
 }
-function newScreenProps() { return {W: defaults.W, H: defaults.H, B: defaults.B, bright: null, gloss: 0.35, noise: 3, shadow: 0.5}; }
+function newScreenProps() { return {W: defaults.W, H: defaults.H, B: defaults.B, bright: null, gloss: 0.35, noise: 3, shadow: 0.6, tilt: defaults.tilt ?? 12}; }
 let canupTarget = null;
 
 // Shift trava a linha: largura na horizontal, altura na vertical
@@ -925,6 +1002,7 @@ function deleteSel() {
 $('#bDel').onclick = deleteSel;
 window.addEventListener('keydown', e => {
   window.__shift = e.shiftKey;
+  if (e.key === 'Shift' && cur) drawOverlay();
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (!typing) { e.preventDefault(); undo(); } return; }
   if (typing || !cur || $('#settings').open) return;
@@ -943,16 +1021,16 @@ window.addEventListener('keydown', e => {
     render();
   }
 });
-window.addEventListener('keyup', e => { window.__shift = e.shiftKey; });
+window.addEventListener('keyup', e => { window.__shift = e.shiftKey; if (e.key === 'Shift') drawOverlay(); });
+// Shift lido também do mouse: funciona mesmo se a janela não tinha foco quando a tecla foi apertada
+['mousedown', 'mousemove'].forEach(t => window.addEventListener(t, e => { window.__shift = e.shiftKey; }, true));
 
 /* ---------------- painel ---------------- */
 function fillColors() {
   const box = $('#cColor'); box.innerHTML = '';
   for (const [k, v] of Object.entries(CAN_COLORS)) {
     const b = document.createElement('button'); b.title = v.name; b.dataset.c = k;
-    const solid = v.stops.map(s => s[1]).filter(c => c.startsWith('#'));
-    b.style.background = k === 'inox' ? 'linear-gradient(90deg,#6f757b,#e9ecee 30%,#a9aeb3 70%,#6f757b)'
-      : k === 'aluminio' ? 'linear-gradient(90deg,#8c9196,#eceef0 30%,#c3c7cb)' : solid[2] || solid[0];
+    b.style.background = `linear-gradient(90deg,${v.stops.map(([pos, c]) => `${rgbCss(c)} ${Math.round(pos * 100)}%`).join(',')})`;
     b.onclick = () => {
       if (sel && sel.type === 'can') { pushUndo(); sel.color = k; }
       defaults.color = k; saveDefaults(); render(); refreshUI();
@@ -1013,6 +1091,8 @@ function refreshUI() {
     $('#sBright').value = target.bright == null ? autoBright(cur, screenCorners(cur, target)) : target.bright;
     $('#sBright').disabled = target.bright == null;
     $('#sGloss').value = target.gloss; $('#sShadow').value = target.shadow; $('#sNoise').value = target.noise;
+    const tl = target.tilt || 0; $('#sTilt').value = tl; $('#tiltVal').textContent = tl + '°';
+    $('#sTilt').disabled = target.space !== 'plane';
   }
   $('#modelName').textContent = `Tela ${cm(defaults.W)} × ${cm(defaults.H)} cm`;
   // canaleta
@@ -1071,6 +1151,8 @@ function bindSlider(id, key) {
     clearTimeout(sliderTimer[id]); sliderTimer[id] = setTimeout(render, 30);
   });
 }
+bindSlider('#sTilt', 'tilt');
+$('#sTilt').addEventListener('input', () => { const v = +$('#sTilt').value; $('#tiltVal').textContent = v + '°'; defaults.tilt = v; saveDefaults(); });
 bindSlider('#sBright', 'bright'); bindSlider('#sGloss', 'gloss'); bindSlider('#sShadow', 'shadow'); bindSlider('#sNoise', 'noise');
 $('#bModel').onclick = () => openSettings();
 // canaleta
