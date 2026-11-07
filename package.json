@@ -13,7 +13,7 @@
   },
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win --publish never",
+    "build": "electron-builder --win --publish never && node scripts/pin-exe.js",
     "instalar": "powershell -ExecutionPolicy Bypass -File scripts/instalar.ps1",
     "release": "node scripts/release.js"
   },

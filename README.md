@@ -32,6 +32,12 @@ O comando baixa a última versão, instala em `%LOCALAPPDATA%\Programs` e cria o
 
 Não existe instalador `.exe`, porque o Controle Inteligente de Aplicativos do Windows 11 bloqueia instaladores sem assinatura digital.
 
+## Executável fixo ("launcher")
+
+O Controle Inteligente de Aplicativos do Windows 11 bloqueia executáveis sem assinatura que ele não conhece, e cada build gera um `.exe` diferente. Por isso, todas as versões usam **o mesmo `.exe` já aceito**, guardado na Release [`launcher`](https://github.com/carlowxx/simulador-telas/releases/tag/launcher). O `npm run build` troca o `.exe` gerado por esse e refaz o `.zip` (`scripts/pin-exe.js`).
+
+Se um dia o Electron for atualizado no `package.json`, é preciso gerar e publicar um launcher novo.
+
 ## Atualizações
 
 Ao abrir, o app consulta a última Release. Se houver versão nova, ele baixa **só o `index.html`** (a interface, que não é executável) e pergunta se quer atualizar.

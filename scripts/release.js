@@ -31,7 +31,7 @@ pkg.version = next;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 console.log(`\nVersão ${next}\n`);
 
-run('npx electron-builder --win --publish never');
+run('npm run build');
 const zip = path.join('dist', `Simulador-de-Telas-${next}-win.zip`);
 
 run('git add package.json');

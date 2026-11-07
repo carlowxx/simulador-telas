@@ -4,3 +4,4 @@ dist/
 teste/
 /simulador.html
 *.log
+build/launcher/
