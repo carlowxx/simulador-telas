@@ -1130,7 +1130,9 @@ ov.addEventListener('mousedown', e => {
     } else {
       changeCalib(cur, c => { c.hl = [a, b]; c.hcm = +$('#calH').value || 100; });
     }
-    tool = 'select'; render(); refreshUI(); return;
+    // Depois da largura, já começa a altura (Esc pula); se a altura já existe, termina
+    tool = (tool === 'measW' && !cur.calib.hl) ? 'measH' : 'select';
+    render(); refreshUI(); return;
   }
   if (tool === 'measFloor' || tool === 'measCeil') {
     pushUndo(); changeCalib(cur, c => { if (tool === 'measFloor') c.floor = pt; else c.ceil = pt; });
@@ -1250,7 +1252,11 @@ window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (!typing) { e.preventDefault(); undo(); } return; }
   if (typing || !cur || $('#settings').open) return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { pending = []; sel = null; render(); refreshUI(); return; }
+  if (k === 'escape') {
+    pending = []; sel = null;
+    if (tool.startsWith('meas')) tool = 'select'; // Esc pula/cancela a marcação de medida
+    render(); refreshUI(); return;
+  }
   if (k === 'enter' && tool === 'can') { finishCan(); return; }
   if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); deleteSel(); return; }
   const arrows = {arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1]};
@@ -1327,7 +1333,7 @@ function refreshUI() {
   const which = tool === 'measW' ? '<b style="color:#5b9bff">largura</b> (azul)' : '<b style="color:#ff6b6b">altura</b> (vermelha), do teto ao piso';
   $('#calProg').innerHTML = tool === 'measFloor' ? 'Clique no <b>piso</b>, rente à parede.'
     : tool === 'measCeil' ? 'Clique no <b>teto</b>, rente à parede.'
-    : tool.startsWith('meas') ? `Clique no <b>${pending.length ? 'fim' : 'início'}</b> da ${which} na foto. <span class="small">Shift deixa reta.</span>`
+    : tool.startsWith('meas') ? `Clique no <b>${pending.length ? 'fim' : 'início'}</b> da ${which} na foto. <span class="small">Shift deixa reta.${tool === 'measH' ? ' <b>Esc</b> pula a altura.' : ''}</span>`
     : cb ? (fl ? 'Pronto. Agora vá para a aba <b>Local</b>.' : 'Falta o <b>piso</b>: marque a altura até o chão ou clique em Piso → Marcar.')
     : 'Marque a largura da parede (linha azul).';
   // local
