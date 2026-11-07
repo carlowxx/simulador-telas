@@ -22,7 +22,13 @@ npm run build
 npm run instalar   # copia para %LOCALAPPDATA%\Programs e cria atalhos na Área de Trabalho e no Menu Iniciar
 ```
 
-**Em outro PC:** baixe o `Simulador-de-Telas-x.y.z-win.zip` na página de [Releases](https://github.com/carlowxx/simulador-telas/releases/latest), extraia e abra `Simulador de Telas.exe`.
+**Em outro PC** (sem precisar de Git nem Node): abra o PowerShell e cole
+
+```powershell
+irm https://raw.githubusercontent.com/carlowxx/simulador-telas/main/scripts/instalar-online.ps1 | iex
+```
+
+O comando baixa a última versão, instala em `%LOCALAPPDATA%\Programs` e cria os atalhos. Veja também [COMO-FUNCIONA.md](COMO-FUNCIONA.md).
 
 Não existe instalador `.exe`, porque o Controle Inteligente de Aplicativos do Windows 11 bloqueia instaladores sem assinatura digital.
 

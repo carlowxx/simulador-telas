@@ -38,7 +38,7 @@ header{display:flex;align-items:center;gap:10px;height:64px;padding:0 14px;backg
 .st{font-weight:600}
 .sum{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
 aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:10px 10px 0;border-bottom:1px solid var(--line)}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:10px 10px 0;border-bottom:1px solid var(--line)}
 .tabs button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 10px;border-radius:8px 8px 0 0;color:var(--muted);font-size:12px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
 .tabs button span{font-size:19px;line-height:1}
 .tabs button:hover{color:var(--text);background:#1f2327}
@@ -84,6 +84,14 @@ aside{background:var(--panel);border-right:1px solid var(--line);display:flex;fl
 .row{display:flex;align-items:center;gap:8px;margin:6px 0;color:var(--muted);font-size:13px}
 .row input[type=number]{width:64px;padding:5px 6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);text-align:center}
 details{margin-top:12px}
+.sect{margin:18px 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.row.sl{justify-content:space-between}
+.dialrow{display:flex;gap:12px;align-items:center;margin:6px 0 10px}
+#lDial{width:72px;height:72px;flex:none;cursor:grab;touch-action:none}
+#lDial:active{cursor:grabbing}
+.row.sl span{display:flex;align-items:center;gap:6px}
+.row.sl input[type=range]{width:120px;accent-color:var(--acc)}
+.row.sl b{color:var(--text);min-width:34px;text-align:right;font-weight:600}
 summary{cursor:pointer;color:var(--muted);font-size:13px}
 details .row{justify-content:space-between}
 details input[type=range]{width:130px;accent-color:var(--acc)}
@@ -125,9 +133,10 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
 <aside id="steps">
   <nav class="tabs">
     <button data-tab="medida"><span>📐</span>Medida</button>
+    <button data-tab="local"><span>📍</span>Local</button>
     <button data-tab="tela"><span>🖥️</span>Tela</button>
     <button data-tab="canaleta"><span>📏</span>Canaleta</button>
-    <button data-tab="marcacao"><span>🏷️</span>Marcações</button>
+    <button data-tab="marcacao"><span>🏷️</span>Marcas</button>
   </nav>
 
   <div class="panels">
@@ -135,30 +144,43 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
       <p class="ins">Medidas da parede (do croqui):</p>
       <div class="mrow"><span class="mdot" style="background:#2f80ff"></span><b>Largura</b><input type="number" id="calW" value="120" step="0.5"><span class="small">cm</span><button class="btn sm" id="bMeasW">Marcar</button></div>
       <div class="mrow"><span class="mdot" style="background:#ef3b3b"></span><b>Altura</b><input type="number" id="calH" value="240" step="0.5"><span class="small">cm</span><button class="btn sm" id="bMeasH">Marcar</button></div>
-      <div class="mrow" id="floorRow"><span class="mdot" style="background:#22b14c"></span><b>Piso</b><span class="small" id="floorTxt"></span><button class="btn sm" id="bFloor">Marcar</button></div>
-      <p class="small" style="margin:2px 0 12px">Altura do <b>teto ao piso</b>: o fim de baixo vira o piso. Se não der para pegar a altura, marque só o piso (1 clique).</p>
+      <div class="mrow"><span class="mdot" style="background:#22b14c"></span><b>Piso</b><span class="small" id="floorTxt"></span><button class="btn sm" id="bFloor">Marcar</button></div>
+      <div class="mrow"><span class="mdot" style="background:#b06cff"></span><b>Teto</b><span class="small" id="ceilTxt"></span><button class="btn sm" id="bCeil">Marcar</button></div>
+      <p class="small" style="margin:2px 0 12px">Marque a altura do <b>teto ao piso</b>: as pontas viram teto e piso. Se não der, marque piso e teto com 1 clique cada.</p>
       <p class="ins" id="calProg"></p>
       <div class="links"><button class="link" id="bDelH">Remover altura</button><button class="link" id="bSkipCal">Remover medida</button></div>
     </div>
 
+    <div class="panel" data-panel="local">
+      <p class="ins" id="localIns"></p>
+      <div class="mrow"><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="baseAuto"> Base automática (190 cm do piso)</label></div>
+      <div class="mrow" id="baseRow"><b style="width:auto">Base a</b><input type="number" id="baseCm" step="1"><span class="small">cm do piso</span></div>
+      <p class="small" id="baseInfo" style="margin:0 0 10px"></p>
+    </div>
+
     <div class="panel" data-panel="tela">
       <p class="ins" id="scrIns"></p>
-      <div class="mrow"><b style="width:auto">Base a</b><input type="number" id="baseCm" step="1"><span class="small">cm do piso</span></div>
-      <p class="small" id="baseInfo" style="margin:0 0 10px"></p>
       <div class="links" style="margin-bottom:12px"><button class="link" id="bAddScr">+ Adicionar outra tela</button></div>
       <div id="scrPlaced" class="hide">
         <div class="row" style="justify-content:space-between;color:var(--text);font-size:14px;margin-bottom:2px">Inclinação para baixo <b id="tiltVal"></b></div>
         <input type="range" id="sTilt" min="0" max="25" step="1" style="width:100%;accent-color:var(--acc);margin-bottom:12px">
         <button class="btn" id="bCenter">Voltar à posição automática</button>
+        <h5 class="sect">Sombra</h5>
+        <div class="dialrow">
+          <canvas id="lDial" width="72" height="72" title="Arraste para girar a sombra"></canvas>
+          <div>
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer;color:var(--text)"><input type="checkbox" id="lAuto"> Direção automática</label>
+            <p class="small" style="margin:4px 0 0">Arraste o círculo: o traço aponta para onde a sombra cai. <span id="lAngleVal"></span></p>
+          </div>
+        </div>
+        <div class="row sl">Densidade <span><input type="range" id="sShadow" min="0" max="1" step="0.01"> <b id="sShadowVal"></b></span></div>
+        <div class="row sl">Distância <span><input type="range" id="sDist" min="0" max="2.5" step="0.05"> <b id="sDistVal"></b></span></div>
+        <div class="row sl">Alcance <span><input type="range" id="sSoft" min="0" max="2" step="0.05"> <b id="sSoftVal"></b></span></div>
         <details>
-          <summary>Ajustar luz e sombra</summary>
-          <div class="row"><label><input type="checkbox" id="lAuto"> Direção da luz automática</label></div>
-          <div class="row">Ângulo da luz <span><input type="range" id="lAngle" min="0" max="359" step="1"> <b id="lAngleVal" style="color:var(--text)"></b></span></div>
-          <div class="row">Distância <input type="range" id="sDist" min="0" max="2.5" step="0.05"></div>
+          <summary>Brilho e acabamento da tela</summary>
           <div class="row"><label><input type="checkbox" id="sAuto"> Brilho automático</label></div>
           <div class="row">Brilho <input type="range" id="sBright" min="0.4" max="1.2" step="0.01"></div>
           <div class="row">Reflexo <input type="range" id="sGloss" min="0" max="1" step="0.01"></div>
-          <div class="row">Sombra <input type="range" id="sShadow" min="0" max="1" step="0.01"></div>
           <div class="row">Granulado <input type="range" id="sNoise" min="0" max="12" step="0.5"></div>
         </details>
       </div>
@@ -351,10 +373,45 @@ function setArtFromImage(img, name, fromUser) {
 }
 let artHasFrame = false;
 function useDefaultArt() { artCanvas = makeDefaultArt(); artName = ''; $('#artInfo').textContent = 'Usando arte provisória.'; }
-(function restoreArt() {
-  const saved = store.get('art');
-  if (saved && saved.data) { const im = new Image(); im.onload = () => { setArtFromImage(im, saved.name); render(); }; im.src = saved.data; }
+/* A arte da tela fica no IndexedDB (sem o limite de ~5 MB do localStorage, que fazia imagens grandes sumirem). */
+const idb = {
+  _db: null,
+  open() {
+    if (this._db) return Promise.resolve(this._db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('simtelas', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(this._db = r.result);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async get(k) {
+    try { const db = await this.open(); return await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); }
+    catch (e) { return null; }
+  },
+  async set(k, v) {
+    try { const db = await this.open(); return await new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = () => res(true); tx.onerror = () => res(false); }); }
+    catch (e) { return false; }
+  }
+};
+function loadArtBlob(blob, name) {
+  return new Promise(res => {
+    const im = new Image(); const url = URL.createObjectURL(blob);
+    im.onload = () => { setArtFromImage(im, name); URL.revokeObjectURL(url); render(); res(true); };
+    im.onerror = () => { URL.revokeObjectURL(url); res(false); };
+    im.src = url;
+  });
+}
+(async function restoreArt() {
   useDefaultArt();
+  const saved = await idb.get('art');
+  if (saved && saved.blob) { await loadArtBlob(saved.blob, saved.name); return; }
+  const legacy = store.get('art'); // versões antigas guardavam no localStorage
+  if (legacy && legacy.data) {
+    const blob = await (await fetch(legacy.data)).blob();
+    if (await idb.set('art', {name: legacy.name, blob})) store.set('art', null);
+    await loadArtBlob(blob, legacy.name);
+  }
 })();
 
 /* ---------------- referência ---------------- */
@@ -404,13 +461,27 @@ function floorImg(p) {
   return c.floor || null;
 }
 function floorPlaneY(p) { const f = floorImg(p); return f ? toPlane(p, f)[1] : null; }
-const baseCm = () => defaults.baseCm ?? 190;
-// Posição automática: centralizada no local escolhido e com a base a X cm do piso
+// Teto: ponta de cima da linha vermelha ou o clique de "Marcar teto"
+function ceilImg(p) {
+  const c = p && p.calib; if (!c) return null;
+  if (c.hl) return c.hl[0][1] < c.hl[1][1] ? c.hl[0] : c.hl[1];
+  return c.ceil || null;
+}
+function ceilPlaneY(p) { const f = ceilImg(p); return f ? toPlane(p, f)[1] : null; }
+const BASE_PADRAO = 190, FOLGA_TETO = 2;
+const baseCm = () => (defaults.baseAuto !== false ? BASE_PADRAO : (defaults.baseCm ?? BASE_PADRAO));
+/* Posição automática: centralizada no local escolhido, base a 190 cm do piso.
+   Se o teto não comporta (ex.: pé-direito de 2 m), a tela sobe e encosta no teto com 2 cm de folga. */
 function autoPlace(p, s) {
-  const fy = floorPlaneY(p);
+  const fy = floorPlaneY(p), cy = ceilPlaneY(p);
   if (s.region) s.x = +(((s.region[0] + s.region[1]) / 2) - s.W / 2).toFixed(1);
-  if (fy != null) s.y = +(fy - baseCm() - s.H).toFixed(1);
-  else if (s.regionY != null) s.y = +(s.regionY - s.H / 2).toFixed(1);
+  let top = null;
+  if (fy != null) top = fy - baseCm() - s.H;
+  else if (cy != null) top = cy + FOLGA_TETO;
+  else if (s.regionY != null) top = s.regionY - s.H / 2;
+  s.glued = false;
+  if (top != null && cy != null && top < cy + FOLGA_TETO) { top = cy + FOLGA_TETO; s.glued = true; }
+  if (top != null) s.y = +top.toFixed(1);
 }
 function changeCalib(p, fn) {
   const old = p.calib ? JSON.parse(JSON.stringify(p.calib)) : null;
@@ -523,10 +594,25 @@ function drawScreen(g, p, s, quick) {
       g.beginPath(); c.forEach((q, i) => { const X = cx + (q[0] - cx) * grow + dx * off, Y = cy + (q[1] - cy) * grow + dy * off; i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
       g.closePath();
     };
-    g.save(); g.filter = `blur(${Math.max(2, hpx * (0.08 + 0.06 * dd))}px)`; g.fillStyle = `rgba(0,0,0,${0.55 * s.shadow})`;
-    quad(hpx * (0.07 + 0.35 * sinT) * dd, 0.97); g.fill(); g.restore();
-    g.save(); g.filter = `blur(${Math.max(1, hpx * 0.025)}px)`; g.fillStyle = `rgba(0,0,0,${0.4 * s.shadow})`;
-    quad(hpx * 0.02, 1.015); g.fill(); g.restore();
+    // Sombra projetada em camadas: escura e definida perto da tela, cada vez mais clara e difusa
+    // à medida que se afasta (como uma sombra real com luz de teto).
+    //   Densidade (s.shadow) = quão escura · Distância (dd) = deslocamento · Alcance (soft) = até onde vai/espalha
+    const soft = s.shadowSoft ?? 1, dens = s.shadow;
+    const reach = hpx * (0.30 + 0.55 * sinT) * dd;      // deslocamento total da sombra
+    const spread = hpx * (0.04 + 0.20 * soft);           // desfoque na ponta mais distante
+    const N = 8;
+    g.save(); g.globalCompositeOperation = 'multiply';
+    for (let i = 0; i < N; i++) {
+      const t = (i + 1) / N;
+      g.filter = `blur(${Math.max(1, hpx * 0.015 + spread * t)}px)`;
+      const a = clamp(dens * 0.62 * Math.pow(1 - t, 1.3) + dens * 0.05, 0, 1);
+      g.fillStyle = `rgba(0,0,0,${a})`;
+      quad(reach * t * (0.55 + 0.45 * soft), 1 + 0.04 * t * soft); g.fill();
+    }
+    // sombra de contato: fina e escura, colada na borda
+    g.filter = `blur(${Math.max(1, hpx * 0.02)}px)`; g.fillStyle = `rgba(0,0,0,${clamp(dens * 0.85, 0, 0.92)})`;
+    quad(hpx * 0.02, 1.01); g.fill();
+    g.restore();
   }
   const xs = c.map(q => q[0]), ys = c.map(q => q[1]);
   const x0 = Math.max(0, Math.floor(Math.min(...xs)) - 1), x1 = Math.min(p.w, Math.ceil(Math.max(...xs)) + 1);
@@ -693,7 +779,7 @@ const CORNERS = ['superior esquerdo', 'superior direito', 'inferior direito', 'i
 function getHandles() {
   const H = [];
   if (!cur) return H;
-  if (cur.calib && (cur.step === 'medida' || cur.step === 'tela') && !tool.startsWith('meas')) {
+  if (cur.calib && cur.step === 'medida' && !tool.startsWith('meas')) {
     cur.calib.wl.forEach((q, i) => H.push({pt: q, kind: 'w', set: v => changeCalib(cur, c => { c.wl[i] = v; })}));
     if (cur.calib.hl) cur.calib.hl.forEach((q, i) => H.push({pt: q, kind: 'h', set: v => changeCalib(cur, c => { c.hl[i] = v; })}));
   }
@@ -725,17 +811,59 @@ function drawOverlay() {
     }
   };
   const cmTxt = v => String(+(+v).toFixed(1)).replace('.', ',') + ' cm';
-  if (cur.calib && (cur.step === 'medida' || cur.step === 'tela')) {
+  // linha horizontal tracejada (piso / teto)
+  const levelLine = (pt, color, label) => {
+    const xs = cur.calib.pts.map(q => q[0]), span = Math.max(...xs) - Math.min(...xs);
+    const F0 = P([Math.min(...xs) - span * 0.1, pt[1]]), F1 = P([Math.max(...xs) + span * 0.1, pt[1]]);
+    octx.setLineDash([8, 5]); octx.lineWidth = 2; octx.strokeStyle = color;
+    octx.beginPath(); octx.moveTo(F0[0], F0[1]); octx.lineTo(F1[0], F1[1]); octx.stroke(); octx.setLineDash([]);
+    octx.font = '700 12px Segoe UI'; octx.fillStyle = color; octx.fillText(label, F0[0] + 4, F0[1] - 6);
+  };
+  // régua: linha com marcas nas pontas e etiqueta
+  const ruler = (a, b, color, label, centerTick) => {
+    const A = P(a), B = P(b), L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, nx = -(B[1] - A[1]) / L * 7, ny = (B[0] - A[0]) / L * 7;
+    octx.lineCap = 'butt';
+    for (const [w, c] of [[4, 'rgba(0,0,0,.6)'], [2, color]]) {
+      octx.lineWidth = w; octx.strokeStyle = c; octx.beginPath();
+      octx.moveTo(A[0], A[1]); octx.lineTo(B[0], B[1]);
+      octx.moveTo(A[0] - nx, A[1] - ny); octx.lineTo(A[0] + nx, A[1] + ny);
+      octx.moveTo(B[0] - nx, B[1] - ny); octx.lineTo(B[0] + nx, B[1] + ny);
+      if (centerTick) { const m = mid(A, B); octx.moveTo(m[0] - nx * 1.6, m[1] - ny * 1.6); octx.lineTo(m[0] + nx * 1.6, m[1] + ny * 1.6); }
+      octx.stroke();
+    }
+    if (label) {
+      const m = mid(A, B); octx.font = '700 12px Segoe UI'; const tw = octx.measureText(label).width + 12;
+      const ox = centerTick ? 0 : 0, oy = centerTick ? -18 : 0;
+      octx.fillStyle = color; octx.beginPath(); octx.roundRect(m[0] - tw / 2 + ox, m[1] - 10 + oy, tw, 20, 10); octx.fill();
+      octx.fillStyle = '#fff'; octx.textAlign = 'center'; octx.textBaseline = 'middle'; octx.fillText(label, m[0] + ox, m[1] + oy + 1);
+      octx.textAlign = 'start'; octx.textBaseline = 'alphabetic';
+    }
+  };
+  const cmT = v => String(+(+v).toFixed(1)).replace('.', ',') + ' cm';
+  if (cur.calib && cur.step === 'medida') {
     measLine(cur.calib.wl[0], cur.calib.wl[1], '#2f80ff', cmTxt(cur.calib.wcm));
     if (cur.calib.hl) measLine(cur.calib.hl[0], cur.calib.hl[1], '#ef3b3b', cmTxt(cur.calib.hcm));
-    const f = floorImg(cur);
-    if (f) {
-      const xs = cur.calib.pts.map(q => q[0]), span = Math.max(...xs) - Math.min(...xs);
-      const F0 = P([Math.min(...xs) - span * 0.1, f[1]]), F1 = P([Math.max(...xs) + span * 0.1, f[1]]);
-      octx.setLineDash([8, 5]); octx.lineWidth = 2; octx.strokeStyle = '#22b14c';
-      octx.beginPath(); octx.moveTo(F0[0], F0[1]); octx.lineTo(F1[0], F1[1]); octx.stroke(); octx.setLineDash([]);
-      octx.font = '700 12px Segoe UI'; octx.fillStyle = '#22b14c'; octx.fillText('piso', F0[0] + 4, F0[1] - 6);
+  }
+  if (cur.calib && (cur.step === 'medida' || cur.step === 'local')) {
+    const f = floorImg(cur), t = ceilImg(cur);
+    if (f) levelLine(f, '#22b14c', 'piso');
+    if (t) levelLine(t, '#b06cff', 'teto');
+  }
+  // Aba Local: régua do trecho escolhido e cota da altura
+  if (cur.calib && cur.step === 'local') {
+    for (const s of screensOf(cur)) {
+      if (s.space !== 'plane' || !s.region) continue;
+      const ry = s.regionY ?? (s.y + s.H / 2);
+      ruler(toImg(cur, [s.region[0], ry]), toImg(cur, [s.region[1], ry]), '#f7931e', cmT(s.region[1] - s.region[0]), true);
+      const cxp = s.x + s.W / 2, fy = floorPlaneY(cur), cy = ceilPlaneY(cur);
+      if (fy != null) ruler(toImg(cur, [cxp, s.y + s.H]), toImg(cur, [cxp, fy]), '#22b14c', 'base ' + cmT(fy - s.y - s.H));
+      if (cy != null && s.glued) ruler(toImg(cur, [cxp + s.W * 0.35, cy]), toImg(cur, [cxp + s.W * 0.35, s.y]), '#b06cff', cmT(s.y - cy) + ' do teto');
     }
+  }
+  if (pending.length && tool === 'local') {
+    const end = mouse ? localSnap(mouse) : pending[0];
+    const w = cur.calib ? Math.abs(toPlane(cur, end)[0] - toPlane(cur, pending[0])[0]) : 0;
+    ruler(pending[0], end, '#f7931e', cmT(w), true);
   }
   if (drag && drag.kind === 'region') {
     const a = P(drag.a), b = P(drag.b);
@@ -771,7 +899,7 @@ function drawOverlay() {
     octx.beginPath(); octx.rect(s[0] - 4.5, s[1] - 4.5, 9, 9); octx.fill(); octx.stroke();
   }
   const cornerMode = tool === 'screen' && !cur.calib;
-  const needLoupe = mouse && (cornerMode || tool.startsWith('meas') || tool === 'can' || tool === 'canup' || (drag && drag.kind === 'handle'));
+  const needLoupe = mouse && (cornerMode || tool.startsWith('meas') || tool === 'local' || tool === 'can' || tool === 'canup' || (drag && drag.kind === 'handle'));
   if (needLoupe) {
     const R = 62, Z = 4, m = P(mouse);
     let lx = m[0] + 24, ly = m[1] + 24;
@@ -789,6 +917,9 @@ function drawOverlay() {
     if (cornerMode && pending.length < 4) tag = 'canto ' + CORNERS[pending.length];
     if (tool === 'measW') tag = (pending.length ? 'fim' : 'início') + ' da largura';
     if (tool === 'measH') tag = (pending.length ? 'fim' : 'início') + ' da altura';
+    if (tool === 'measFloor') tag = 'piso';
+    if (tool === 'measCeil') tag = 'teto';
+    if (tool === 'local') tag = (pending.length ? 'fim' : 'início') + ' do local';
     if (tool === 'canup') tag = 'clique no teto';
     if (tag) {
       octx.font = '600 12px Segoe UI'; const tw = octx.measureText(tag).width + 16;
@@ -880,6 +1011,7 @@ function toolForStep(n) {
     return screensOf(cur).length ? 'canup' : 'select';
   }
   if (n === 'marcacao') return 'mark';
+  if (n === 'local') return cur.calib ? 'local' : 'select';
   return 'select';
 }
 let curTab = 'medida';
@@ -929,9 +1061,11 @@ function canPxDefault() {
   if (s && s.space === 'img') return Math.max(3, dist(s.corners[0], s.corners[1]) * defaults.canCm / s.W);
   return Math.max(3, Math.round(cur.w * 0.03));
 }
-function newScreenProps() { return {W: defaults.W, H: defaults.H, B: defaults.B, bright: null, gloss: 0.35, noise: 3, shadow: 0.6, tilt: defaults.tilt ?? 12}; }
+function newScreenProps() { return {W: defaults.W, H: defaults.H, B: defaults.B, bright: null, gloss: 0.35, noise: 3, shadow: 0.7, tilt: defaults.tilt ?? 12}; }
 let canupTarget = null;
 
+// Local: a régua é sempre horizontal (mesma altura do primeiro ponto)
+function localSnap(pt) { return pending.length ? [pt[0], pending[0][1]] : pt; }
 // Shift trava a linha: largura na horizontal, altura na vertical
 function measSnap(pt) {
   if (!window.__shift || !pending.length) return pt;
@@ -979,10 +1113,21 @@ ov.addEventListener('mousedown', e => {
     }
     tool = 'select'; render(); refreshUI(); return;
   }
-  if (tool === 'measFloor') {
-    pushUndo(); changeCalib(cur, c => { c.floor = pt; });
-    for (const it of screensOf(cur)) if (it.space === 'plane' && it.auto) autoPlace(cur, it);
+  if (tool === 'measFloor' || tool === 'measCeil') {
+    pushUndo(); changeCalib(cur, c => { if (tool === 'measFloor') c.floor = pt; else c.ceil = pt; });
     tool = 'select'; render(); refreshUI(); return;
+  }
+  if (tool === 'local') {
+    if (!cur.calib) return;
+    if (!pending.length) { pending = [pt]; refreshUI(); drawOverlay(); return; }
+    const a = pending[0], b = localSnap(pt); pending = [];
+    if (dist(a, b) * css.sc < 6) { refreshUI(); drawOverlay(); return; }
+    const qa = toPlane(cur, a), qb = toPlane(cur, b);
+    pushUndo();
+    let s = (sel && sel.type === 'screen' && sel.space === 'plane') ? sel : screensOf(cur).find(i => i.space === 'plane');
+    if (!s) { s = {type: 'screen', space: 'plane', x: 0, y: 0, ...newScreenProps()}; cur.items.push(s); }
+    s.region = [Math.min(qa[0], qb[0]), Math.max(qa[0], qb[0])]; s.regionY = (qa[1] + qb[1]) / 2; s.auto = true;
+    autoPlace(cur, s); sel = s; render(); refreshUI(); return;
   }
   if (tool === 'screen') {
     if (cur.calib) { drag = {kind: 'region', a: pt, b: pt}; return; }
@@ -1151,22 +1296,38 @@ function refreshUI() {
   $('#bMeasH').disabled = !cb; $('#bMeasH').style.opacity = cb ? '' : '.45';
   $('#bDelH').classList.toggle('hide', !(cb && cb.hl));
   $('#bSkipCal').classList.toggle('hide', !cb);
-  const fl = floorImg(cur);
-  $('#bFloor').disabled = !cb || !!(cb && cb.hl); $('#bFloor').style.opacity = (!cb || (cb && cb.hl)) ? '.45' : '';
-  $('#bFloor').classList.toggle('on', tool === 'measFloor');
-  $('#bFloor').textContent = tool === 'measFloor' ? 'Marcando…' : (cb && cb.floor && !cb.hl ? 'Refazer' : 'Marcar');
+  const fl = floorImg(cur), ce = ceilImg(cur), noH = !cb || !!(cb && cb.hl);
+  for (const [id, t, has, key] of [['#bFloor', 'measFloor', fl, 'floor'], ['#bCeil', 'measCeil', ce, 'ceil']]) {
+    $(id).disabled = noH; $(id).style.opacity = noH ? '.45' : '';
+    $(id).classList.toggle('on', tool === t);
+    $(id).textContent = tool === t ? 'Marcando…' : (cb && cb[key] && !cb.hl ? 'Refazer' : 'Marcar');
+  }
   $('#floorTxt').textContent = cb && cb.hl ? 'pela altura' : fl ? 'marcado' : '—';
+  $('#ceilTxt').textContent = cb && cb.hl ? 'pela altura' : ce ? 'marcado' : '—';
   const which = tool === 'measW' ? '<b style="color:#5b9bff">largura</b> (azul)' : '<b style="color:#ff6b6b">altura</b> (vermelha), do teto ao piso';
   $('#calProg').innerHTML = tool === 'measFloor' ? 'Clique no <b>piso</b>, rente à parede.'
+    : tool === 'measCeil' ? 'Clique no <b>teto</b>, rente à parede.'
     : tool.startsWith('meas') ? `Clique no <b>${pending.length ? 'fim' : 'início'}</b> da ${which} na foto. <span class="small">Shift deixa reta.</span>`
-    : cb ? (fl ? 'Pronto. Na aba <b>Tela</b>, arraste sobre o local e a tela entra sozinha.' : 'Falta o <b>piso</b>: marque a altura até o chão ou clique em Piso → Marcar.')
+    : cb ? (fl ? 'Pronto. Agora vá para a aba <b>Local</b>.' : 'Falta o <b>piso</b>: marque a altura até o chão ou clique em Piso → Marcar.')
     : 'Marque a largura da parede (linha azul).';
-  // tela
+  // local
   const target = sel && sel.type === 'screen' ? sel : scr[0];
-  if (document.activeElement !== $('#baseCm')) $('#baseCm').value = baseCm();
-  $('#baseInfo').textContent = `Topo a ${String(baseCm() + defaults.H).replace('.', ',')} cm do piso (tela de ${cm(defaults.H)} cm).` + (cur.calib && !fl ? ' Sem piso marcado: a altura fica onde você arrastar.' : '');
+  const autoB = defaults.baseAuto !== false;
+  $('#baseAuto').checked = autoB;
+  $('#baseRow').classList.toggle('hide', autoB);
+  if (document.activeElement !== $('#baseCm')) $('#baseCm').value = defaults.baseCm ?? BASE_PADRAO;
+  const pl = target && target.space === 'plane' ? target : null;
+  let info = `Base a ${cm(baseCm())} cm e topo a ${cm(baseCm() + defaults.H)} cm do piso.`;
+  if (pl && pl.glued) info = `Pé-direito baixo: a tela foi encostada no teto (${FOLGA_TETO} cm de folga). Base a ${cm(floorPlaneY(cur) != null ? floorPlaneY(cur) - pl.y - pl.H : 0)} cm do piso.`;
+  if (cur.calib && !fl && !ce) info += ' Sem piso nem teto marcados: a altura fica na linha que você clicar.';
+  $('#baseInfo').textContent = info;
+  $('#localIns').innerHTML = !cur.calib ? 'Marque a medida da parede primeiro (aba <b>Medida</b>).'
+    : tool === 'local' && pending.length ? 'Agora clique no <b>fim</b> do local.'
+    : pl && pl.region ? 'Pronto: tela centralizada no local. Para refazer, clique 2 pontos de novo.'
+    : 'Clique no <b>início</b> e no <b>fim</b> do local onde a tela vai (ex.: entre as portas). A tela centraliza entre eles.';
+  // tela
   $('#scrIns').innerHTML = (scr.length && tool !== 'screen') ? 'Arraste a tela para ajustar. <span class="small">Setas movem 1 cm (Shift: 10).</span>'
-    : cur.calib ? '<b>Arraste sobre o local</b> da tela (ex.: entre as portas). Ela entra centralizada ali, na altura certa. Um clique simples centraliza no ponto.'
+    : cur.calib ? 'Use a aba <b>Local</b> para posicionar automático, ou clique aqui onde quer a tela.'
     : `Sem medida: clique nos 4 cantos da tela. Agora o <b>${CORNERS[pending.length]}</b>.`;
   $('#bAddScr').classList.toggle('hide', !scr.length || tool === 'screen');
   $('#scrPlaced').classList.toggle('hide', !target);
@@ -1178,13 +1339,15 @@ function refreshUI() {
     $('#sGloss').value = target.gloss; $('#sShadow').value = target.shadow; $('#sNoise').value = target.noise;
     const tl = target.tilt || 0; $('#sTilt').value = tl; $('#tiltVal').textContent = tl + '°';
     $('#sTilt').disabled = target.space !== 'plane';
-    $('#sDist').value = target.shadowDist ?? 1;
+    const sd = target.shadowDist ?? 1, ss = target.shadowSoft ?? 1;
+    $('#sDist').value = sd; $('#sSoft').value = ss;
+    $('#sShadowVal').textContent = Math.round(target.shadow * 100) + '%';
+    $('#sDistVal').textContent = sd.toFixed(1).replace('.', ','); $('#sSoftVal').textContent = ss.toFixed(1).replace('.', ',');
   }
   const ms = sel && sel.type === 'mark' ? (sel.scale ?? 1) : (defaults.markScale ?? 1);
   $('#mScale').value = ms; $('#mScaleVal').textContent = (+ms).toFixed(1).replace('.', ',') + '×';
   $('#lAuto').checked = cur.lightAuto !== false;
-  const la = Math.round(lightAngle(cur)); $('#lAngle').value = la; $('#lAngleVal').textContent = la + '°';
-  $('#lAngle').disabled = cur.lightAuto !== false;
+  drawDial();
   $('#modelName').textContent = `Tela ${cm(defaults.W)} × ${cm(defaults.H)} cm`;
   // canaleta
   document.querySelectorAll('#canMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === defaults.canMode));
@@ -1241,6 +1404,12 @@ $('#baseCm').addEventListener('change', () => {
   pushUndo(); for (const it of screensOf(cur)) if (it.space === 'plane' && it.auto) autoPlace(cur, it);
   render(); refreshUI();
 });
+$('#bCeil').onclick = () => { if (!cur || !cur.calib) return; sel = null; if (curTab !== 'medida') goStep('medida'); setTool('measCeil'); render(); };
+$('#baseAuto').onchange = () => {
+  defaults.baseAuto = $('#baseAuto').checked; saveDefaults();
+  if (cur) { pushUndo(); for (const it of screensOf(cur)) if (it.space === 'plane' && it.auto) autoPlace(cur, it); render(); }
+  refreshUI();
+};
 $('#bFloor').onclick = () => { if (!cur || !cur.calib) return; sel = null; if (curTab !== 'medida') goStep('medida'); setTool('measFloor'); render(); };
 const lightTarget = () => (sel && sel.type === 'screen' ? sel : screensOf(cur)[0]);
 $('#sAuto').onchange = () => { const t = lightTarget(); if (!t) return; pushUndo(); t.bright = $('#sAuto').checked ? null : +$('#sBright').value; render(); refreshUI(); };
@@ -1260,12 +1429,45 @@ $('#mScale').addEventListener('input', () => {
 });
 bindSlider('#sTilt', 'tilt');
 bindSlider('#sDist', 'shadowDist');
+bindSlider('#sSoft', 'shadowSoft');
+for (const [id, fmt] of [['#sShadow', v => Math.round(v * 100) + '%'], ['#sDist', v => v.toFixed(1).replace('.', ',')], ['#sSoft', v => v.toFixed(1).replace('.', ',')]])
+  $(id).addEventListener('input', () => { $(id + 'Val').textContent = fmt(+$(id).value); });
 $('#lAuto').onchange = () => { if (!cur) return; pushUndo(); cur.lightAuto = $('#lAuto').checked; if (!cur.lightAuto) cur.lightAngle = Math.round(autoLightAngle(cur)); render(); refreshUI(); };
-$('#lAngle').addEventListener('pointerdown', () => pushUndo());
-$('#lAngle').addEventListener('input', () => {
-  if (!cur) return; cur.lightAuto = false; cur.lightAngle = +$('#lAngle').value; $('#lAngleVal').textContent = cur.lightAngle + '°';
-  clearTimeout(sliderTimer.la); sliderTimer.la = setTimeout(render, 30);
-});
+/* Círculo de direção da sombra (como o do Photoshop): o traço aponta para onde a sombra cai.
+   Internamente guardamos o ângulo da luz (oposto): sombra (sx,sy) = (-cos a, sin a). */
+function drawDial() {
+  const cvd = $('#lDial'), dpr = window.devicePixelRatio || 1, S = 72;
+  if (cvd.width !== S * dpr) { cvd.width = S * dpr; cvd.height = S * dpr; }
+  const g = cvd.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, S, S);
+  const c = S / 2, R = S / 2 - 4;
+  g.fillStyle = '#121417'; g.strokeStyle = '#3d434a'; g.lineWidth = 2;
+  g.beginPath(); g.arc(c, c, R, 0, 7); g.fill(); g.stroke();
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.strokeStyle = '#2c3137'; g.lineWidth = 1; g.beginPath(); g.moveTo(c + Math.cos(a) * (R - 5), c + Math.sin(a) * (R - 5)); g.lineTo(c + Math.cos(a) * R, c + Math.sin(a) * R); g.stroke(); }
+  if (!cur) return;
+  const [sx, sy] = shadowDir(cur), auto = cur.lightAuto !== false;
+  const col = auto ? '#8e959c' : '#f7931e';
+  g.strokeStyle = col; g.lineWidth = 3; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(c, c); g.lineTo(c + sx * (R - 8), c + sy * (R - 8)); g.stroke();
+  g.fillStyle = col; g.beginPath(); g.arc(c + sx * (R - 8), c + sy * (R - 8), 5, 0, 7); g.fill();
+  g.fillStyle = '#eceef0'; g.beginPath(); g.arc(c, c, 3, 0, 7); g.fill();
+  $('#lAngleVal').textContent = auto ? '(automática)' : '';
+}
+{
+  const dial = $('#lDial'); let dragging = false;
+  const setFrom = e => {
+    if (!cur) return;
+    const r = dial.getBoundingClientRect(), sx = e.clientX - (r.left + r.width / 2), sy = e.clientY - (r.top + r.height / 2);
+    if (Math.hypot(sx, sy) < 3) return;
+    let a = Math.atan2(sy, -sx) * 180 / Math.PI; if (a < 0) a += 360;
+    if (e.shiftKey) a = Math.round(a / 15) * 15; // Shift: passos de 15°
+    cur.lightAuto = false; cur.lightAngle = Math.round(a);
+    drawDial(); $('#lAuto').checked = false;
+    clearTimeout(sliderTimer.la); sliderTimer.la = setTimeout(render, 25);
+  };
+  dial.addEventListener('pointerdown', e => { if (!cur) return; pushUndo(); dragging = true; dial.setPointerCapture(e.pointerId); setFrom(e); });
+  dial.addEventListener('pointermove', e => { if (dragging) setFrom(e); });
+  dial.addEventListener('pointerup', () => { dragging = false; });
+}
 $('#sTilt').addEventListener('input', () => { const v = +$('#sTilt').value; $('#tiltVal').textContent = v + '°'; defaults.tilt = v; saveDefaults(); });
 bindSlider('#sBright', 'bright'); bindSlider('#sGloss', 'gloss'); bindSlider('#sShadow', 'shadow'); bindSlider('#sNoise', 'noise');
 $('#bModel').onclick = () => openSettings();
@@ -1299,19 +1501,18 @@ $('#bCloseSet').onclick = () => $('#settings').close();
 $('#bArt').onclick = () => $('#fArt').click();
 $('#fArt').onchange = e => {
   const f = e.target.files[0]; if (!f) return;
-  const rd = new FileReader();
-  rd.onload = () => {
-    const im = new Image();
-    im.onload = () => {
-      setArtFromImage(im, f.name, true);
-      if (!store.set('art', {name: f.name, data: rd.result})) $('#artInfo').textContent += ' (grande demais para lembrar; recarregue na próxima vez)';
-      render(); refreshUI();
-    };
-    im.src = rd.result;
+  e.target.value = '';
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onload = async () => {
+    URL.revokeObjectURL(url);
+    setArtFromImage(im, f.name, true);
+    const ok = await idb.set('art', {name: f.name, blob: f});
+    if (!ok) $('#artInfo').textContent += ' (não foi possível guardar; carregue de novo na próxima vez)';
+    render(); refreshUI();
   };
-  rd.readAsDataURL(f); e.target.value = '';
+  im.src = url;
 };
-$('#bArtReset').onclick = () => { useDefaultArt(); store.set('art', null); render(); refreshUI(); };
+$('#bArtReset').onclick = () => { useDefaultArt(); idb.set('art', null); store.set('art', null); render(); refreshUI(); };
 function onDim() {
   const W = +$('#sW').value, H = +$('#sH').value, B = +$('#sB').value;
   if (!(W > 0 && H > 0 && B >= 0 && 2 * B < Math.min(W, H))) return;
