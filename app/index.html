@@ -13,6 +13,9 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 .hide{display:none!important}
+/* app não é documento: nada de seleção de texto (Shift+clique pintava o painel de azul) */
+body{-webkit-user-select:none;user-select:none}
+input,textarea{-webkit-user-select:text;user-select:text}
 
 /* topo */
 header{display:flex;align-items:center;gap:10px;height:64px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line)}
@@ -22,6 +25,12 @@ header{display:flex;align-items:center;gap:10px;height:64px;padding:0 14px;backg
 .thumb img{height:100%;display:block}
 .thumb.sel{outline-color:var(--acc);opacity:1}
 .thumb:hover{opacity:1}
+.thumb .x{position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.75);color:#fff;font-size:13px;line-height:17px;text-align:center;display:none}
+.thumb:hover .x{display:block}
+.thumb .x:hover{background:#c0392b}
+.tool{height:38px;padding:0 12px;border-radius:8px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px}
+.tool:hover{background:var(--card);color:var(--text)}
+.tool.on{background:var(--acc);color:#1a1000}
 .thumb .dot{position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--go);color:#fff;font-size:11px;line-height:16px;text-align:center}
 .add{flex:none;height:46px;padding:0 14px;border:1px dashed #4a5058;border-radius:6px;color:var(--muted)}
 .add:hover{border-color:var(--acc);color:var(--text)}
@@ -109,7 +118,9 @@ main{position:relative;display:flex;align-items:center;justify-content:center;ov
 #drop:hover,#drop.over{border-color:var(--acc);color:var(--text)}
 #drop b{display:block;font-size:18px;color:var(--text);margin-bottom:6px}
 #pill{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(20,22,25,.92);border:1px solid var(--line);border-radius:999px;padding:6px 8px 6px 16px;display:flex;gap:12px;align-items:center;font-size:13px;z-index:2}
-#pill button{padding:4px 12px;border-radius:999px;background:#5a2323;color:#ffd9d9;font-size:12px;font-weight:600}
+#pill button{padding:4px 12px;border-radius:999px;background:#30353b;color:var(--text);font-size:12px;font-weight:600}
+#pill button:hover{background:#3a4047}
+#pill #bDel{background:#5a2323;color:#ffd9d9}
 
 /* configurações */
 dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:22px;width:min(440px,92vw)}
@@ -127,6 +138,7 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
   <div class="strip" id="photos"></div>
   <button class="add" id="bOpen">+ Fotos</button>
   <input type="file" id="fOpen" accept="image/*" multiple hidden>
+  <button class="tool" id="bSelect" title="Selecionar elementos (V)">↖ Selecionar</button>
   <button class="icon" id="bUndo" title="Desfazer (Ctrl+Z)">↶</button>
   <button class="icon" id="bSettings" title="Arte e modelo da tela">⚙</button>
 </header>
@@ -206,9 +218,16 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
         <button data-mk="outro">Outro…</button>
       </div>
       <input id="mCustom" class="hide" placeholder="Texto do rótulo" style="width:100%;padding:7px;border-radius:7px;border:1px solid var(--line);background:var(--bg);margin-bottom:10px">
-      <p class="ins">Arraste um retângulo sobre o item na foto.</p>
-      <div class="row" style="justify-content:space-between;color:var(--text);font-size:14px;margin-top:12px">Espessura do tracejado <b id="mScaleVal"></b></div>
-      <input type="range" id="mScale" min="0.5" max="3" step="0.1" style="width:100%;accent-color:var(--acc)">
+      <p class="ins" id="mIns">Arraste um retângulo sobre o item na foto.</p>
+      <div id="mEdit" class="hide" style="margin-bottom:6px">
+        <h5 class="sect" style="margin-top:6px">Marcação selecionada</h5>
+        <input id="mText" placeholder="Texto" style="width:100%;padding:7px;border-radius:7px;border:1px solid var(--line);background:var(--bg);margin-bottom:6px">
+        <p class="small" style="margin:0 0 4px">Arraste os quadradinhos dos cantos para mudar o tamanho do retângulo.</p>
+      </div>
+      <h5 class="sect">Aparência</h5>
+      <div class="row sl">Tamanho do texto <span><input type="range" id="mFont" min="0.5" max="2.5" step="0.05"> <b id="mFontVal"></b></span></div>
+      <div class="row sl">Tracejado <span><input type="range" id="mScale" min="0.5" max="3" step="0.1"> <b id="mScaleVal"></b></span></div>
+      <div class="row sl">Contorno preto <span><input type="range" id="mOutline" min="0" max="4" step="0.1"> <b id="mOutlineVal"></b></span></div>
     </div>
   </div>
 
@@ -221,7 +240,7 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
 <main id="stage">
   <div id="drop"><b>Arraste as fotos da vistoria aqui</b>ou clique para escolher</div>
   <div id="wrap" class="hide"><canvas id="cv"></canvas><canvas id="ov"></canvas></div>
-  <div id="pill" class="hide"><span id="pillTxt"></span><button id="bDel">Excluir</button></div>
+  <div id="pill" class="hide"><span id="pillTxt"></span><button id="bDup" title="Duplicar (Ctrl+D)">Duplicar</button><button id="bDel" title="Excluir (Del)">Excluir</button></div>
 </main>
 </div>
 
@@ -758,7 +777,7 @@ function drawMark(g, p, s) {
   const [ax, ay, bx, by] = s.r, x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
   const scale = s.scale ?? 1;
   const lw = Math.max(2, p.w * 0.0045) * scale;          // tracejado laranja (ajustável)
-  const ol = Math.max(1.5, p.w * 0.0016);                  // contorno preto fino de cada lado
+  const ol = Math.max(1.5, p.w * 0.0016) * (s.outline ?? 1); // contorno preto de cada lado (ajustável, 0 = sem)
   // Cada lado: cantoneira nas duas pontas + um traço no meio. Desenha duas vezes: preto (mais largo) e laranja por cima.
   const sidePath = (P, Q) => {
     const L = dist(P, Q), ux = (Q[0] - P[0]) / L, uy = (Q[1] - P[1]) / L, seg = Math.min(L * 0.28, Math.max(lw * 6, L * 0.2));
@@ -768,16 +787,16 @@ function drawMark(g, p, s) {
   };
   const allSides = () => { g.beginPath(); sidePath([x0, y0], [x1, y0]); sidePath([x1, y0], [x1, y1]); sidePath([x1, y1], [x0, y1]); sidePath([x0, y1], [x0, y0]); };
   g.save(); g.lineCap = 'square'; g.lineJoin = 'miter';
-  allSides(); g.strokeStyle = '#000'; g.lineWidth = lw + ol * 2; g.stroke();
+  if (ol > 0.05) { allSides(); g.strokeStyle = '#000'; g.lineWidth = lw + ol * 2; g.stroke(); }
   allSides(); g.strokeStyle = MARK_COLOR; g.lineWidth = lw; g.stroke();
   if (s.label) {
-    const fs = Math.max(14, p.w * 0.034);
+    const fs = Math.max(14, p.w * 0.034) * (s.fontScale ?? 1);
     g.font = `700 ${fs}px Montserrat, "Segoe UI", sans-serif`; g.textAlign = 'center';
     const cx = clamp((x0 + x1) / 2, g.measureText(s.label).width / 2 + 4, p.w - g.measureText(s.label).width / 2 - 4);
     let ty = y0 - lw - fs * 0.45, base = 'bottom';
     if (ty - fs < 0) { ty = y1 + lw + fs * 0.35; base = 'top'; }
     g.textBaseline = base;
-    g.lineJoin = 'round'; g.lineWidth = ol * 2 + fs * 0.03; g.strokeStyle = '#000'; g.strokeText(s.label, cx, ty);
+    if (ol > 0.05) { g.lineJoin = 'round'; g.lineWidth = ol * 2 + fs * 0.03; g.strokeStyle = '#000'; g.strokeText(s.label, cx, ty); }
     g.fillStyle = MARK_COLOR; g.fillText(s.label, cx, ty);
   }
   g.restore();
@@ -805,7 +824,14 @@ function getHandles() {
   if (sel) {
     if (sel.type === 'screen' && sel.space === 'img') sel.corners.forEach((q, i) => H.push({pt: q, set: v => { sel.corners[i] = v; }}));
     if (sel.type === 'can') canPtsImg(cur, sel).forEach((q, i) => H.push({pt: q, set: v => { sel.pts[i] = sel.space === 'plane' ? toPlane(cur, v) : v; }}));
-    if (sel.type === 'mark') { H.push({pt: [sel.r[0], sel.r[1]], set: v => { sel.r[0] = v[0]; sel.r[1] = v[1]; }}); H.push({pt: [sel.r[2], sel.r[3]], set: v => { sel.r[2] = v[0]; sel.r[3] = v[1]; }}); }
+    if (sel.type === 'mark') {
+      const r = sel.r, x0 = Math.min(r[0], r[2]), x1 = Math.max(r[0], r[2]), y0 = Math.min(r[1], r[3]), y1 = Math.max(r[1], r[3]);
+      sel.r = [x0, y0, x1, y1];
+      H.push({pt: [x0, y0], set: v => { sel.r[0] = v[0]; sel.r[1] = v[1]; }});
+      H.push({pt: [x1, y0], set: v => { sel.r[2] = v[0]; sel.r[1] = v[1]; }});
+      H.push({pt: [x1, y1], set: v => { sel.r[2] = v[0]; sel.r[3] = v[1]; }});
+      H.push({pt: [x0, y1], set: v => { sel.r[0] = v[0]; sel.r[3] = v[1]; }});
+    }
   }
   return H;
 }
@@ -992,9 +1018,26 @@ function renderList() {
   const box = $('#photos'); box.innerHTML = '';
   photos.forEach(p => {
     const d = document.createElement('button'); d.className = 'thumb' + (p === cur ? ' sel' : ''); d.title = p.name;
-    d.innerHTML = `<img src="${p.thumb}" alt="">` + (p.exported ? '<span class="dot">✓</span>' : '');
-    d.onclick = () => selectPhoto(p); box.appendChild(d);
+    d.innerHTML = `<img src="${p.thumb}" alt="">` + (p.exported ? '<span class="dot">✓</span>' : '') + '<span class="x" title="Remover foto">×</span>';
+    d.onclick = () => selectPhoto(p);
+    d.querySelector('.x').onclick = e => { e.stopPropagation(); removePhoto(p); };
+    box.appendChild(d);
   });
+}
+function removePhoto(p) {
+  if (p.items.length && !confirm(`Remover "${p.name}"? A simulação dessa foto será perdida.`)) return;
+  const i = photos.indexOf(p); if (i < 0) return;
+  photos.splice(i, 1);
+  if (cur === p) {
+    const next = photos[i] || photos[i - 1];
+    if (next) selectPhoto(next);
+    else {
+      cur = null; sel = null; pending = []; drag = null;
+      $('#wrap').classList.add('hide'); $('#drop').classList.remove('hide');
+      drawOverlay(); refreshUI();
+    }
+  }
+  renderList();
 }
 $('#bOpen').onclick = () => $('#fOpen').click();
 $('#drop').onclick = () => $('#fOpen').click();
@@ -1105,6 +1148,7 @@ function hitTest(pt, only) {
 }
 function startMove(it, pt) {
   sel = it; pushUndo();
+  if (it.type === 'mark' && curTab !== 'marcacao') { curTab = 'marcacao'; cur.step = 'marcacao'; }
   if (it.type === 'screen') it.auto = false; // mexeu na mão: deixa de seguir a posição automática
   drag = {kind: 'move', it, start: pt, startPl: cur.calib ? toPlane(cur, pt) : null, orig: JSON.parse(JSON.stringify(it))};
   fast = it.type === 'screen';
@@ -1112,6 +1156,8 @@ function startMove(it, pt) {
 
 ov.addEventListener('mousedown', e => {
   if (!cur || e.button !== 0) return;
+  e.preventDefault(); // Shift+clique não deve selecionar texto da página
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const pt = evPt(e); mouse = pt;
   if (!tool.startsWith('meas') && !(tool === 'screen' && pending.length) && tool !== 'can') {
     const tol = 9 / css.sc;
@@ -1215,7 +1261,7 @@ function endDrag() {
   if (drag.kind === 'mark') {
     const [a, b] = pending;
     if (Math.abs(a[0] - b[0]) * css.sc > 6 && Math.abs(a[1] - b[1]) * css.sc > 6) {
-      pushUndo(); const it = {type: 'mark', r: [a[0], a[1], b[0], b[1]], label: labelText(), scale: defaults.markScale ?? 1};
+      pushUndo(); const it = {type: 'mark', r: [a[0], a[1], b[0], b[1]], label: labelText(), scale: defaults.markScale ?? 1, fontScale: defaults.markFont ?? 1, outline: defaults.markOutline ?? 1};
       cur.items.push(it); sel = it;
     }
     pending = []; drag = null; render(); refreshUI(); return;
@@ -1245,6 +1291,18 @@ function deleteSel() {
   tool = toolForStep(cur.step); render(); refreshUI();
 }
 $('#bDel').onclick = deleteSel;
+function duplicateSel() {
+  if (!sel || !cur) return;
+  pushUndo();
+  const c = JSON.parse(JSON.stringify(sel));
+  if (c.type === 'screen' && c.space === 'plane') { c.x = +(c.x + 15).toFixed(1); c.auto = false; }
+  else if (c.type === 'screen') c.corners = c.corners.map(v => [v[0] + 30, v[1] + 30]);
+  else if (c.type === 'can') c.pts = c.pts.map(v => c.space === 'plane' ? [v[0] + 15, v[1]] : [v[0] + 30, v[1]]);
+  else if (c.type === 'mark') c.r = [c.r[0] + 30, c.r[1] + 30, c.r[2] + 30, c.r[3] + 30];
+  cur.items.push(c); sel = c; render(); refreshUI();
+}
+$('#bDup').onclick = duplicateSel;
+$('#bSelect').onclick = () => { if (!cur) return; pending = []; drag = null; tool = 'select'; refreshUI(); drawOverlay(); };
 window.addEventListener('keydown', e => {
   window.__shift = e.shiftKey;
   if (e.key === 'Shift' && cur) drawOverlay();
@@ -1252,6 +1310,8 @@ window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (!typing) { e.preventDefault(); undo(); } return; }
   if (typing || !cur || $('#settings').open) return;
   const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); duplicateSel(); return; }
+  if (k === 'v' && !e.ctrlKey && !e.metaKey) { $('#bSelect').click(); return; }
   if (k === 'escape') {
     pending = []; sel = null;
     if (tool.startsWith('meas')) tool = 'select'; // Esc pula/cancela a marcação de medida
@@ -1370,8 +1430,15 @@ function refreshUI() {
     $('#sShadowVal').textContent = Math.round(target.shadow * 100) + '%';
     $('#sDistVal').textContent = sd.toFixed(1).replace('.', ','); $('#sSoftVal').textContent = ss.toFixed(1).replace('.', ',');
   }
-  const ms = sel && sel.type === 'mark' ? (sel.scale ?? 1) : (defaults.markScale ?? 1);
-  $('#mScale').value = ms; $('#mScaleVal').textContent = (+ms).toFixed(1).replace('.', ',') + '×';
+  const mk = sel && sel.type === 'mark' ? sel : null;
+  const fx = v => (+v).toFixed(1).replace('.', ',') + '×';
+  const ms = mk ? (mk.scale ?? 1) : (defaults.markScale ?? 1), mf = mk ? (mk.fontScale ?? 1) : (defaults.markFont ?? 1), mo = mk ? (mk.outline ?? 1) : (defaults.markOutline ?? 1);
+  $('#mScale').value = ms; $('#mScaleVal').textContent = fx(ms);
+  $('#mFont').value = mf; $('#mFontVal').textContent = fx(mf);
+  $('#mOutline').value = mo; $('#mOutlineVal').textContent = mo < 0.05 ? 'sem' : fx(mo);
+  $('#mEdit').classList.toggle('hide', !mk);
+  $('#mIns').textContent = mk ? 'Os ajustes abaixo valem para a marcação selecionada.' : 'Arraste um retângulo sobre o item na foto.';
+  if (mk && document.activeElement !== $('#mText')) $('#mText').value = mk.label;
   $('#lAuto').checked = cur.lightAuto !== false;
   drawDial();
   $('#modelName').textContent = `Tela ${cm(defaults.W)} × ${cm(defaults.H)} cm`;
@@ -1399,6 +1466,7 @@ function refreshUI() {
   $('#pill').classList.toggle('hide', !sel);
   if (sel) $('#pillTxt').textContent = {screen: 'Tela selecionada', can: 'Canaleta selecionada', mark: `Marcação: ${sel.label}`}[sel.type];
   ov.style.cursor = tool === 'select' ? 'default' : 'crosshair';
+  $('#bSelect').classList.toggle('on', tool === 'select');
   refreshSettings();
 }
 function saveDefaults() { store.set('defaults', defaults); }
@@ -1448,6 +1516,15 @@ function bindSlider(id, key) {
     clearTimeout(sliderTimer[id]); sliderTimer[id] = setTimeout(render, 30);
   });
 }
+for (const [id, key, dkey, fmt] of [['#mFont', 'fontScale', 'markFont', v => v.toFixed(1).replace('.', ',') + '×'], ['#mOutline', 'outline', 'markOutline', v => v < 0.05 ? 'sem' : v.toFixed(1).replace('.', ',') + '×']]) {
+  $(id).addEventListener('pointerdown', () => { if (sel && sel.type === 'mark') pushUndo(); });
+  $(id).addEventListener('input', () => {
+    const v = +$(id).value; $(id + 'Val').textContent = fmt(v); defaults[dkey] = v; saveDefaults();
+    if (cur && sel && sel.type === 'mark') { sel[key] = v; clearTimeout(sliderTimer[id]); sliderTimer[id] = setTimeout(render, 30); }
+  });
+}
+$('#mText').addEventListener('focus', () => { if (sel && sel.type === 'mark') pushUndo(); });
+$('#mText').addEventListener('input', () => { if (cur && sel && sel.type === 'mark') { sel.label = $('#mText').value; render(); $('#pillTxt').textContent = 'Marcação: ' + sel.label; } });
 $('#mScale').addEventListener('pointerdown', () => { if (sel && sel.type === 'mark') pushUndo(); });
 $('#mScale').addEventListener('input', () => {
   const v = +$('#mScale').value; $('#mScaleVal').textContent = v.toFixed(1).replace('.', ',') + '×';
