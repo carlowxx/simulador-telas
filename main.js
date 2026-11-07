@@ -91,7 +91,15 @@ function createWindow() {
 
   let lastShown = 0;
   win.webContents.session.on('will-download', (_e, item) => {
-    const target = uniquePath(exportDir(), item.getFilename());
+    // "Condomínio@@foto.png" -> Imagens\Simulações\Condomínio\foto.png
+    let dir = exportDir(), name = item.getFilename();
+    const at = name.indexOf('@@');
+    if (at > 0) {
+      const folder = name.slice(0, at).replace(/[\\/:*?"<>|]+/g, ' ').trim();
+      name = name.slice(at + 2);
+      if (folder) { dir = path.join(dir, folder); fs.mkdirSync(dir, {recursive: true}); }
+    }
+    const target = uniquePath(dir, name);
     item.setSavePath(target);
     item.once('done', (_ev, state) => {
       if (state !== 'completed') return;

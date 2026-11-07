@@ -32,6 +32,9 @@ header{display:flex;align-items:center;gap:10px;height:64px;padding:0 14px;backg
 .tool:hover{background:var(--card);color:var(--text)}
 .tool.on{background:var(--acc);color:#1a1000}
 .thumb .dot{position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--go);color:#fff;font-size:11px;line-height:16px;text-align:center}
+.condo{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0 10px;height:38px;flex:none}
+.condo input{background:none;border:0;outline:0;width:230px;color:var(--text)}
+.condo:focus-within{border-color:var(--acc)}
 .add{flex:none;height:46px;padding:0 14px;border:1px dashed #4a5058;border-radius:6px;color:var(--muted)}
 .add:hover{border-color:var(--acc);color:var(--text)}
 .icon{width:38px;height:38px;border-radius:8px;font-size:18px;color:var(--muted)}
@@ -110,14 +113,22 @@ input[type=checkbox]{accent-color:var(--acc)}
 .small{font-size:12px;color:var(--muted)}
 
 /* palco */
-main{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:16px;min-height:0}
-#wrap{position:relative;line-height:0}
+main#viewport{position:relative;overflow:hidden;min-height:0}
+#stage{position:absolute;inset:0;overflow:auto;display:flex;padding:16px;scrollbar-width:none}
+#stage::-webkit-scrollbar{display:none}
+#wrap{margin:auto;line-height:0}
+#drop{margin:auto}
 #cv{display:block;box-shadow:0 6px 30px rgba(0,0,0,.55)}
-#ov{position:absolute;left:0;top:0;cursor:crosshair}
+#ov{position:absolute;left:0;top:0;width:100%;height:100%;cursor:crosshair}
+#zoomTag{position:absolute;right:14px;bottom:12px;background:rgba(20,22,25,.85);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted);pointer-events:none}
 #drop{width:min(520px,90%);padding:56px 24px;border:2px dashed #3d434a;border-radius:16px;text-align:center;color:var(--muted);cursor:pointer}
 #drop:hover,#drop.over{border-color:var(--acc);color:var(--text)}
 #drop b{display:block;font-size:18px;color:var(--text);margin-bottom:6px}
-#pill{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(20,22,25,.92);border:1px solid var(--line);border-radius:999px;padding:6px 8px 6px 16px;display:flex;gap:12px;align-items:center;font-size:13px;z-index:2}
+.selbar{padding:10px 10px 0;display:flex;flex-direction:column;gap:6px}
+.selbar .tool{width:100%;justify-content:center;border:1px solid var(--line)}
+#pill{display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px}
+#pill .pbtns{display:flex;gap:6px}
+#pill .pbtns button{flex:1}
 #pill button{padding:4px 12px;border-radius:999px;background:#30353b;color:var(--text);font-size:12px;font-weight:600}
 #pill button:hover{background:#3a4047}
 #pill #bDel{background:#5a2323;color:#ffd9d9}
@@ -135,16 +146,20 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
 <body>
 <header>
   <span class="brand">Simulador de Telas <span class="small" id="ver"></span></span>
+  <label class="condo" title="Os PNGs vão para Imagens\Simulações\<nome>"><span>📁</span><input id="condo" placeholder="Nome do condomínio (pasta)"></label>
   <div class="strip" id="photos"></div>
   <button class="add" id="bOpen">+ Fotos</button>
   <input type="file" id="fOpen" accept="image/*" multiple hidden>
-  <button class="tool" id="bSelect" title="Selecionar elementos (V)">↖ Selecionar</button>
   <button class="icon" id="bUndo" title="Desfazer (Ctrl+Z)">↶</button>
   <button class="icon" id="bSettings" title="Arte e modelo da tela">⚙</button>
 </header>
 
 <div class="body">
 <aside id="steps">
+  <div class="selbar">
+    <button class="tool" id="bSelect" title="Selecionar elementos (V)">↖ Selecionar</button>
+    <div id="pill" class="hide"><span id="pillTxt"></span><span class="pbtns"><button id="bDup" title="Duplicar (Ctrl+D)">Duplicar</button><button id="bDel" title="Remover (Delete)">Remover</button></span></div>
+  </div>
   <nav class="tabs">
     <button data-tab="medida"><span>📐</span>Medida</button>
     <button data-tab="local"><span>📍</span>Local</button>
@@ -237,10 +252,13 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
   </div>
 </aside>
 
-<main id="stage">
-  <div id="drop"><b>Arraste as fotos da vistoria aqui</b>ou clique para escolher</div>
-  <div id="wrap" class="hide"><canvas id="cv"></canvas><canvas id="ov"></canvas></div>
-  <div id="pill" class="hide"><span id="pillTxt"></span><button id="bDup" title="Duplicar (Ctrl+D)">Duplicar</button><button id="bDel" title="Excluir (Del)">Excluir</button></div>
+<main id="viewport">
+  <div id="stage">
+    <div id="drop"><b>Arraste as fotos da vistoria aqui</b>ou clique para escolher</div>
+    <div id="wrap" class="hide"><canvas id="cv"></canvas></div>
+  </div>
+  <canvas id="ov" class="hide"></canvas>
+  <div id="zoomTag" class="hide" title="Alt + rolagem: zoom · Ctrl+0: ver inteira"></div>
 </main>
 </div>
 
@@ -479,16 +497,18 @@ function remapPlane(p, oldCalib) {
 }
 // Piso: ponta de baixo da linha vermelha (altura teto→piso) ou o clique de "Marcar piso"
 function floorImg(p) {
-  const c = p && p.calib; if (!c) return null;
+  const c = p && p.calib; if (!c || c.noFloor) return null;
+  if (c.floor) return c.floor;
   if (c.hl) return c.hl[0][1] > c.hl[1][1] ? c.hl[0] : c.hl[1];
-  return c.floor || null;
+  return null;
 }
 function floorPlaneY(p) { const f = floorImg(p); return f ? toPlane(p, f)[1] : null; }
 // Teto: ponta de cima da linha vermelha ou o clique de "Marcar teto"
 function ceilImg(p) {
-  const c = p && p.calib; if (!c) return null;
+  const c = p && p.calib; if (!c || c.noCeil) return null;
+  if (c.ceil) return c.ceil;
   if (c.hl) return c.hl[0][1] < c.hl[1][1] ? c.hl[0] : c.hl[1];
-  return c.ceil || null;
+  return null;
 }
 function ceilPlaneY(p) { const f = ceilImg(p); return f ? toPlane(p, f)[1] : null; }
 const BASE_PADRAO = 190, FOLGA_TETO = 2;
@@ -837,10 +857,11 @@ function getHandles() {
 }
 function drawOverlay() {
   const {dpr, sc} = css;
+  const crr = cv.getBoundingClientRect(), orr = ov.getBoundingClientRect(), OX = crr.left - orr.left, OY = crr.top - orr.top;
   octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, ov.width, ov.height);
   if (!cur) return;
   octx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const P = q => [q[0] * sc, q[1] * sc];
+  const P = q => [OX + q[0] * sc, OY + q[1] * sc];
   const poly = (pts, close) => { octx.beginPath(); pts.map(P).forEach((q, i) => i ? octx.lineTo(q[0], q[1]) : octx.moveTo(q[0], q[1])); if (close) octx.closePath(); };
   const measLine = (a, b, color, label) => {
     const A = P(a), B = P(b);
@@ -932,6 +953,15 @@ function drawOverlay() {
     if (sel.type === 'screen') { poly(screenCorners(cur, sel), true); octx.stroke(); }
     if (sel.type === 'can') { poly(canPtsImg(cur, sel), false); octx.stroke(); }
     if (sel.type === 'mark') { const [a, b, c, d] = sel.r; poly([[a, b], [c, b], [c, d], [a, d]], true); octx.stroke(); }
+    if (sel.type === 'meas' && cur.calib) {
+      octx.setLineDash([]); octx.lineWidth = 9; octx.strokeStyle = 'rgba(255,210,63,.55)'; octx.lineCap = 'round';
+      const c = cur.calib, [xa, xb] = measExtentX();
+      if (sel.which === 'w') poly(c.wl, false);
+      if (sel.which === 'h' && c.hl) poly(c.hl, false);
+      if (sel.which === 'floor' && floorImg(cur)) poly([[xa, floorImg(cur)[1]], [xb, floorImg(cur)[1]]], false);
+      if (sel.which === 'ceil' && ceilImg(cur)) poly([[xa, ceilImg(cur)[1]], [xb, ceilImg(cur)[1]]], false);
+      octx.stroke(); octx.lineCap = 'butt'; octx.setLineDash([4, 3]);
+    }
     octx.setLineDash([]);
   }
   for (const h of getHandles()) {
@@ -976,17 +1006,50 @@ function drawOverlay() {
 }
 
 /* ---------------- layout ---------------- */
+/* Zoom: Alt (ou Ctrl) + rolagem, centrado no mouse. Mínimo = foto inteira na tela; máximo 8×.
+   A camada de guias (ov) cobre só a área visível; a foto (cv) cresce dentro da área com rolagem. */
+let zoom = 1;
 function fit() {
   if (!cur) return;
-  const st = $('#stage'), aw = st.clientWidth - 32, ah = st.clientHeight - 32;
-  const sc = Math.min(aw / cur.w, ah / cur.h, 2);
+  const st = $('#stage'), vp = $('#viewport'), aw = st.clientWidth - 32, ah = st.clientHeight - 32;
+  const base = Math.min(aw / cur.w, ah / cur.h, 2);
+  const sc = base * zoom;
   const W = Math.max(1, Math.round(cur.w * sc)), H = Math.max(1, Math.round(cur.h * sc)), dpr = window.devicePixelRatio || 1;
-  for (const c of [cv, ov]) { c.style.width = W + 'px'; c.style.height = H + 'px'; }
-  ov.width = Math.round(W * dpr); ov.height = Math.round(H * dpr);
-  css = {W, H, sc: W / cur.w, dpr};
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  const vw = vp.clientWidth, vh = vp.clientHeight;
+  if (ov.width !== Math.round(vw * dpr) || ov.height !== Math.round(vh * dpr)) { ov.width = Math.round(vw * dpr); ov.height = Math.round(vh * dpr); }
+  css = {W: vw, H: vh, sc: W / cur.w, dpr};
+  $('#zoomTag').textContent = Math.round(zoom * 100) + '%';
+  $('#zoomTag').classList.toggle('hide', zoom <= 1.001);
+  drawOverlay();
+}
+function setZoom(z, clientX, clientY) {
+  if (!cur) return;
+  const st = $('#stage'), r0 = cv.getBoundingClientRect();
+  const cx = clientX ?? (st.getBoundingClientRect().left + st.clientWidth / 2), cy = clientY ?? (st.getBoundingClientRect().top + st.clientHeight / 2);
+  const ix = (cx - r0.left) / r0.width, iy = (cy - r0.top) / r0.height; // ponto da foto sob o mouse (0–1)
+  zoom = clamp(z, 1, 8); fit();
+  const r1 = cv.getBoundingClientRect();
+  st.scrollLeft += (r1.left + ix * r1.width) - cx;
+  st.scrollTop += (r1.top + iy * r1.height) - cy;
   drawOverlay();
 }
 window.addEventListener('resize', fit);
+$('#stage').addEventListener('scroll', () => drawOverlay());
+ov.addEventListener('wheel', e => {
+  if (!cur) return;
+  e.preventDefault();
+  if (e.altKey || e.ctrlKey) { setZoom(zoom * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); return; }
+  const st = $('#stage');
+  if (e.shiftKey) st.scrollLeft += e.deltaY || e.deltaX; else { st.scrollLeft += e.deltaX; st.scrollTop += e.deltaY; }
+}, {passive: false});
+// arrastar com o botão do meio (rodinha) para andar pela foto ampliada
+{
+  let pan = null;
+  ov.addEventListener('mousedown', e => { if (e.button === 1) { e.preventDefault(); const st = $('#stage'); pan = {x: e.clientX, y: e.clientY, sl: st.scrollLeft, st: st.scrollTop}; ov.style.cursor = 'grabbing'; } });
+  window.addEventListener('mousemove', e => { if (!pan) return; const st = $('#stage'); st.scrollLeft = pan.sl - (e.clientX - pan.x); st.scrollTop = pan.st - (e.clientY - pan.y); });
+  window.addEventListener('mouseup', e => { if (pan && e.button === 1) { pan = null; ov.style.cursor = tool === 'select' ? 'default' : 'crosshair'; } });
+}
 
 /* ---------------- fotos ---------------- */
 function addPhoto(img, name) {
@@ -1011,7 +1074,8 @@ function loadFiles(files) {
 function selectPhoto(p) {
   cur = p; sel = null; pending = []; drag = null;
   cv.width = p.w; cv.height = p.h;
-  $('#drop').classList.add('hide'); $('#wrap').classList.remove('hide');
+  $('#drop').classList.add('hide'); $('#wrap').classList.remove('hide'); ov.classList.remove('hide');
+  zoom = 1; $('#stage').scrollLeft = 0; $('#stage').scrollTop = 0;
   fit(); goStep(curTab); render(); renderList();
 }
 function renderList() {
@@ -1033,7 +1097,7 @@ function removePhoto(p) {
     if (next) selectPhoto(next);
     else {
       cur = null; sel = null; pending = []; drag = null;
-      $('#wrap').classList.add('hide'); $('#drop').classList.remove('hide');
+      $('#wrap').classList.add('hide'); ov.classList.add('hide'); $('#zoomTag').classList.add('hide'); $('#drop').classList.remove('hide');
       drawOverlay(); refreshUI();
     }
   }
@@ -1134,7 +1198,7 @@ function measSnap(pt) {
   const a = pending[0];
   return tool === 'measH' ? [a[0], pt[1]] : [pt[0], a[1]];
 }
-function evPt(e) { const r = ov.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cur.w, (e.clientY - r.top) / r.height * cur.h]; }
+function evPt(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cur.w, (e.clientY - r.top) / r.height * cur.h]; }
 function hitTest(pt, only) {
   const tol = 7 / css.sc;
   const ok = t => !only || only === t;
@@ -1181,7 +1245,7 @@ ov.addEventListener('mousedown', e => {
     render(); refreshUI(); return;
   }
   if (tool === 'measFloor' || tool === 'measCeil') {
-    pushUndo(); changeCalib(cur, c => { if (tool === 'measFloor') c.floor = pt; else c.ceil = pt; });
+    pushUndo(); changeCalib(cur, c => { if (tool === 'measFloor') { c.floor = pt; c.noFloor = false; } else { c.ceil = pt; c.noCeil = false; } });
     tool = 'select'; render(); refreshUI(); return;
   }
   if (tool === 'local') {
@@ -1229,6 +1293,7 @@ ov.addEventListener('mousedown', e => {
   }
   const it = hitTest(pt); sel = it;
   if (it) startMove(it, pt);
+  else { const m = hitMeas(pt); if (m) sel = {type: 'meas', which: m}; }
   render(); refreshUI();
 });
 window.addEventListener('mousemove', e => {
@@ -1285,14 +1350,40 @@ window.addEventListener('pointerup', endDrag);
 ov.addEventListener('dblclick', () => { if (tool === 'can') finishCan(); });
 ov.addEventListener('mouseleave', () => { if (!drag) { mouse = null; drawOverlay(); } });
 
+// Medidas clicáveis: linha azul, vermelha, piso e teto (só nas abas onde aparecem)
+function measExtentX() { const xs = cur.calib.pts.map(q => q[0]), span = Math.max(...xs) - Math.min(...xs); return [Math.min(...xs) - span * 0.1, Math.max(...xs) + span * 0.1]; }
+function hitMeas(pt) {
+  if (!cur || !cur.calib) return null;
+  const c = cur.calib, tol = 8 / css.sc;
+  if (cur.step === 'medida') {
+    if (segDist(pt, c.wl[0], c.wl[1]) < tol) return 'w';
+    if (c.hl && segDist(pt, c.hl[0], c.hl[1]) < tol) return 'h';
+  }
+  if (cur.step === 'medida' || cur.step === 'local') {
+    const [xa, xb] = measExtentX(), f = floorImg(cur), t = ceilImg(cur);
+    if (f && Math.abs(pt[1] - f[1]) < tol && pt[0] > xa && pt[0] < xb) return 'floor';
+    if (t && Math.abs(pt[1] - t[1]) < tol && pt[0] > xa && pt[0] < xb) return 'ceil';
+  }
+  return null;
+}
+const MEAS_NAMES = {w: 'Largura (linha azul)', h: 'Altura (linha vermelha)', floor: 'Piso', ceil: 'Teto'};
 function deleteSel() {
   if (!sel || !cur) return;
+  if (sel.type === 'meas') {
+    pushUndo();
+    const w = sel.which;
+    if (w === 'w') { itemsToImageSpace(cur); cur.calib = null; }
+    else if (w === 'h') changeCalib(cur, c => { c.hl = null; });
+    else if (w === 'floor') changeCalib(cur, c => { c.floor = null; c.noFloor = true; });
+    else if (w === 'ceil') changeCalib(cur, c => { c.ceil = null; c.noCeil = true; });
+    sel = null; render(); refreshUI(); return;
+  }
   pushUndo(); cur.items = cur.items.filter(i => i !== sel); sel = null;
   tool = toolForStep(cur.step); render(); refreshUI();
 }
 $('#bDel').onclick = deleteSel;
 function duplicateSel() {
-  if (!sel || !cur) return;
+  if (!sel || !cur || sel.type === 'meas') return;
   pushUndo();
   const c = JSON.parse(JSON.stringify(sel));
   if (c.type === 'screen' && c.space === 'plane') { c.x = +(c.x + 15).toFixed(1); c.auto = false; }
@@ -1311,6 +1402,7 @@ window.addEventListener('keydown', e => {
   if (typing || !cur || $('#settings').open) return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); duplicateSel(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === '0') { e.preventDefault(); setZoom(1); return; }
   if (k === 'v' && !e.ctrlKey && !e.metaKey) { $('#bSelect').click(); return; }
   if (k === 'escape') {
     pending = []; sel = null;
@@ -1382,14 +1474,14 @@ function refreshUI() {
   $('#bMeasH').disabled = !cb; $('#bMeasH').style.opacity = cb ? '' : '.45';
   $('#bDelH').classList.toggle('hide', !(cb && cb.hl));
   $('#bSkipCal').classList.toggle('hide', !cb);
-  const fl = floorImg(cur), ce = ceilImg(cur), noH = !cb || !!(cb && cb.hl);
+  const fl = floorImg(cur), ce = ceilImg(cur), noH = !cb;
   for (const [id, t, has, key] of [['#bFloor', 'measFloor', fl, 'floor'], ['#bCeil', 'measCeil', ce, 'ceil']]) {
     $(id).disabled = noH; $(id).style.opacity = noH ? '.45' : '';
     $(id).classList.toggle('on', tool === t);
     $(id).textContent = tool === t ? 'Marcando…' : (cb && cb[key] && !cb.hl ? 'Refazer' : 'Marcar');
   }
-  $('#floorTxt').textContent = cb && cb.hl ? 'pela altura' : fl ? 'marcado' : '—';
-  $('#ceilTxt').textContent = cb && cb.hl ? 'pela altura' : ce ? 'marcado' : '—';
+  $('#floorTxt').textContent = !fl ? '—' : (cb.floor ? 'marcado' : 'pela altura');
+  $('#ceilTxt').textContent = !ce ? '—' : (cb.ceil ? 'marcado' : 'pela altura');
   const which = tool === 'measW' ? '<b style="color:#5b9bff">largura</b> (azul)' : '<b style="color:#ff6b6b">altura</b> (vermelha), do teto ao piso';
   $('#calProg').innerHTML = tool === 'measFloor' ? 'Clique no <b>piso</b>, rente à parede.'
     : tool === 'measCeil' ? 'Clique no <b>teto</b>, rente à parede.'
@@ -1464,7 +1556,8 @@ function refreshUI() {
   $('#bExport').textContent = cur.exported ? 'Baixar PNG de novo' : 'Baixar PNG';
   // seleção
   $('#pill').classList.toggle('hide', !sel);
-  if (sel) $('#pillTxt').textContent = {screen: 'Tela selecionada', can: 'Canaleta selecionada', mark: `Marcação: ${sel.label}`}[sel.type];
+  if (sel) $('#pillTxt').textContent = sel.type === 'meas' ? MEAS_NAMES[sel.which] + ' selecionado(a)' : {screen: 'Tela selecionada', can: 'Canaleta selecionada', mark: `Marcação: ${sel.label}`}[sel.type];
+  $('#bDup').classList.toggle('hide', !!(sel && sel.type === 'meas'));
   ov.style.cursor = tool === 'select' ? 'default' : 'crosshair';
   $('#bSelect').classList.toggle('on', tool === 'select');
   refreshSettings();
@@ -1651,13 +1744,17 @@ $('#bPresetDel').onclick = () => {
 };
 
 /* ---------------- exportar ---------------- */
+// Pasta do condomínio: o nome vai junto no arquivo ("Condomínio@@foto.png") e o app separa na hora de salvar
+function condoName() { return ($('#condo').value || '').trim().replace(/[\\/:*?"<>|@]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80); }
+$('#condo').value = defaults.condo || '';
+$('#condo').addEventListener('input', () => { defaults.condo = $('#condo').value; saveDefaults(); });
 function baseName(n) { return n.replace(/\.[^.]+$/, ''); }
 function exportCurrent() {
   return new Promise(res => {
     if (!cur) return res();
     fast = false; render();
     cv.toBlob(b => {
-      const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = baseName(cur.name) + '_simulacao.png';
+      const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = (condoName() ? condoName() + '@@' : '') + baseName(cur.name) + '_simulacao.png';
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       cur.exported = true; renderList(); refreshUI(); res();
     }, 'image/png');
