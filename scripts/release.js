@@ -31,6 +31,8 @@ pkg.version = next;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 console.log(`\nVersão ${next}\n`);
 
+// apaga zips de versões antigas (são só cópias locais; todos ficam no GitHub)
+for (const f of fs.readdirSync(path.join(root, 'dist')).filter(f => f.endsWith('-win.zip'))) fs.rmSync(path.join(root, 'dist', f));
 run('npm run build');
 const zip = path.join('dist', `Simulador-de-Telas-${next}-win.zip`);
 
