@@ -307,6 +307,7 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
   <select id="preset"></select>
   <div class="row">Largura <input type="number" id="sW" step="0.1"> cm &nbsp; Altura <input type="number" id="sH" step="0.1"> cm</div>
   <div class="row">Moldura extra <input type="number" id="sB" step="0.1"> cm <span class="small">(0 se a arte já tem moldura)</span></div>
+  <div class="row"><label style="display:flex;gap:6px;align-items:center;cursor:pointer;color:var(--text)"><input type="checkbox" id="keepArt"> Manter a proporção da arte (não distorcer)</label></div>
   <div class="row"><input id="presetName" placeholder="Nome do novo modelo" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:var(--bg)"><button class="btn" id="bPresetSave">Salvar modelo</button></div>
   <div class="links"><button class="link" id="bPresetDel">Excluir modelo selecionado</button></div>
   <p class="small" id="dimInfo"></p>
@@ -412,6 +413,21 @@ function makeDefaultArt() {
   artHasFrame = true;
   return c;
 }
+// Altura efetiva da tela: com "manter proporção da arte", a altura segue a arte (sem distorcer)
+function effH(W, B, Hdecl) {
+  if (defaults.keepArt === false || !artCanvas) return Hdecl;
+  const r = artCanvas.width / artCanvas.height;
+  return +((W - 2 * B) / r + 2 * B).toFixed(1);
+}
+function applyArtRatioAll() {
+  for (const ph of photos) for (const s of ph.items) {
+    if (s.type !== 'screen' || s.space !== 'plane') continue;
+    const nh = effH(s.W, s.B, s.Hdecl ?? defaults.H);
+    if (Math.abs(nh - s.H) < 0.05) continue;
+    if (s.auto && ph.calib) { s.H = nh; autoPlace(ph, s); }
+    else { s.y = +(s.y + (s.H - nh) / 2).toFixed(1); s.H = nh; }
+  }
+}
 function setArtFromImage(img, name, fromUser) {
   const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
   const src = document.createElement('canvas'); src.width = W; src.height = H;
@@ -442,6 +458,7 @@ function setArtFromImage(img, name, fromUser) {
   }
   g.putImageData(id, 0, 0);
   artCanvas = c; artName = name; artHasFrame = hasFrame;
+  if (typeof photos !== 'undefined') applyArtRatioAll();
   if (fromUser && hasFrame) { defaults.B = 0; saveDefaults(); }
   $('#artInfo').textContent = `${name} — ${c.width}×${c.height}px` + (hasFrame ? ' · arte já tem moldura (borda = 0)' : '');
   refreshPanels();
@@ -856,8 +873,28 @@ function drawMark(g, p, s) {
   g.restore();
 }
 
+/* Canaleta ligada à tela: sempre sai do centro do topo da tela, mesmo se a tela mover, crescer ou diminuir.
+   Só a ponta de cima (altura até onde vai) é livre. */
+function syncCans(p) {
+  for (const c of p.items) {
+    if (c.type !== 'can' || !c.link) continue;
+    const s = p.items.find(i => i.type === 'screen' && i.id === c.link);
+    if (!s) { delete c.link; continue; }
+    if (c.pts.length > 2) c.pts = [c.pts[0], c.pts[c.pts.length - 1]];
+    if (s.space === 'plane' && c.space === 'plane') {
+      const x = s.x + s.W / 2;
+      c.pts = [[x, s.y + Math.min(3, s.H * 0.2)], [x, Math.min(c.pts[1][1], s.y - 0.5)]];
+    } else if (s.space === 'img' && c.space === 'img') {
+      const k = s.corners, top = mid(k[0], k[1]), bot = mid(k[3], k[2]), L = dist(top, bot) || 1;
+      const dir = [(top[0] - bot[0]) / L, (top[1] - bot[1]) / L];
+      const e = c.pts[1], t = Math.max(2, (e[0] - top[0]) * dir[0] + (e[1] - top[1]) * dir[1]);
+      c.pts = [[top[0] - dir[0] * L * 0.08, top[1] - dir[1] * L * 0.08], [top[0] + dir[0] * t, top[1] + dir[1] * t]];
+    }
+  }
+}
 function render() {
   if (!cur) { drawOverlay(); return; }
+  syncCans(cur);
   ctx.filter = 'none';
   ctx.drawImage(cur.img, 0, 0);
   for (const it of cur.items) if (it.type === 'can') drawCan(ctx, cur, it);
@@ -877,7 +914,7 @@ function getHandles() {
   }
   if (sel) {
     if (sel.type === 'screen' && sel.space === 'img') sel.corners.forEach((q, i) => H.push({pt: q, set: v => { sel.corners[i] = v; }}));
-    if (sel.type === 'can') canPtsImg(cur, sel).forEach((q, i) => H.push({pt: q, set: v => { sel.pts[i] = sel.space === 'plane' ? toPlane(cur, v) : v; }}));
+    if (sel.type === 'can') canPtsImg(cur, sel).forEach((q, i) => { if (sel.link && i === 0) return; H.push({pt: q, set: v => { sel.pts[i] = sel.space === 'plane' ? toPlane(cur, v) : v; syncCans(cur); }}); });
     if (sel.type === 'mark') {
       const r = sel.r, x0 = Math.min(r[0], r[2]), x1 = Math.max(r[0], r[2]), y0 = Math.min(r[1], r[3]), y1 = Math.max(r[1], r[3]);
       sel.r = [x0, y0, x1, y1];
@@ -1224,7 +1261,8 @@ function canPxDefault() {
   if (s && s.space === 'img') return Math.max(3, dist(s.corners[0], s.corners[1]) * defaults.canCm / s.W);
   return Math.max(3, Math.round(cur.w * 0.03));
 }
-function newScreenProps() { return {W: defaults.W, H: defaults.H, B: defaults.B, bright: null, gloss: 0.35, noise: 3, shadow: 0.7, tilt: defaults.tilt ?? 12}; }
+const newId = () => 's' + Math.random().toString(36).slice(2, 9);
+function newScreenProps() { return {id: newId(), W: defaults.W, H: effH(defaults.W, defaults.B, defaults.H), Hdecl: defaults.H, B: defaults.B, bright: null, gloss: 0.35, noise: 3, shadow: 0.7, tilt: defaults.tilt ?? 12}; }
 let canupTarget = null;
 
 // Local: a régua é sempre horizontal (mesma altura do primeiro ponto)
@@ -1309,16 +1347,17 @@ ov.addEventListener('mousedown', e => {
   if (tool === 'canup' && canupTarget) {
     const s = canupTarget; let it;
     pushUndo();
+    if (!s.id) s.id = newId();
     if (s.space === 'plane') {
       const q = toPlane(cur, pt), x = +(s.x + s.W / 2).toFixed(1), y0 = s.y + Math.min(3, s.H * 0.2);
       const cy = ceilPlaneY(cur); // com teto marcado, vai exatamente até o teto (o clique só confirma)
-      it = {type: 'can', space: 'plane', pts: [[x, y0], [x, cy != null ? cy : Math.min(q[1], s.y - 1)]], width: defaults.canCm, color: defaults.color, cut: defaults.canCut !== false};
+      it = {type: 'can', space: 'plane', pts: [[x, y0], [x, cy != null ? cy : Math.min(q[1], s.y - 1)]], width: defaults.canCm, color: defaults.color, cut: defaults.canCut !== false, link: s.id};
     } else {
       const c = s.corners, top = mid(c[0], c[1]), bot = mid(c[3], c[2]), L = dist(top, bot);
       const dir = [(top[0] - bot[0]) / L, (top[1] - bot[1]) / L];
       const t = Math.max(2, (pt[0] - top[0]) * dir[0] + (pt[1] - top[1]) * dir[1]);
       const wpx = Math.max(3, dist(c[0], c[1]) * defaults.canCm / s.W);
-      it = {type: 'can', space: 'img', pts: [[top[0] - dir[0] * L * 0.08, top[1] - dir[1] * L * 0.08], [top[0] + dir[0] * t, top[1] + dir[1] * t]], width: wpx, color: defaults.color};
+      it = {type: 'can', space: 'img', pts: [[top[0] - dir[0] * L * 0.08, top[1] - dir[1] * L * 0.08], [top[0] + dir[0] * t, top[1] + dir[1] * t]], width: wpx, color: defaults.color, link: s.id};
     }
     cur.items.push(it); sel = it; render(); afterCreate(); return;
   }
@@ -1423,6 +1462,7 @@ function duplicateSel() {
   if (!sel || !cur || sel.type === 'meas') return;
   pushUndo();
   const c = JSON.parse(JSON.stringify(sel));
+  if (c.type === 'screen') c.id = newId();
   if (c.type === 'screen' && c.space === 'plane') { c.x = +(c.x + 15).toFixed(1); c.auto = false; }
   else if (c.type === 'screen') c.corners = c.corners.map(v => [v[0] + 30, v[1] + 30]);
   else if (c.type === 'can') c.pts = c.pts.map(v => c.space === 'plane' ? [v[0] + 15, v[1]] : [v[0] + 30, v[1]]);
@@ -1563,7 +1603,8 @@ function refreshUI() {
   $('#baseRow').classList.toggle('hide', autoB);
   if (document.activeElement !== $('#baseCm')) $('#baseCm').value = defaults.baseCm ?? BASE_PADRAO;
   const pl = target && target.space === 'plane' ? target : null;
-  let info = `Base a ${cm(baseCm())} cm e topo a ${cm(baseCm() + defaults.H)} cm do piso.`;
+  const hEff = pl ? pl.H : effH(defaults.W, defaults.B, defaults.H);
+  let info = `Base a ${cm(baseCm())} cm e topo a ${cm(baseCm() + hEff)} cm do piso.`;
   if (pl && pl.glued) info = `Pé-direito baixo: a tela foi encostada no teto (${FOLGA_TETO} cm de folga). Base a ${cm(floorPlaneY(cur) != null ? floorPlaneY(cur) - pl.y - pl.H : 0)} cm do piso.`;
   if (cur.calib && !fl && !ce) info += ' Sem piso nem teto marcados: a altura fica na linha que você clicar.';
   $('#baseInfo').textContent = info;
@@ -1601,7 +1642,7 @@ function refreshUI() {
   if (mk && document.activeElement !== $('#mText')) $('#mText').value = mk.label;
   $('#lAuto').checked = cur.lightAuto !== false;
   drawDial();
-  $('#modelName').textContent = `Tela ${cm(defaults.W)} × ${cm(defaults.H)} cm`;
+  $('#modelName').textContent = `Tela ${cm(defaults.W)} × ${cm(effH(defaults.W, defaults.B, defaults.H))} cm`;
   // canaleta
   document.querySelectorAll('#canMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === defaults.canMode));
   $('#canIns').innerHTML = defaults.canMode === 'up'
@@ -1758,14 +1799,17 @@ function openSettings() { fillPresets(); refreshSettings(); $('#settings').showM
 function refreshSettings() {
   if (!$('#settings').open) return;
   const s = sel && sel.type === 'screen' ? sel : defaults;
-  if (document.activeElement.tagName !== 'INPUT') { $('#sW').value = s.W; $('#sH').value = s.H; $('#sB').value = s.B; }
+  if (document.activeElement.tagName !== 'INPUT') { $('#sW').value = s.W; $('#sH').value = s.Hdecl ?? s.H; $('#sB').value = s.B; }
+  $('#keepArt').checked = defaults.keepArt !== false;
   const pv = $('#artPrev'), g = pv.getContext('2d');
   g.clearRect(0, 0, pv.width, pv.height);
   if (artCanvas) { const k = Math.min(pv.width / artCanvas.width, pv.height / artCanvas.height) * 0.92;
     const w = artCanvas.width * k, h = artCanvas.height * k; g.drawImage(artCanvas, (pv.width - w) / 2, (pv.height - h) / 2, w, h); }
-  const ratio = (s.W - 2 * s.B) / (s.H - 2 * s.B), ar = artCanvas ? artCanvas.width / artCanvas.height : ratio;
-  $('#dimInfo').textContent = Math.abs(ratio - ar) / ar > 0.04
-    ? `Atenção: a arte (${ar.toFixed(2)}) e a tela (${ratio.toFixed(2)}) têm proporções diferentes — a arte será esticada.` : '';
+  const Hd = s.Hdecl ?? s.H, ratio = (s.W - 2 * s.B) / (Hd - 2 * s.B), ar = artCanvas ? artCanvas.width / artCanvas.height : ratio;
+  const differ = Math.abs(ratio - ar) / ar > 0.04;
+  $('#dimInfo').textContent = !differ ? '' : defaults.keepArt !== false
+    ? `A arte tem proporção ${ar.toFixed(2)} e ${String(s.W).replace('.', ',')} × ${String(Hd).replace('.', ',')} cm dá ${ratio.toFixed(2)}. Para não distorcer, a tela usa ${String(s.W).replace('.', ',')} × ${String(effH(s.W, s.B, Hd)).replace('.', ',')} cm.`
+    : `Atenção: a arte (${ar.toFixed(2)}) e a tela (${ratio.toFixed(2)}) têm proporções diferentes, então a arte fica esticada.`;
 }
 $('#bSettings').onclick = openSettings;
 $('#bCloseSet').onclick = () => $('#settings').close();
@@ -1789,13 +1833,16 @@ function onDim() {
   if (!(W > 0 && H > 0 && B >= 0 && 2 * B < Math.min(W, H))) return;
   if (sel && sel.type === 'screen') {
     pushUndo();
-    if (sel.space === 'plane') { sel.x = +(sel.x + (sel.W - W) / 2).toFixed(1); sel.y = +(sel.y + (sel.H - H) / 2).toFixed(1); }
-    Object.assign(sel, {W, H, B});
+    const he = effH(W, B, H);
+    if (sel.space === 'plane') { sel.x = +(sel.x + (sel.W - W) / 2).toFixed(1); sel.y = +(sel.y + (sel.H - he) / 2).toFixed(1); }
+    Object.assign(sel, {W, H: he, Hdecl: H, B});
+    if (sel.auto && cur.calib) autoPlace(cur, sel);
   }
   Object.assign(defaults, {W, H, B}); saveDefaults();
   render(); refreshUI();
 }
 ['#sW', '#sH', '#sB'].forEach(id => $(id).addEventListener('change', onDim));
+$('#keepArt').onchange = () => { if (cur) pushUndo(); defaults.keepArt = $('#keepArt').checked; saveDefaults(); applyArtRatioAll(); render(); refreshUI(); };
 $('#preset').onchange = () => {
   const p = presets[+$('#preset').value]; defaults.preset = +$('#preset').value;
   $('#sW').value = p.W; $('#sH').value = p.H; $('#sB').value = p.B; onDim();
