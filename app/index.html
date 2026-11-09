@@ -311,7 +311,7 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
   <div class="row">Moldura extra <input type="number" id="sB" step="0.1"> cm <span class="small">(0 se a arte já tem moldura)</span></div>
   <h4>Se a arte e a tela tiverem formatos diferentes</h4>
   <select id="artMode">
-    <option value="fit">Tamanho real da tela, arte inteira sem distorcer (recomendado)</option>
+    <option value="fit">Tamanho real da tela, arte ajustada sem distorcer (recomendado)</option>
     <option value="keep">Altura da tela segue a arte (tela fica menor)</option>
     <option value="stretch">Tamanho real da tela, arte esticada</option>
   </select>
@@ -426,24 +426,96 @@ function makeDefaultArt() {
    'keep'    = altura da tela segue a arte (tela fica menor que a real)
    'stretch' = tamanho real; arte esticada */
 const artMode = () => defaults.artMode || 'fit';
+/* Ajuste inteligente (seam carving): para a arte caber no formato real da tela sem distorcer e sem
+   engrossar a borda, repete só as "costuras" de menor detalhe (fundo liso, espaços entre textos).
+   Logo, textos e a moldura fina ficam intactos. Resultado guardado em cache por proporção. */
+function carveSeams(src, addRows) {
+  // Inserção de costuras clássica: escolhe as addRows costuras horizontais de menor detalhe
+  // (removendo uma a uma de uma cópia, para não repetir o mesmo lugar) e depois duplica todas.
+  const W = src.width, H0 = src.height, HT = H0 + addRows, d = src.data;
+  const L = new Float32Array(W * H0);
+  for (let i = 0; i < W * H0; i++) L[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2] + (d[i * 4 + 3] < 128 ? 400 : 0);
+  const xm = W >> 1, frameL = L[(H0 >> 1) * W + Math.min(4, W - 1)];
+  let top = 0, bot = H0 - 1;
+  while (top < H0 / 3 && Math.abs(L[top * W + xm] - frameL) < 25) top++;
+  while (bot > H0 * 2 / 3 && Math.abs(L[bot * W + xm] - frameL) < 25) bot--;
+  const guard = Math.max(3, Math.round(H0 * 0.015));
+  // energia por coluna + índice da linha original de cada posição
+  const en = [], idx = [];
+  for (let x = 0; x < W; x++) {
+    const e = new Float32Array(H0), ix = new Int32Array(H0);
+    for (let y = 0; y < H0; y++) {
+      const gx = x > 0 && x < W - 1 ? Math.abs(L[y * W + x + 1] - L[y * W + x - 1]) : 0;
+      const gy = y > 0 && y < H0 - 1 ? Math.abs(L[(y + 1) * W + x] - L[(y - 1) * W + x]) : 0;
+      e[y] = gx + gy + ((y < top + guard || y > bot - guard) ? 1e6 : 0);
+      ix[y] = y;
+    }
+    en.push(e); idx.push(ix);
+  }
+  const dup = Array.from({length: W}, () => []);
+  const M = new Float32Array(W * H0), back = new Int8Array(W * H0);
+  let H = H0;
+  for (let s = 0; s < addRows && H > 2; s++) {
+    for (let y = 0; y < H; y++) M[y] = en[0][y];
+    for (let x = 1; x < W; x++) {
+      const e = en[x], o = (x - 1) * H0, n = x * H0;
+      for (let y = 0; y < H; y++) {
+        let best = M[o + y], b = 0;
+        if (y > 0 && M[o + y - 1] < best) { best = M[o + y - 1]; b = -1; }
+        if (y < H - 1 && M[o + y + 1] < best) { best = M[o + y + 1]; b = 1; }
+        M[n + y] = e[y] + best; back[n + y] = b;
+      }
+    }
+    let y = 0, best = Infinity; const last = (W - 1) * H0;
+    for (let yy = 0; yy < H; yy++) if (M[last + yy] < best) { best = M[last + yy]; y = yy; }
+    for (let x = W - 1; x >= 0; x--) {
+      dup[x].push(idx[x][y]);
+      en[x].copyWithin(y, y + 1, H); idx[x].copyWithin(y, y + 1, H);   // remove da cópia
+      if (x > 0) y = clamp(y + back[x * H0 + y], 0, H - 2);
+    }
+    H--;
+  }
+  // monta a saída duplicando as linhas escolhidas (média com a de baixo, para suavizar)
+  const out = new ImageData(W, HT), o = out.data;
+  for (let x = 0; x < W; x++) {
+    const marks = new Uint8Array(H0); for (const r of dup[x]) marks[r]++;
+    let yo = 0;
+    for (let y = 0; y < H0 && yo < HT; y++) {
+      const k = (y * W + x) * 4;
+      o.set(d.subarray(k, k + 4), (yo * W + x) * 4); yo++;
+      for (let m = 0; m < marks[y] && yo < HT; m++) {
+        const k2 = (Math.min(H0 - 1, y + 1) * W + x) * 4, ko = (yo * W + x) * 4;
+        for (let ch = 0; ch < 4; ch++) o[ko + ch] = (d[k + ch] + d[k2 + ch]) >> 1;
+        yo++;
+      }
+    }
+    while (yo < HT) { const k = ((H0 - 1) * W + x) * 4; o.set(d.subarray(k, k + 4), (yo * W + x) * 4); yo++; }
+  }
+  return out;
+}
+function transposeImg(img) {
+  const W = img.width, H = img.height, o = new ImageData(H, W);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) o.data.set(img.data.subarray((y * W + x) * 4, (y * W + x) * 4 + 4), (x * H + y) * 4);
+  return o;
+}
 const fitCache = {};
 function fitArt(ratio) {
   if (!artCanvas) return artCanvas;
   const aw = artCanvas.width, ah = artCanvas.height, ar = aw / ah;
   if (Math.abs(ratio - ar) / ar < 0.01) return artCanvas;
-  const key = `${aw}x${ah}:${artName}:${ratio.toFixed(3)}`;
+  const key = `${aw}x${ah}:${artName}:${ratio.toFixed(2)}`;
   if (fitCache[key]) return fitCache[key];
-  const cw = ratio < ar ? aw : Math.round(ah * ratio), ch = ratio < ar ? Math.round(aw / ratio) : ah;
-  const c = document.createElement('canvas'); c.width = cw; c.height = ch;
-  const g = c.getContext('2d');
-  // cor da moldura: um pixel da borda da arte (meio da lateral esquerda, um pouco para dentro)
-  const sg = artCanvas.getContext('2d').getImageData(Math.min(6, aw - 1), Math.round(ah / 2), 1, 1).data;
-  const frame = sg[3] > 200 ? `rgb(${sg[0]},${sg[1]},${sg[2]})` : '#050505';
-  g.fillStyle = frame;
-  const rad = artHasFrame ? Math.round(Math.min(cw, ch) * 0.055) : 0;
-  g.beginPath(); g.roundRect(0, 0, cw, ch, rad); g.fill();
-  g.drawImage(artCanvas, Math.round((cw - aw) / 2), Math.round((ch - ah) / 2));
-  for (const k of Object.keys(fitCache)) delete fitCache[k]; // guarda só a última
+  // trabalha numa versão de até 1200 px de largura (rápido) e mantém nitidez suficiente para a tela
+  const k = Math.min(1, 1200 / Math.max(aw, ah));
+  const w = Math.round(aw * k), h = Math.round(ah * k);
+  const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
+  const tg = tmp.getContext('2d'); tg.imageSmoothingQuality = 'high'; tg.drawImage(artCanvas, 0, 0, w, h);
+  let img = tg.getImageData(0, 0, w, h), out;
+  if (ratio < ar) out = carveSeams(img, Math.round(w / ratio) - h);                  // tela mais "alta": cresce na vertical
+  else out = transposeImg(carveSeams(transposeImg(img), Math.round(h * ratio) - w)); // tela mais "larga": cresce na horizontal
+  const c = document.createElement('canvas'); c.width = out.width; c.height = out.height;
+  c.getContext('2d').putImageData(out, 0, 0);
+  for (const kk of Object.keys(fitCache)) delete fitCache[kk];
   return (fitCache[key] = c);
 }
 function effH(W, B, Hdecl) {
@@ -1973,7 +2045,7 @@ function refreshSettings() {
   const differ = Math.abs(ratio - ar) / ar > 0.04;
   const n = v => String(v).replace('.', ',');
   $('#dimInfo').textContent = !differ ? 'A arte e a tela têm o mesmo formato.'
-    : artMode() === 'fit' ? `A tela fica com ${n(s.W)} × ${n(Hd)} cm (tamanho real). A arte entra inteira, sem distorcer; a diferença de formato vira moldura ${ratio < ar ? 'em cima e embaixo' : 'nas laterais'}.`
+    : artMode() === 'fit' ? `A tela fica com ${n(s.W)} × ${n(Hd)} cm (tamanho real). A arte é ajustada sem distorcer: só o fundo liso cresce ${ratio < ar ? 'na vertical' : 'na horizontal'}; logo, textos e a borda fina ficam como estão.`
     : artMode() === 'keep' ? `A tela fica com ${n(s.W)} × ${n(effH(s.W, s.B, Hd))} cm para a arte não distorcer (menor que os ${n(Hd)} cm reais).`
     : `A tela fica com ${n(s.W)} × ${n(Hd)} cm e a arte é esticada para caber (fica deformada).`;
 }
