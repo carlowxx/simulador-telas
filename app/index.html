@@ -421,7 +421,7 @@ function effH(W, B, Hdecl) {
 }
 function applyArtRatioAll() {
   for (const ph of photos) for (const s of ph.items) {
-    if (s.type !== 'screen' || s.space !== 'plane') continue;
+    if (s.type !== 'screen' || s.space !== 'plane' || s.free) continue;
     const nh = effH(s.W, s.B, s.Hdecl ?? defaults.H);
     if (Math.abs(nh - s.H) < 0.05) continue;
     if (s.auto && ph.calib) { s.H = nh; autoPlace(ph, s); }
@@ -977,6 +977,39 @@ function render() {
 
 /* ---------------- overlay (guias, não sai no PNG) ---------------- */
 const CORNERS = ['superior esquerdo', 'superior direito', 'inferior direito', 'inferior esquerdo'];
+/* Esticar a tela: cantos aumentam/diminuem mantendo a proporção; meio dos lados estica só
+   na horizontal ou só na vertical. A arte é sempre redimensionada a partir do original (sem perda). */
+function screenResizeHandles(s) {
+  const c = screenCorners(cur, s), M = (a, b) => mid(c[a], c[b]);
+  const MIN_W = 10, MIN_H = 4;
+  const k = () => kxy(cur);
+  const done = () => { s.auto = false; syncCans(cur); };
+  const corner = (fx, fy) => v => {           // fx/fy = 1: o lado esquerdo/de cima fica parado; 0: o direito/de baixo
+    const q = toPlane(cur, v), ratio = s.H / s.W;
+    const ax = fx ? s.x : s.x + s.W, ay = fy ? s.y : s.y + s.H * k();   // canto oposto (fixo)
+    let W = Math.max(MIN_W, Math.abs(q[0] - ax));
+    const Hc = W * ratio;
+    s.x = +(fx ? ax : ax - W).toFixed(1); s.y = +(fy ? ay : ay - Hc * k()).toFixed(1);
+    s.W = +W.toFixed(1); s.H = +Hc.toFixed(1); s.Hdecl = s.H; done();
+  };
+  const edgeX = right => v => {
+    const q = toPlane(cur, v), x1 = s.x + s.W;
+    if (right) s.W = +Math.max(MIN_W, q[0] - s.x).toFixed(1);
+    else { const nx = Math.min(q[0], x1 - MIN_W); s.W = +(x1 - nx).toFixed(1); s.x = +nx.toFixed(1); }
+    s.free = true; done();
+  };
+  const edgeY = bottom => v => {
+    const q = toPlane(cur, v), y1 = s.y + s.H * k();
+    if (bottom) s.H = +Math.max(MIN_H, (q[1] - s.y) / k()).toFixed(1);
+    else { const ny = Math.min(q[1], y1 - MIN_H * k()); s.H = +((y1 - ny) / k()).toFixed(1); s.y = +ny.toFixed(1); }
+    s.Hdecl = s.H; s.free = true; done();
+  };
+  return [
+    {pt: c[0], set: corner(0, 0)}, {pt: c[1], set: corner(1, 0)}, {pt: c[2], set: corner(1, 1)}, {pt: c[3], set: corner(0, 1)},
+    {pt: M(1, 2), set: edgeX(true)}, {pt: M(3, 0), set: edgeX(false)},
+    {pt: M(0, 1), set: edgeY(false)}, {pt: M(3, 2), set: edgeY(true)}
+  ];
+}
 function getHandles() {
   const H = [];
   if (!cur) return H;
@@ -986,6 +1019,7 @@ function getHandles() {
   }
   if (sel) {
     if (sel.type === 'screen' && sel.space === 'img') sel.corners.forEach((q, i) => H.push({pt: q, set: v => { sel.corners[i] = v; }}));
+    if (sel.type === 'screen' && sel.space === 'plane' && cur.calib) screenResizeHandles(sel).forEach(h => H.push(h));
     if (sel.type === 'can') canPtsImg(cur, sel).forEach((q, i) => { if (sel.link && i === 0) return; H.push({pt: q, set: v => { sel.pts[i] = sel.space === 'plane' ? toPlane(cur, v) : v; syncCans(cur); }}); });
     if (sel.type === 'mark') {
       const r = sel.r, x0 = Math.min(r[0], r[2]), x1 = Math.max(r[0], r[2]), y0 = Math.min(r[1], r[3]), y1 = Math.max(r[1], r[3]);
@@ -1372,7 +1406,9 @@ ov.addEventListener('mousedown', e => {
   const pt = evPt(e); mouse = pt;
   if (!tool.startsWith('meas') && !(tool === 'screen' && pending.length) && tool !== 'can') {
     const tol = 9 / css.sc;
-    const h = getHandles().find(h => dist(h.pt, pt) < tol);
+    // alça mais próxima do clique (não a primeira da lista)
+    let h = null, best = tol;
+    for (const c of getHandles()) { const dd = dist(c.pt, pt); if (dd < best) { best = dd; h = c; } }
     if (h) { pushUndo(); drag = {kind: 'handle', h}; fast = true; return; }
   }
   if (tool === 'measW' || tool === 'measH') {
@@ -1745,7 +1781,7 @@ function refreshUI() {
   $('#bExport').textContent = cur.exported ? 'Baixar PNG de novo' : 'Baixar PNG';
   // seleção
   $('#pill').classList.toggle('hide', !sel);
-  if (sel) $('#pillTxt').textContent = sel.type === 'meas' ? MEAS_NAMES[sel.which] + ' selecionado(a)' : {screen: 'Tela selecionada', can: 'Canaleta selecionada', mark: `Marcação: ${sel.label}`}[sel.type];
+  if (sel) $('#pillTxt').textContent = sel.type === 'meas' ? MEAS_NAMES[sel.which] + ' selecionado(a)' : {screen: `Tela ${String(sel.W).replace('.', ',')} × ${String(sel.H).replace('.', ',')} cm`, can: 'Canaleta selecionada', mark: `Marcação: ${sel.label}`}[sel.type];
   $('#bDup').classList.toggle('hide', !!(sel && sel.type === 'meas'));
   ov.style.cursor = tool === 'select' ? 'default' : 'crosshair';
   $('#bSelect').classList.toggle('on', tool === 'select');
