@@ -98,6 +98,8 @@ aside{background:var(--panel);border-right:1px solid var(--line);display:flex;fl
 .mdot{width:12px;height:12px;border-radius:50%;flex:none}
 .btn.sm{padding:6px 11px;font-size:13px;margin-left:auto}
 .btn.sm.on{background:var(--acc);color:#1a1000}
+.btn.sm.done{background:none;color:var(--muted);font-weight:500;text-decoration:underline;text-underline-offset:3px;padding:6px 4px}
+.btn.sm.done:hover{color:var(--text)}
 .link{color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px;padding:0}
 .link:hover{color:var(--text)}
 .btn{padding:8px 14px;border-radius:8px;background:#30353b;font-weight:600}
@@ -1431,7 +1433,10 @@ ov.addEventListener('mousedown', e => {
   }
   if (tool === 'measFloor' || tool === 'measCeil') {
     pushUndo(); changeCalib(cur, c => { if (tool === 'measFloor') { c.floor = pt; c.noFloor = false; } else { c.ceil = pt; c.noCeil = false; } });
-    tool = 'select'; render(); refreshUI(); return;
+    tool = 'select'; render();
+    // fluxo automático: com piso e teto marcados, segue para a aba Local
+    if (floorImg(cur) && ceilImg(cur)) { goStep('local'); return; }
+    refreshUI(); return;
   }
   if (tool === 'local') {
     if (!cur.calib) return;
@@ -1702,10 +1707,13 @@ function refreshUI() {
   for (const [id, t, has, key] of [['#bFloor', 'measFloor', fl, 'floor'], ['#bCeil', 'measCeil', ce, 'ceil']]) {
     $(id).disabled = noH; $(id).style.opacity = noH ? '.45' : '';
     $(id).classList.toggle('on', tool === t);
-    $(id).textContent = tool === t ? 'Marcando…' : (cb && cb[key] && !cb.hl ? 'Refazer' : 'Marcar');
+    // já marcado (pela altura ou à mão): mostra como pronto e deixa só um "Refazer" discreto
+    $(id).classList.toggle('done', !!has && tool !== t);
+    $(id).textContent = tool === t ? 'Marcando…' : (has ? 'Refazer' : 'Marcar');
   }
-  $('#floorTxt').textContent = !fl ? '—' : (cb.floor ? 'marcado' : 'pela altura');
-  $('#ceilTxt').textContent = !ce ? '—' : (cb.ceil ? 'marcado' : 'pela altura');
+  for (const [el, has, key] of [['#floorTxt', fl, 'floor'], ['#ceilTxt', ce, 'ceil']]) {
+    $(el).innerHTML = !has ? '—' : `<span style="color:#3ccf6e;font-weight:600">✓ marcado</span>${cb[key] ? '' : ' <span class="small">(pela altura)</span>'}`;
+  }
   const which = tool === 'measW' ? '<b style="color:#5b9bff">largura</b> (azul)' : '<b style="color:#ff6b6b">altura</b> (vermelha), do teto ao piso';
   $('#calProg').innerHTML = tool === 'measFloor' ? 'Clique no <b>piso</b>, rente à parede.'
     : tool === 'measCeil' ? 'Clique no <b>teto</b>, rente à parede.'
