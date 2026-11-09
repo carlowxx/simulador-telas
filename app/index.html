@@ -531,9 +531,13 @@ function rebuildCalib(p) {
   // Escala única (a da largura) nas duas direções: numa foto de frente 1 cm ocupa os mesmos pixels
   // na horizontal e na vertical. A linha vermelha só marca onde ficam teto e piso; a altura digitada
   // não altera a escala, então nada deforma nem fica fora de proporção.
+  // Horizontal pela largura (linha azul); vertical pela altura digitada (linha vermelha), para que
+  // piso, base de 190 cm e teto batam com o croqui. O formato da tela usa só a escala da largura
+  // (hPlane/kxy), então ela não deforma mesmo se as duas medidas não baterem exatamente.
   const s = dist(A, B) / c.wcm;
-  const w = c.wcm, h = c.hl ? Math.max(1, Math.abs(c.hl[1][1] - c.hl[0][1]) / s) : 100;
-  c.pts = [A, [A[0] + s * w, A[1]], [A[0] + s * w, A[1] + s * h], [A[0], A[1] + s * h]];
+  const sv = c.hl ? Math.max(0.01, Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : s;
+  const w = c.wcm, h = c.hl ? c.hcm : 100;
+  c.pts = [A, [A[0] + s * w, A[1]], [A[0] + s * w, A[1] + sv * h], [A[0], A[1] + sv * h]];
   c.w = w; c.h = h;
 }
 // Depois de mudar a medida, mantém as telas/canaletas no mesmo lugar da foto (o tamanho real se ajusta)
@@ -866,22 +870,28 @@ function drawCanQuad(g, p, q, col, od) {
       const k3 = Math.min(N - 1, du | 0) * 3;
       let cr, cg, cb;
       if (metal) {
-        // reflexo da parede com mais contraste e um pouco mais claro (superfície lisa e polida)
-        const gain = 1.04 + 0.08 * col.brushed;
-        cr = sm[k3] * gain + (sm[k3] - meanL) * 0.45 + 8; cg = sm[k3 + 1] * gain + (sm[k3 + 1] - meanL) * 0.45 + 8; cb = sm[k3 + 2] * gain + (sm[k3 + 2] - meanL) * 0.45 + 10;
-        const s = streak[Math.min(NC - 1, (t * NC) | 0)] * 9 * col.brushed; cr += s; cg += s; cb += s;
+        // inox: base cinza-clara e fria, iluminada pela luz da parede naquela altura, com o reflexo
+        // da parede por cima (suave) e pouca cor (metal polido é quase neutro)
+        const wl = 0.2126 * sm[k3] + 0.7152 * sm[k3 + 1] + 0.0722 * sm[k3 + 2];
+        const light = clamp(0.78 + 0.42 * (wl / 255) + 0.25 * ((wl - meanL) / 255), 0.72, 1.18);
+        const bright = col.brushed >= 1 ? [196, 201, 206] : [214, 217, 220];
+        const rl = (wl - meanL) * 0.55; // faixas de luz da parede aparecem na peça
+        let r0 = bright[0] * light + rl, g0 = bright[1] * light + rl, b0 = bright[2] * light + rl + 3;
+        const mix = 0.25; // um pouco da cor da parede (reflexo)
+        cr = r0 * (1 - mix) + sm[k3] * mix * 1.1; cg = g0 * (1 - mix) + sm[k3 + 1] * mix * 1.1; cb = b0 * (1 - mix) + sm[k3 + 2] * mix * 1.1;
+        const s = streak[Math.min(NC - 1, (t * NC) | 0)] * 8 * col.brushed; cr += s; cg += s; cb += s;
       } else {
         const lf = clamp((0.2126 * sm[k3] + 0.7152 * sm[k3 + 1] + 0.0722 * sm[k3 + 2]) / meanL, 0.7, 1.25);
         cr = baseCol[0] * lf; cg = baseCol[1] * lf; cb = baseCol[2] * lf;
       }
       // perfil da peça
       let f = 1, add = 0;
-      if (tt < 0.035) f = 0.45;                                  // contorno de fora
+      if (tt < 0.035) f = 0.6;                                   // contorno de fora
       else if (tt < 0.11) { add = metal ? 70 : 30; f = 0.92; }   // aresta que pega luz
       else if (tt > 1 - sideW) {                                 // lateral (volume)
-        f = 0.55 + 0.15 * ((tt - (1 - sideW)) / sideW);
+        f = 0.72 + 0.12 * ((tt - (1 - sideW)) / sideW);
         if (tt > 0.975) f *= 0.7;
-      } else if (tt > 1 - sideW - 0.025) f = 0.62;               // vinco entre a face e a lateral
+      } else if (tt > 1 - sideW - 0.025) f = 0.7;                // vinco entre a face e a lateral
       r += clamp(cr * f + add, 0, 255); gg += clamp(cg * f + add, 0, 255); b += clamp(cb * f + add, 0, 255);
     }
     if (!n) continue;
