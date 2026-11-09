@@ -526,10 +526,12 @@ function rebuildCalib(p) {
   if (B[0] < A[0]) { [A, B] = [B, A]; c.wl = [A, B]; }
   // Fotos de frente: a referência fica sempre reta (horizontal/vertical da foto).
   // As linhas só dão a escala: px por cm na horizontal (azul) e na vertical (vermelha).
+  // Escala única (a da largura) nas duas direções: numa foto de frente 1 cm ocupa os mesmos pixels
+  // na horizontal e na vertical. A linha vermelha só marca onde ficam teto e piso; a altura digitada
+  // não altera a escala, então nada deforma nem fica fora de proporção.
   const s = dist(A, B) / c.wcm;
-  const sv = c.hl ? dist(c.hl[0], c.hl[1]) / c.hcm : s;
-  const w = c.wcm, h = c.hl ? c.hcm : 100;
-  c.pts = [A, [A[0] + s * w, A[1]], [A[0] + s * w, A[1] + sv * h], [A[0], A[1] + sv * h]];
+  const w = c.wcm, h = c.hl ? Math.max(1, Math.abs(c.hl[1][1] - c.hl[0][1]) / s) : 100;
+  c.pts = [A, [A[0] + s * w, A[1]], [A[0] + s * w, A[1] + s * h], [A[0], A[1] + s * h]];
   c.w = w; c.h = h;
 }
 // Depois de mudar a medida, mantém as telas/canaletas no mesmo lugar da foto (o tamanho real se ajusta)
@@ -1612,7 +1614,7 @@ function refreshUI() {
   $('#calProg').innerHTML = tool === 'measFloor' ? 'Clique no <b>piso</b>, rente à parede.'
     : tool === 'measCeil' ? 'Clique no <b>teto</b>, rente à parede.'
     : tool.startsWith('meas') ? `Clique no <b>${pending.length ? 'fim' : 'início'}</b> da ${which} na foto. <span class="small">Shift deixa reta.${tool === 'measH' ? ' <b>Esc</b> pula a altura.' : ''}</span>`
-    : cb ? (scaleWarn() + (fl ? 'Pronto. Agora vá para a aba <b>Local</b>.' : 'Falta o <b>piso</b>: marque a altura até o chão ou clique em Piso → Marcar.'))
+    : cb ? (fl ? 'Pronto. Agora vá para a aba <b>Local</b>.' : 'Falta o <b>piso</b>: marque a altura até o chão ou clique em Piso → Marcar.')
     : 'Marque a largura da parede (linha azul).';
   // local
   const target = sel && sel.type === 'screen' ? sel : scr[0];
