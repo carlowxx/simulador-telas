@@ -309,7 +309,12 @@ dialog select{width:100%;padding:7px;border-radius:7px;border:1px solid var(--li
   <select id="preset"></select>
   <div class="row">Largura <input type="number" id="sW" step="0.1"> cm &nbsp; Altura <input type="number" id="sH" step="0.1"> cm</div>
   <div class="row">Moldura extra <input type="number" id="sB" step="0.1"> cm <span class="small">(0 se a arte já tem moldura)</span></div>
-  <div class="row"><label style="display:flex;gap:6px;align-items:center;cursor:pointer;color:var(--text)"><input type="checkbox" id="keepArt"> Manter a proporção da arte (não distorcer)</label></div>
+  <h4>Se a arte e a tela tiverem formatos diferentes</h4>
+  <select id="artMode">
+    <option value="fit">Tamanho real da tela, arte inteira sem distorcer (recomendado)</option>
+    <option value="keep">Altura da tela segue a arte (tela fica menor)</option>
+    <option value="stretch">Tamanho real da tela, arte esticada</option>
+  </select>
   <div class="row"><input id="presetName" placeholder="Nome do novo modelo" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:var(--bg)"><button class="btn" id="bPresetSave">Salvar modelo</button></div>
   <div class="links"><button class="link" id="bPresetDel">Excluir modelo selecionado</button></div>
   <p class="small" id="dimInfo"></p>
@@ -416,8 +421,33 @@ function makeDefaultArt() {
   return c;
 }
 // Altura efetiva da tela: com "manter proporção da arte", a altura segue a arte (sem distorcer)
+/* Quando a arte e a tela têm proporções diferentes:
+   'fit'     = tamanho real da tela; arte inteira sem distorcer; a sobra vira moldura (padrão)
+   'keep'    = altura da tela segue a arte (tela fica menor que a real)
+   'stretch' = tamanho real; arte esticada */
+const artMode = () => defaults.artMode || 'fit';
+const fitCache = {};
+function fitArt(ratio) {
+  if (!artCanvas) return artCanvas;
+  const aw = artCanvas.width, ah = artCanvas.height, ar = aw / ah;
+  if (Math.abs(ratio - ar) / ar < 0.01) return artCanvas;
+  const key = `${aw}x${ah}:${artName}:${ratio.toFixed(3)}`;
+  if (fitCache[key]) return fitCache[key];
+  const cw = ratio < ar ? aw : Math.round(ah * ratio), ch = ratio < ar ? Math.round(aw / ratio) : ah;
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+  const g = c.getContext('2d');
+  // cor da moldura: um pixel da borda da arte (meio da lateral esquerda, um pouco para dentro)
+  const sg = artCanvas.getContext('2d').getImageData(Math.min(6, aw - 1), Math.round(ah / 2), 1, 1).data;
+  const frame = sg[3] > 200 ? `rgb(${sg[0]},${sg[1]},${sg[2]})` : '#050505';
+  g.fillStyle = frame;
+  const rad = artHasFrame ? Math.round(Math.min(cw, ch) * 0.055) : 0;
+  g.beginPath(); g.roundRect(0, 0, cw, ch, rad); g.fill();
+  g.drawImage(artCanvas, Math.round((cw - aw) / 2), Math.round((ch - ah) / 2));
+  for (const k of Object.keys(fitCache)) delete fitCache[k]; // guarda só a última
+  return (fitCache[key] = c);
+}
 function effH(W, B, Hdecl) {
-  if (defaults.keepArt === false || !artCanvas) return Hdecl;
+  if (artMode() !== 'keep' || !artCanvas) return Hdecl;
   const r = artCanvas.width / artCanvas.height;
   return +((W - 2 * B) / r + 2 * B).toFixed(1);
 }
@@ -736,7 +766,7 @@ function drawScreen(g, p, s, quick) {
   const bu = s.B / s.W, bv = s.B / s.H;
   const tw = clamp(Math.round(wpx * (1 - 2 * bu) * 1.5), 16, 2400), th = clamp(Math.round(hpx * (1 - 2 * bv) * 1.5), 8, 1400);
   const tc = document.createElement('canvas'); tc.width = tw; tc.height = th;
-  const t = tc.getContext('2d'); t.imageSmoothingQuality = 'high'; t.drawImage(artCanvas, 0, 0, tw, th);
+  const t = tc.getContext('2d'); t.imageSmoothingQuality = 'high'; t.drawImage(artMode() === 'fit' ? fitArt((s.W - 2 * s.B) / (s.H - 2 * s.B)) : artCanvas, 0, 0, tw, th);
   const td = t.getImageData(0, 0, tw, th).data;
   const br = s.bright == null ? autoBright(p, c) : s.bright;
   const img = g.getImageData(x0, y0, bw, bh), d = img.data;
@@ -1934,16 +1964,18 @@ function refreshSettings() {
   if (!$('#settings').open) return;
   const s = sel && sel.type === 'screen' ? sel : defaults;
   if (document.activeElement.tagName !== 'INPUT') { $('#sW').value = s.W; $('#sH').value = s.Hdecl ?? s.H; $('#sB').value = s.B; }
-  $('#keepArt').checked = defaults.keepArt !== false;
+  $('#artMode').value = artMode();
   const pv = $('#artPrev'), g = pv.getContext('2d');
   g.clearRect(0, 0, pv.width, pv.height);
   if (artCanvas) { const k = Math.min(pv.width / artCanvas.width, pv.height / artCanvas.height) * 0.92;
     const w = artCanvas.width * k, h = artCanvas.height * k; g.drawImage(artCanvas, (pv.width - w) / 2, (pv.height - h) / 2, w, h); }
   const Hd = s.Hdecl ?? s.H, ratio = (s.W - 2 * s.B) / (Hd - 2 * s.B), ar = artCanvas ? artCanvas.width / artCanvas.height : ratio;
   const differ = Math.abs(ratio - ar) / ar > 0.04;
-  $('#dimInfo').textContent = !differ ? '' : defaults.keepArt !== false
-    ? `A arte tem proporção ${ar.toFixed(2)} e ${String(s.W).replace('.', ',')} × ${String(Hd).replace('.', ',')} cm dá ${ratio.toFixed(2)}. Para não distorcer, a tela usa ${String(s.W).replace('.', ',')} × ${String(effH(s.W, s.B, Hd)).replace('.', ',')} cm.`
-    : `Atenção: a arte (${ar.toFixed(2)}) e a tela (${ratio.toFixed(2)}) têm proporções diferentes, então a arte fica esticada.`;
+  const n = v => String(v).replace('.', ',');
+  $('#dimInfo').textContent = !differ ? 'A arte e a tela têm o mesmo formato.'
+    : artMode() === 'fit' ? `A tela fica com ${n(s.W)} × ${n(Hd)} cm (tamanho real). A arte entra inteira, sem distorcer; a diferença de formato vira moldura ${ratio < ar ? 'em cima e embaixo' : 'nas laterais'}.`
+    : artMode() === 'keep' ? `A tela fica com ${n(s.W)} × ${n(effH(s.W, s.B, Hd))} cm para a arte não distorcer (menor que os ${n(Hd)} cm reais).`
+    : `A tela fica com ${n(s.W)} × ${n(Hd)} cm e a arte é esticada para caber (fica deformada).`;
 }
 $('#bSettings').onclick = openSettings;
 $('#bCloseSet').onclick = () => $('#settings').close();
@@ -1976,7 +2008,7 @@ function onDim() {
   render(); refreshUI();
 }
 ['#sW', '#sH', '#sB'].forEach(id => $(id).addEventListener('change', onDim));
-$('#keepArt').onchange = () => { if (cur) pushUndo(); defaults.keepArt = $('#keepArt').checked; saveDefaults(); applyArtRatioAll(); render(); refreshUI(); };
+$('#artMode').onchange = () => { if (cur) pushUndo(); defaults.artMode = $('#artMode').value; saveDefaults(); applyArtRatioAll(); render(); refreshUI(); };
 $('#preset').onchange = () => {
   const p = presets[+$('#preset').value]; defaults.preset = +$('#preset').value;
   $('#sW').value = p.W; $('#sH').value = p.H; $('#sB').value = p.B; onDim();
