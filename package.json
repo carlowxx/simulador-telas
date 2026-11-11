@@ -1,7 +1,7 @@
 {
   "name": "simulador-telas",
   "productName": "Simulador de Telas",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Simula telas, canaletas e marcações sobre fotos de vistoria e exporta PNG.",
   "main": "main.js",
   "author": "carlowxx",
