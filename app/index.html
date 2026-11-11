@@ -553,10 +553,13 @@ function newObj(m) {
 function rebuildCalib(p) {
   const c = p.calib; if (!c) return;
   let [A, B] = c.wl; if (B[0] < A[0]) { [A, B] = [B, A]; c.wl = [A, B]; }
-  const s = dist(A, B) / c.wcm;
-  const sv = c.hl ? Math.max(0.01, Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : s;
+  // Escala única (px por cm) nas duas direções. Com a altura marcada (teto ao piso), vale a escala
+  // dela: assim base, topo e tamanho batem com o croqui (base 190 + tela 38 = topo 228).
+  // Sem altura, vale a escala da largura.
+  const sw = dist(A, B) / c.wcm;
+  const s = c.hl ? Math.max(0.01, Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : sw;
   const w = c.wcm, h = c.hl ? c.hcm : 100;
-  c.pts = [A, [A[0] + s * w, A[1]], [A[0] + s * w, A[1] + sv * h], [A[0], A[1] + sv * h]];
+  c.pts = [A, [A[0] + s * w, A[1]], [A[0] + s * w, A[1] + s * h], [A[0], A[1] + s * h]];
   c.w = w; c.h = h;
 }
 function getCalib(p) {
@@ -566,7 +569,8 @@ function getCalib(p) {
 }
 const toImg = (p, q) => hApply(getCalib(p).H, q[0], q[1]);
 const toPlane = (p, q) => hApply(getCalib(p).Hi, q[0], q[1]);
-function kxy(p) { const c = p.calib; if (!c) return 1; const sx = dist(c.wl[0], c.wl[1]) / c.wcm, sy = (c.pts[3][1] - c.pts[0][1]) / c.h; return sy > 0 ? sx / sy : 1; }
+function kxy(p) { const c = p.calib; if (!c) return 1; const sx = (c.pts[1][0] - c.pts[0][0]) / c.w, sy = (c.pts[3][1] - c.pts[0][1]) / c.h; return sy > 0 ? sx / sy : 1; }
+const pxPerCm = p => (p.calib.pts[1][0] - p.calib.pts[0][0]) / p.calib.w;
 const hPlane = (p, s) => s.H * kxy(p);
 function floorImg(p) { const c = p && p.calib; if (!c || c.noFloor) return null; if (c.floor) return c.floor; return c.hl ? (c.hl[0][1] > c.hl[1][1] ? c.hl[0] : c.hl[1]) : null; }
 function ceilImg(p) { const c = p && p.calib; if (!c || c.noCeil) return null; if (c.ceil) return c.ceil; return c.hl ? (c.hl[0][1] < c.hl[1][1] ? c.hl[0] : c.hl[1]) : null; }
@@ -710,7 +714,7 @@ function origPixels(p) {
 const canPtsImg = (p, s) => s.pts.map(q => toImg(p, q));
 function canQuads(p, s) {
   // largura em cm reais; o eixo vertical do plano usa outra escala, então monta em pixels da foto
-  const pts = canPtsImg(p, s), c = p.calib, hw = s.width * (dist(c.wl[0], c.wl[1]) / c.wcm) / 2, out = [], n = pts.length;
+  const pts = canPtsImg(p, s), c = p.calib, hw = s.width * pxPerCm(p) / 2, out = [], n = pts.length;
   for (let i = 0; i < n - 1; i++) {
     const a = pts[i], b = pts[i + 1];
     let dx = b[0] - a[0], dy = b[1] - a[1]; const L = Math.hypot(dx, dy); if (L < 1e-6) continue;
@@ -1389,6 +1393,10 @@ function refreshUI() {
   $('#bDelH').classList.toggle('hide', !(cb && cb.hl));
   $('#calProg').innerHTML = !cur ? '' : !cb ? 'Marque a <b>largura</b> de algo conhecido na parede. O app pergunta a medida na hora.'
     : !fl ? 'Falta o <b>piso</b>: marque a altura (do teto ao piso) ou clique em Piso → Marcar.' : 'Pronto. Use a aba <b>Elementos</b> para colocar a tela.';
+  if (cb && cb.hl) {
+    const est = dist(cb.wl[0], cb.wl[1]) / pxPerCm(cur);
+    if (Math.abs(est / cb.wcm - 1) > 0.05) $('#calProg').innerHTML += `<br><span class="small">A escala vem da altura. Por ela, a linha azul mede <b style="color:var(--text)">${cm(est)} cm</b> na foto (você informou ${cm(cb.wcm)}).</span>`;
+  }
   // elementos
   const so = cb && sel && sel.type === 'screen' ? sel : null, m = so && getModel(so.model);
   $('#elemIns').innerHTML = !cur ? '' : !cb ? 'Marque a medida da parede primeiro (aba <b>Medida</b>).'
