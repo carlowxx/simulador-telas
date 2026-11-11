@@ -730,23 +730,32 @@ function canQuads(p, s) {
    com escovado, quinas suaves (uma pega luz, a outra escurece), lateral com volume voltada ao centro da
    foto e granulado igual ao da foto. No encontro com o teto, escurece como uma peça que entra no forro. */
 function drawCanQuad(g, p, q, col, od, topShade) {
+  /* Canaleta realista, ponto a ponto, a partir da própria foto:
+     - inox reflete o AMBIENTE: pega a cor da parede dos lados (borrada), então num mármore laranja fica quente;
+     - faixa de brilho (reflexo da luz) e faixa mais escura ao longo da peça, como metal polido;
+     - quinas suaves, lateral com volume voltada ao centro da foto, escovado e granulado da foto;
+     - desenhada numa camada separada e levemente desfocada, com a mesma nitidez da foto. */
   const A = q[0], B = q[1], D = q[3];
   let ux = B[0] - A[0], uy = B[1] - A[1]; const L = Math.hypot(ux, uy); if (L < 1) return; ux /= L; uy /= L;
   let vx = D[0] - A[0], vy = D[1] - A[1]; const W = Math.hypot(vx, vy); if (W < 1) return; vx /= W; vy /= W;
   const metal = col.metal || 0;
   const pix = (x, y) => (clamp(y | 0, 0, p.h - 1) * p.w + clamp(x | 0, 0, p.w - 1)) * 4;
-  const N = Math.ceil(L) + 1, avg = new Float32Array(N * 3), K = 9;
+  const N = Math.ceil(L) + 1, behind = new Float32Array(N * 3), env = new Float32Array(N * 3);
+  const sideOffs = [-2.6, -2.1, -1.6, -1.2, 2.2, 2.6, 3.1, 3.6]; // amostras da parede dos dois lados
   for (let i = 0; i < N; i++) {
     let r = 0, gg = 0, b = 0;
-    for (let j = 0; j < K; j++) { const t = -0.15 + 1.3 * j / (K - 1), k = pix(A[0] + ux * i + vx * W * t, A[1] + uy * i + vy * W * t); r += od[k]; gg += od[k + 1]; b += od[k + 2]; }
-    avg[i * 3] = r / K; avg[i * 3 + 1] = gg / K; avg[i * 3 + 2] = b / K;
+    for (let j = 0; j < 7; j++) { const t = 0.1 + 0.8 * j / 6, k = pix(A[0] + ux * i + vx * W * t, A[1] + uy * i + vy * W * t); r += od[k]; gg += od[k + 1]; b += od[k + 2]; }
+    behind[i * 3] = r / 7; behind[i * 3 + 1] = gg / 7; behind[i * 3 + 2] = b / 7;
+    r = gg = b = 0;
+    for (const t of sideOffs) { const k = pix(A[0] + ux * i + vx * W * t, A[1] + uy * i + vy * W * t); r += od[k]; gg += od[k + 1]; b += od[k + 2]; }
+    env[i * 3] = r / sideOffs.length; env[i * 3 + 1] = gg / sideOffs.length; env[i * 3 + 2] = b / sideOffs.length;
   }
-  const R = Math.max(2, Math.round(W * 0.5)), sm = new Float32Array(N * 3);
-  for (let i = 0; i < N; i++) {
-    let r = 0, gg = 0, b = 0, n = 0;
-    for (let j = Math.max(0, i - R); j <= Math.min(N - 1, i + R); j++) { r += avg[j * 3]; gg += avg[j * 3 + 1]; b += avg[j * 3 + 2]; n++; }
-    sm[i * 3] = r / n; sm[i * 3 + 1] = gg / n; sm[i * 3 + 2] = b / n;
-  }
+  const blurArr = (src, R) => {
+    const out = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) { let r = 0, gg = 0, b = 0, n = 0; for (let j = Math.max(0, i - R); j <= Math.min(N - 1, i + R); j++) { r += src[j * 3]; gg += src[j * 3 + 1]; b += src[j * 3 + 2]; n++; } out[i * 3] = r / n; out[i * 3 + 1] = gg / n; out[i * 3 + 2] = b / n; }
+    return out;
+  };
+  const sm = blurArr(behind, Math.max(2, Math.round(W * 0.5))), ev = blurArr(env, Math.max(3, Math.round(W * 1.4)));
   let meanL = 0; for (let i = 0; i < N; i++) meanL += 0.2126 * sm[i * 3] + 0.7152 * sm[i * 3 + 1] + 0.0722 * sm[i * 3 + 2]; meanL = Math.max(20, meanL / N);
   const cxA = A[0] + ux * L / 2, cxD = D[0] + ux * L / 2, nearIsD = Math.abs(cxD - p.w / 2) < Math.abs(cxA - p.w / 2);
   const sideW = 0.07 + 0.11 * clamp(Math.abs((cxA + cxD) / 2 - p.w / 2) / (p.w / 2), 0, 1);
@@ -756,10 +765,11 @@ function drawCanQuad(g, p, q, col, od, topShade) {
   for (let k = 0; k < 2; k++) for (let i = 1; i < NC - 1; i++) streak[i] = (streak[i - 1] + streak[i] * 2 + streak[i + 1]) / 4;
   const bump = x => Math.max(0, 1 - x * x), smooth = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
   const xs = q.map(v => v[0]), ys = q.map(v => v[1]);
-  const x0 = clamp(Math.floor(Math.min(...xs)) - 1, 0, p.w), x1 = clamp(Math.ceil(Math.max(...xs)) + 1, 0, p.w);
-  const y0 = clamp(Math.floor(Math.min(...ys)) - 1, 0, p.h), y1 = clamp(Math.ceil(Math.max(...ys)) + 1, 0, p.h);
+  const pad = 2;
+  const x0 = clamp(Math.floor(Math.min(...xs)) - pad, 0, p.w), x1 = clamp(Math.ceil(Math.max(...xs)) + pad, 0, p.w);
+  const y0 = clamp(Math.floor(Math.min(...ys)) - pad, 0, p.h), y1 = clamp(Math.ceil(Math.max(...ys)) + pad, 0, p.h);
   const bw = x1 - x0, bh = y1 - y0; if (bw <= 0 || bh <= 0) return;
-  const img = g.getImageData(x0, y0, bw, bh), d = img.data, SS = [0.25, 0.75];
+  const layer = new ImageData(bw, bh), d = layer.data, SS = [0.25, 0.75];
   for (let jy = 0; jy < bh; jy++) for (let ix = 0; ix < bw; ix++) {
     let r = 0, gg = 0, b = 0, n = 0;
     for (const oy of SS) for (const ox of SS) {
@@ -768,24 +778,42 @@ function drawCanQuad(g, p, q, col, od, topShade) {
       n++;
       const t = dv / W, tt = nearIsD ? t : 1 - t, k3 = Math.min(N - 1, du | 0) * 3;
       const wl = 0.2126 * sm[k3] + 0.7152 * sm[k3 + 1] + 0.0722 * sm[k3 + 2];
-      const light = clamp(0.7 + 0.5 * (wl / 255), 0.7, 1.15), rl = (wl - meanL) * 0.4 * metal, mix = 0.18 * metal;
-      let cr = (col.base[0] * light + rl) * (1 - mix) + sm[k3] * mix * 1.1, cg = (col.base[1] * light + rl) * (1 - mix) + sm[k3 + 1] * mix * 1.1, cb = (col.base[2] * light + rl + 3 * metal) * (1 - mix) + sm[k3 + 2] * mix * 1.1;
-      const st = streak[Math.min(NC - 1, (t * NC) | 0)] * 7 * metal; cr += st; cg += st; cb += st;
-      // perfil: quina de fora, filete de luz, face (levemente mais clara para fora), vinco e lateral
-      let f = 1 + 0.05 * Math.cos(tt * Math.PI), add = 0;
-      f *= 0.62 + 0.38 * smooth(tt / 0.035);
-      add += (metal ? 60 : 26) * bump((tt - 0.075) / 0.05);
-      if (tt > 1 - sideW) { f *= 0.70 + 0.12 * ((tt - (1 - sideW)) / sideW); f *= 0.72 + 0.28 * smooth((1 - tt) / 0.03); }
-      f *= 1 - 0.22 * bump((tt - (1 - sideW)) / 0.022);
-      if (topShade) { const e = (L - du) / (W * 1.4); if (e < 1) f *= 0.32 + 0.68 * Math.pow(Math.max(0, e), 0.6); }
+      const el = 0.2126 * ev[k3] + 0.7152 * ev[k3 + 1] + 0.0722 * ev[k3 + 2];
+      const light = clamp(0.72 + 0.5 * (wl / 255), 0.72, 1.18);
+      let cr, cg, cb;
+      if (metal) {
+        // base metálica + reflexo colorido do ambiente (lados) + variação de luz da parede atrás
+        const mixE = 0.56 * metal, gain = 1.18;
+        cr = col.base[0] * light * (1 - mixE) + ev[k3] * gain * mixE;
+        cg = col.base[1] * light * (1 - mixE) + ev[k3 + 1] * gain * mixE;
+        cb = col.base[2] * light * (1 - mixE) + ev[k3 + 2] * gain * mixE;
+        const rl = (wl - meanL) * 0.35; cr += rl; cg += rl; cb += rl;
+        // faixa de brilho (reflexo da luz) e faixa escura, como metal polido
+        const hi = 72 * metal * bump((tt - 0.3) / 0.075) * clamp(0.55 + el / 255, 0.6, 1.35) + 18 * metal * bump((tt - 0.3) / 0.2);
+        const lo = 1 - 0.13 * metal * bump((tt - 0.64) / 0.2);
+        cr = cr * lo + hi; cg = cg * lo + hi; cb = cb * lo + hi;
+        const st = streak[Math.min(NC - 1, (t * NC) | 0)] * 6 * metal; cr += st; cg += st; cb += st;
+      } else {
+        const lf = clamp(wl / meanL, 0.75, 1.2), tint = 0.08;
+        cr = (col.base[0] * (1 - tint) + ev[k3] * tint) * lf * light; cg = (col.base[1] * (1 - tint) + ev[k3 + 1] * tint) * lf * light; cb = (col.base[2] * (1 - tint) + ev[k3 + 2] * tint) * lf * light;
+      }
+      // perfil: quina de fora, filete de luz, face, vinco e lateral com volume
+      let f = 1, add = 0;
+      f *= 0.6 + 0.4 * smooth(tt / 0.04);
+      add += (metal ? 50 : 22) * bump((tt - 0.08) / 0.045);
+      if (tt > 1 - sideW) { f *= 0.66 + 0.14 * ((tt - (1 - sideW)) / sideW); f *= 0.7 + 0.3 * smooth((1 - tt) / 0.035); }
+      f *= 1 - 0.25 * bump((tt - (1 - sideW)) / 0.022);
+      if (topShade) { const e = (L - du) / (W * 1.6); if (e < 1) f *= 0.3 + 0.7 * Math.pow(Math.max(0, e), 0.65); }
       const gn = ((((x0 + ix) * 73856093) ^ ((y0 + jy) * 19349663)) >>> 0) % 1000 / 1000 - 0.5;
-      r += clamp(cr * f + add + gn * 7, 0, 255); gg += clamp(cg * f + add + gn * 7, 0, 255); b += clamp(cb * f + add + gn * 7, 0, 255);
+      r += clamp(cr * f + add + gn * 8, 0, 255); gg += clamp(cg * f + add + gn * 8, 0, 255); b += clamp(cb * f + add + gn * 8, 0, 255);
     }
     if (!n) continue;
-    const k = (jy * bw + ix) * 4, a = n / 4;
-    d[k] = d[k] * (1 - a) + r / 4; d[k + 1] = d[k + 1] * (1 - a) + gg / 4; d[k + 2] = d[k + 2] * (1 - a) + b / 4;
+    const k = (jy * bw + ix) * 4;
+    d[k] = r / n; d[k + 1] = gg / n; d[k + 2] = b / n; d[k + 3] = Math.round(255 * n / 4);
   }
-  g.putImageData(img, x0, y0);
+  // camada separada com o mesmo leve desfoque da câmera (a foto nunca é 100% nítida)
+  const off = document.createElement('canvas'); off.width = bw; off.height = bh; off.getContext('2d').putImageData(layer, 0, 0);
+  g.save(); g.filter = `blur(${clamp(p.w / 2600, 0.35, 0.9).toFixed(2)}px)`; g.drawImage(off, x0, y0); g.restore();
 }
 function drawCan(g, p, s, quick) {
   const quads = canQuads(p, s); if (!quads.length) return;
@@ -793,10 +821,10 @@ function drawCan(g, p, s, quick) {
   if (quick) { g.fillStyle = 'rgba(190,195,200,.9)'; for (const q of quads) { path(q); g.fill(); } return; }
   const col = CAN_COLORS[s.color] || CAN_COLORS.inox, wpx = Math.max(1, dist(quads[0][0], quads[0][3])), [sdx, sdy] = shadowDir(p);
   g.save(); g.globalCompositeOperation = 'multiply';
-  g.filter = `blur(${Math.max(1, wpx * 0.4)}px)`; g.fillStyle = 'rgba(0,0,0,.30)';      // sombra larga e suave
-  for (const q of quads) { path(q, sdx * wpx * 0.28, sdy * wpx * 0.12); g.fill(); }
-  g.filter = `blur(${Math.max(1, wpx * 0.08)}px)`; g.fillStyle = 'rgba(0,0,0,.42)';     // sombra de contato
-  for (const q of quads) { path(q, sdx * wpx * 0.07, 0); g.fill(); }
+  g.filter = `blur(${Math.max(1, wpx * 0.45)}px)`; g.fillStyle = 'rgba(0,0,0,.32)';     // sombra projetada, larga e suave
+  for (const q of quads) { path(q, sdx * wpx * 0.3, sdy * wpx * 0.12); g.fill(); }
+  g.filter = `blur(${Math.max(0.8, wpx * 0.06)}px)`; g.fillStyle = 'rgba(0,0,0,.55)';    // contato: filete escuro nos dois lados
+  for (const q of quads) { const cx = (q[0][0] + q[2][0]) / 2, cy = (q[0][1] + q[2][1]) / 2; g.beginPath(); q.forEach((v, i) => { const X = cx + (v[0] - cx) * 1.06, Y = cy + (v[1] - cy) * 1.0; i ? g.lineTo(X, Y) : g.moveTo(X, Y); }); g.closePath(); g.fill(); }
   g.restore();
   const od = origPixels(p), cy = ceilPlaneY(p), last = s.pts[s.pts.length - 1];
   const touchesCeil = cy != null && Math.abs(last[1] - cy) < 2;
