@@ -216,6 +216,16 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
 .layers{background:#111316}
 .lrow{transition:background .12s}
 #drop{border-radius:20px;background:rgba(255,255,255,.015)}
+.parts{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.prow{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.02)}
+.prow .pth{width:44px;height:44px;border-radius:8px;background:#0c0d0f;display:grid;place-items:center;flex:none;overflow:hidden;color:#4a5058;font-size:10px}
+.prow .pth img{max-width:100%;max-height:100%}
+.prow .pn{flex:1;display:flex;flex-direction:column;font-size:12.5px;font-weight:600;line-height:1.25}
+.prow .pn small{font-weight:400;color:var(--muted);font-size:11px}
+.prow .pn small.ok{color:#3ccf6e}
+.prow .btn{padding:6px 10px;font-size:12px}
+.prow .lx{width:24px;height:24px;border-radius:6px;color:var(--muted);font-size:15px}
+.prow .lx:hover{background:rgba(192,57,43,.25);color:#ffb4ab}
 </style>
 </head>
 <body>
@@ -305,7 +315,10 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
       <div class="sw" id="cColor"></div>
       <div class="row">Largura <input type="number" class="fld" id="cW" step="0.5"> cm</div>
       <div class="links"><button class="link" id="bCanCeil">Voltar a ir até o teto</button></div>
+      <h5 class="sect">Foto real da canaleta</h5>
+      <div class="parts" id="partsCan"></div>
     </div>
+    <input type="file" id="fPart" accept="image/*" hidden>
 
     <div class="panel" data-panel="infra">
       <div class="tools" id="infraTools">
@@ -342,12 +355,11 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
         <div class="row">Largura <input type="number" class="fld" id="rW" step="1"> Altura <input type="number" class="fld" id="rH" step="1"> cm</div>
         <div class="row">Profundidade <input type="number" class="fld" id="rD" step="1"> cm</div>
         <div class="sw" id="rColor"></div>
-        <h5 class="sect">Imagem do rack</h5>
-        <div class="row" style="gap:12px"><button class="btn" id="bRackImg">Enviar imagem do rack…</button><button class="link" id="bRackImgDel">remover</button></div>
-        <input type="file" id="fRackImg" accept="image/*" hidden>
-        <p class="small" id="rackImgInfo"></p>
         <p class="small">Medidas típicas de rack de parede; ajuste conforme o croqui.</p>
       </div>
+      <h5 class="sect">Fotos reais das peças</h5>
+      <p class="small" style="margin:-2px 0 8px">Com a foto, a peça sai igual à real: o app só encaixa perspectiva, tamanho, luz e sombra. Sem foto, o app desenha a peça.</p>
+      <div class="parts" id="partsInfra"></div>
       <label class="chk hide" id="sizeAllRow"><input type="checkbox" id="sizeAll"><span>Tamanho igual para todos<br><span class="small">Mudar o tamanho de um muda todos da foto (eletroduto, curva e condulete juntos; racks entre si). Desmarque para mudar só o selecionado.</span></span></label>
     </div>
 
@@ -954,7 +966,7 @@ function drawCan(g, p, s, quick) {
   g.restore();
   const od = origPixels(p), cy = ceilPlaneY(p), last = s.pts[s.pts.length - 1];
   const touchesCeil = cy != null && Math.abs(last[1] - cy) < 2;
-  quads.forEach((q, i) => drawCanQuad(g, p, q, col, od, touchesCeil && i === quads.length - 1));
+  quads.forEach((q, i) => partArt.can ? drawStripQuad(g, p, q, 'can', autoBright(p, q) / 0.9, touchesCeil && i === quads.length - 1) : drawCanQuad(g, p, q, col, od, touchesCeil && i === quads.length - 1));
 }
 // canaleta ligada à tela: sempre sai do centro do topo; só a ponta de cima é livre
 function syncCans(p) {
@@ -1061,13 +1073,82 @@ function rackTex(col, w, h, Hcm) {   // rack de parede: estrutura, ventilação,
 }
 const texCache = new Map();
 // imagem do rack enviada pelo usuário (vista de frente): substitui o desenho do app na frente de todos os racks
-let rackBlob = null, rackArt = null;
-async function setRackImg(blob) { rackBlob = blob || null; rackArt = blob ? prepArt(await loadImg(URL.createObjectURL(blob))) : null; texCache.clear(); await idb.set('rackImg', blob ? {blob} : null); }
-async function loadRackArt() { const r = await idb.get('rackImg'); if (r && r.blob) { rackBlob = r.blob; try { rackArt = prepArt(await loadImg(URL.createObjectURL(r.blob))); } catch (e) { rackArt = null; } } }
+/* Fotos reais das peças (enviadas pelo usuário). O fundo branco em volta vira transparente (prepArt).
+   Eletroduto e canaleta: um trecho reto, que é repetido ao longo do trajeto. Curva: na posição ┐. */
+const PARTS = {
+  rack:  ['Rack', 'foto de frente'],
+  cond:  ['Condulete', 'de frente, em pé'],
+  curva: ['Curva 90°', 'posição ┐: uma ponta à esquerda, outra para baixo'],
+  pipe:  ['Eletroduto', 'um trecho reto'],
+  can:   ['Canaleta', 'um trecho reto, de frente']
+};
+const partBlob = {}, partArt = {}, partThumb = {};
+function orientArt(k, c) {   // eletroduto e canaleta: deixa o comprimento na vertical
+  if ((k === 'pipe' || k === 'can') && c.width > c.height) { const r = document.createElement('canvas'); r.width = c.height; r.height = c.width; const g = r.getContext('2d'); g.translate(c.height, 0); g.rotate(Math.PI / 2); g.drawImage(c, 0, 0); return r; }
+  return c;
+}
+function thumbOf(c) { const t = document.createElement('canvas'), s = 88 / Math.max(c.width, c.height); t.width = Math.max(1, Math.round(c.width * s)); t.height = Math.max(1, Math.round(c.height * s)); t.getContext('2d').drawImage(c, 0, 0, t.width, t.height); return t.toDataURL(); }
+async function setPartImg(k, blob) {
+  if (blob) { partBlob[k] = blob; partArt[k] = orientArt(k, prepArt(await loadImg(URL.createObjectURL(blob)))); partThumb[k] = thumbOf(partArt[k]); }
+  else { delete partBlob[k]; delete partArt[k]; delete partThumb[k]; }
+  texCache.clear(); stripCache.clear(); await idb.set('part:' + k, blob ? {blob} : null);
+}
+async function loadPartArts() {
+  const old = await idb.get('rackImg'); if (old && old.blob && !(await idb.get('part:rack'))) await idb.set('part:rack', old);
+  for (const k of Object.keys(PARTS)) {
+    const r = await idb.get('part:' + k);
+    if (r && r.blob) try { partBlob[k] = r.blob; partArt[k] = orientArt(k, prepArt(await loadImg(URL.createObjectURL(r.blob)))); partThumb[k] = thumbOf(partArt[k]); } catch (e) { delete partBlob[k]; }
+  }
+}
+// textura reduzida para o tamanho em que será usada (evita serrilhado) e leitura de pixels
+const stripCache = new Map();
+function scaledTex(k, w) {
+  const a = partArt[k], key = k + ':' + w; if (stripCache.has(key)) return stripCache.get(key);
+  const c = document.createElement('canvas'); c.width = w; c.height = Math.max(4, Math.round(a.height * w / a.width));
+  const g = c.getContext('2d', {willReadFrequently: true}); g.imageSmoothingQuality = 'high'; g.drawImage(a, 0, 0, c.width, c.height);
+  const t = {w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data};
+  if (stripCache.size > 30) stripCache.clear(); stripCache.set(key, t); return t;
+}
+const mirrorT = x => { const f = x - 2 * Math.floor(x / 2); return f > 1 ? 2 - f : f; };   // repete espelhando (sem emenda)
+function sampleTex(t, fx, fy, o) {
+  fx = clamp(fx, 0, t.w - 1.001); fy = clamp(fy, 0, t.h - 1.001);
+  const ix = fx | 0, iy = fy | 0, ax = fx - ix, ay = fy - iy, k00 = (iy * t.w + ix) * 4, k10 = k00 + 4, k01 = k00 + t.w * 4, k11 = k01 + 4, d = t.d;
+  for (let c = 0; c < 4; c++) o[c] = (d[k00 + c] * (1 - ax) + d[k10 + c] * ax) * (1 - ay) + (d[k01 + c] * (1 - ax) + d[k11 + c] * ax) * ay;
+}
+// canaleta com foto: trecho reto repetido ao longo do quadrilátero (A→B comprimento, A→D largura)
+function drawStripQuad(g, p, q, k, br, topShade) {
+  const A = q[0], B = q[1], D = q[3];
+  let ux = B[0] - A[0], uy = B[1] - A[1]; const L = Math.hypot(ux, uy); if (L < 1) return; ux /= L; uy /= L;
+  let vx = D[0] - A[0], vy = D[1] - A[1]; const W = Math.hypot(vx, vy); if (W < 0.5) return; vx /= W; vy /= W;
+  const t = scaledTex(k, Math.max(8, Math.round(W * 2))), tile = W * t.h / t.w, o = [0, 0, 0, 0];
+  const xs = q.map(v => v[0]), ys = q.map(v => v[1]);
+  const x0 = clamp(Math.floor(Math.min(...xs)) - 1, 0, p.w), x1 = clamp(Math.ceil(Math.max(...xs)) + 1, 0, p.w);
+  const y0 = clamp(Math.floor(Math.min(...ys)) - 1, 0, p.h), y1 = clamp(Math.ceil(Math.max(...ys)) + 1, 0, p.h);
+  const bw = x1 - x0, bh = y1 - y0; if (bw <= 0 || bh <= 0) return;
+  const layer = new ImageData(bw, bh), d = layer.data, SS = [0.25, 0.75];
+  for (let jy = 0; jy < bh; jy++) for (let ix = 0; ix < bw; ix++) {
+    let r = 0, gg = 0, b = 0, as = 0;
+    for (const oy of SS) for (const ox of SS) {
+      const px = x0 + ix + ox - A[0], py = y0 + jy + oy - A[1], du = px * ux + py * uy, dv = px * vx + py * vy;
+      if (du < 0 || du > L || dv < 0 || dv > W) continue;
+      sampleTex(t, dv / W * (t.w - 1), mirrorT((L - du) / tile) * (t.h - 1), o);
+      let f = br; if (topShade) { const e = (L - du) / (W * 1.6); if (e < 1) f *= 0.3 + 0.7 * Math.pow(Math.max(0, e), 0.65); }
+      const a = o[3] / 255; r += o[0] * f * a; gg += o[1] * f * a; b += o[2] * f * a; as += a;
+    }
+    if (as < 0.01) continue;
+    const kk = (jy * bw + ix) * 4; d[kk] = r / as; d[kk + 1] = gg / as; d[kk + 2] = b / as; d[kk + 3] = Math.round(255 * as / 4);
+  }
+  const off = document.createElement('canvas'); off.width = bw; off.height = bh; off.getContext('2d').putImageData(layer, 0, 0);
+  g.save(); g.filter = `blur(${clamp(p.w / 3000, 0.3, 0.7).toFixed(2)}px)`; g.drawImage(off, x0, y0); g.restore();
+}
 function boxTex(b, tw, th) {
   const key = [b.kind, b.color, b.ori, b.W, b.H, tw, th].join('|'); if (texCache.has(key)) return texCache.get(key);
   let t;
-  if (b.kind === 'rack' && rackArt) { t = document.createElement('canvas'); t.width = tw; t.height = th; const g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(rackArt, 0, 0, tw, th); }
+  const art = b.kind === 'rack' ? partArt.rack : partArt.cond;
+  if (art) {   // foto real da peça
+    t = document.createElement('canvas'); t.width = tw; t.height = th; const g = t.getContext('2d'); g.imageSmoothingQuality = 'high';
+    if (b.kind !== 'rack' && b.ori === 'h') { g.translate(tw, 0); g.rotate(Math.PI / 2); g.drawImage(art, 0, 0, th, tw); } else g.drawImage(art, 0, 0, tw, th);
+  }
   else if (b.kind === 'rack') t = rackTex(RACK_COLORS[b.color] || RACK_COLORS.preto, tw, th, b.H);
   else {
     const col = PIPE_COLORS[b.color] || PIPE_COLORS.galv;
@@ -1115,6 +1196,13 @@ function pipeShape(p, s) {
       }
     }
     prims.push({t: 'seg', a, b}); a = b;
+  }
+  let acc = 0;   // comprimento acumulado ao longo do eixo (para repetir a foto do tubo)
+  for (const pr of prims) {
+    pr.s0 = acc;
+    if (pr.t === 'seg') pr.len = dist(pr.a, pr.b);
+    else { pr.len = pr.R * Math.acos(clamp((pr.v1[0] * pr.v2[0] + pr.v1[1] * pr.v2[1]) / (pr.R * pr.R), -1, 1)); pr.sg = Math.sign(cross2(pr.v1, pr.v2)); }
+    acc += pr.len;
   }
   return {prims, r: s.d / 2 * k, k};
 }
@@ -1197,8 +1285,57 @@ function fittingAt(p, s, i) {
   return {type: 'box', kind: 'condulete', ori: v ? 'v' : 'h', color: s.color, W, H, D: Math.max(4, s.d * 1.6), x: q[0] - W / 2, y: q[1] - H / 2};
 }
 const pipeQuads = (p, s) => canQuads(p, {pts: s.pts, width: s.d});
+// ponto do eixo mais próximo, com posição ao longo do tubo e deslocamento para o lado (para a foto)
+function closestFull(pr, x, y) {
+  if (pr.t === 'seg') {
+    const a = pr.a, dx = pr.b[0] - a[0], dy = pr.b[1] - a[1], L2 = dx * dx + dy * dy, t = L2 ? clamp(((x - a[0]) * dx + (y - a[1]) * dy) / L2, 0, 1) : 0;
+    const cx = a[0] + dx * t, cy = a[1] + dy * t, l = Math.sqrt(L2) || 1;
+    return [cx, cy, pr.s0 + t * pr.len, ((x - cx) * -dy + (y - cy) * dx) / l];
+  }
+  const w = [x - pr.c[0], y - pr.c[1]], s12 = pr.sg;
+  if (Math.sign(cross2(pr.v1, w)) === s12 && Math.sign(cross2(w, pr.v2)) === s12) {
+    const rl = Math.hypot(w[0], w[1]) || 1, ru = [w[0] / rl, w[1] / rl], v1n = [pr.v1[0] / pr.R, pr.v1[1] / pr.R];
+    const ang = Math.abs(Math.atan2(cross2(v1n, ru), v1n[0] * ru[0] + v1n[1] * ru[1]));
+    return [pr.c[0] + ru[0] * pr.R, pr.c[1] + ru[1] * pr.R, pr.s0 + ang * pr.R, -s12 * (rl - pr.R)];
+  }
+  const p1 = [pr.c[0] + pr.v1[0], pr.c[1] + pr.v1[1]], p2 = [pr.c[0] + pr.v2[0], pr.c[1] + pr.v2[1]], d1 = Math.hypot(x - p1[0], y - p1[1]), d2 = Math.hypot(x - p2[0], y - p2[1]);
+  return d1 < d2 ? [p1[0], p1[1], pr.s0, 0] : [p2[0], p2[1], pr.s0 + pr.len, 0];
+}
+function drawPipeTex(g, p, sh, br) {
+  const {prims, r} = sh; if (r < 0.4 || !prims.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const pr of prims) for (const q of pr.t === 'seg' ? [pr.a, pr.b] : [[pr.c[0] - pr.R, pr.c[1] - pr.R], [pr.c[0] + pr.R, pr.c[1] + pr.R]]) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+  x0 = clamp(Math.floor(x0 - r - 2), 0, p.w); y0 = clamp(Math.floor(y0 - r - 2), 0, p.h); x1 = clamp(Math.ceil(x1 + r + 2), 0, p.w); y1 = clamp(Math.ceil(y1 + r + 2), 0, p.h);
+  const bw = x1 - x0, bh = y1 - y0; if (bw <= 0 || bh <= 0) return;
+  const t = scaledTex('pipe', Math.max(8, Math.round(r * 4))), tile = 2 * r * t.h / t.w, o = [0, 0, 0, 0];
+  const best = (x, y) => { let bd = Infinity, bc = null; for (const pr of prims) { const c = closestFull(pr, x, y), dd = Math.hypot(x - c[0], y - c[1]); if (dd < bd) { bd = dd; bc = c; } } return [bd, bc]; };
+  const layer = new ImageData(bw, bh), d = layer.data, SS = [0.25, 0.75];
+  for (let jy = 0; jy < bh; jy++) for (let ix = 0; ix < bw; ix++) {
+    if (best(x0 + ix + 0.5, y0 + jy + 0.5)[0] > r + 1) continue;
+    let rr = 0, gg = 0, bb = 0, as = 0;
+    for (const oy of SS) for (const ox of SS) {
+      const [dd, c] = best(x0 + ix + ox, y0 + jy + oy); if (dd > r) continue;
+      sampleTex(t, clamp(c[3] / r * 0.5 + 0.5, 0, 1) * (t.w - 1), mirrorT(c[2] / tile) * (t.h - 1), o);
+      const a = o[3] / 255; rr += o[0] * br * a; gg += o[1] * br * a; bb += o[2] * br * a; as += a;
+    }
+    if (as < 0.01) continue;
+    const kk = (jy * bw + ix) * 4; d[kk] = rr / as; d[kk + 1] = gg / as; d[kk + 2] = bb / as; d[kk + 3] = Math.round(255 * as / 4);
+  }
+  const off = document.createElement('canvas'); off.width = bw; off.height = bh; off.getContext('2d').putImageData(layer, 0, 0);
+  g.save(); g.filter = `blur(${clamp(p.w / 3000, 0.3, 0.7).toFixed(2)}px)`; g.drawImage(off, x0, y0); g.restore();
+}
+// curva avulsa com foto: a foto (na posição ┐) é girada para a posição escolhida e encaixada no canto
+function drawCurvaImg(g, p, s) {
+  const k = pxPerCm(p), C = toImg(p, s.pts[1]), L = Math.max(dist(s.pts[0], s.pts[1]), dist(s.pts[1], s.pts[2])) * k, r = s.d / 2 * k;
+  const ang = {ld: 0, lu: Math.PI / 2, ru: Math.PI, rd: -Math.PI / 2}[s.ori || 'ld'], [sdx, sdy] = shadowDir(p), off = (s.d / 2 + 0.8) * k;
+  const br = autoBright(p, [[C[0] - L, C[1] - L], [C[0] + L, C[1] - L], [C[0] + L, C[1] + L], [C[0] - L, C[1] + L]]) / 0.9;
+  const draw = (filter, dx, dy, alpha, comp) => { g.save(); g.globalCompositeOperation = comp; g.globalAlpha = alpha; g.filter = filter; g.translate(C[0] + dx, C[1] + dy); g.rotate(ang); g.drawImage(partArt.curva, -L, -r, L + r, L + r); g.restore(); };
+  draw(`brightness(0) blur(${Math.max(1, off * 0.6)}px)`, sdx * off * 0.8, sdy * off * 0.8, 0.35, 'multiply');
+  draw(`brightness(${br.toFixed(2)})`, 0, 0, 1, 'source-over');
+}
 function drawPipe(g, p, s, quick) {
   if (s.pts.length < 2) return;
+  if (!quick && s.kind === 'curva' && partArt.curva) { drawCurvaImg(g, p, s); return; }
   const sh = pipeShape(p, s), col = PIPE_COLORS[s.color] || PIPE_COLORS.galv;
   g.save(); g.lineCap = 'butt'; g.lineJoin = 'round';
   if (quick) { g.strokeStyle = 'rgba(170,175,180,.92)'; g.lineWidth = sh.r * 2; pipePath(g, sh); g.stroke(); g.restore(); return; }
@@ -1207,7 +1344,8 @@ function drawPipe(g, p, s, quick) {
   g.filter = `blur(${Math.max(1, off * 0.6)}px)`; g.strokeStyle = 'rgba(0,0,0,.36)'; pipePath(g, sh, sdx * off * 0.8, sdy * off * 0.8); g.stroke();
   g.filter = `blur(${Math.max(0.6, sh.r * 0.16)}px)`; g.strokeStyle = 'rgba(0,0,0,.34)'; pipePath(g, sh, sdx * off * 0.25, sdy * off * 0.25); g.stroke();
   g.restore();
-  drawPipeBody(g, p, sh, col, [-sdx, -sdy]);
+  if (partArt.pipe) { const xs = s.pts.map(q => toImg(p, q)); drawPipeTex(g, p, sh, autoBright(p, [xs[0], xs[xs.length - 1], xs[xs.length - 1], xs[0]].map((q, i) => [q[0] + (i % 3 ? sh.r * 3 : -sh.r * 3), q[1]])) / 0.9); }
+  else drawPipeBody(g, p, sh, col, [-sdx, -sdy]);
   if (s.clamp !== false) drawClamps(g, p, sh, s);
   if (pipeBend(s) === 'condulete') for (let i = 1; i < s.pts.length - 1; i++) drawBox(g, p, fittingAt(p, s, i), false);
 }
@@ -1459,7 +1597,7 @@ async function openProject(file) {
     await loadModelArt(nm); models.push(nm);
   }
   saveModels();
-  if (j.rackImg && !rackBlob) await setRackImg(await dataURLToBlob(j.rackImg));
+  for (const [k, u] of Object.entries(j.parts || (j.rackImg ? {rack: j.rackImg} : {}))) if (PARTS[k] && !partBlob[k]) await setPartImg(k, await dataURLToBlob(u));
   const blob = await dataURLToBlob(j.photo), img = await loadImg(URL.createObjectURL(blob));
   const p = addPhoto(img, j.name || file.name, blob);
   p.calib = j.calib || null; p.items = j.items || []; p.lightAuto = j.lightAuto; p.lightAngle = j.lightAngle;
@@ -1974,8 +2112,7 @@ function refreshUI() {
   $$('#infraTools button, #canTools button').forEach(b => b.classList.toggle('on', b.dataset.t === tool));
   for (const [id, t] of [['#ipPipe', 'pipe'], ['#ipCond', 'cond'], ['#ipRack', 'rack']]) $(id).classList.toggle('hide', infraT !== t);
   $('#ipSize').classList.toggle('hide', !(infraT === 'pipe' || infraT === 'cond')); $('#ipRot').classList.toggle('hide', !(infraT === 'pipe' || infraT === 'cond'));
-  $('#bRackImgDel').classList.toggle('hide', !rackArt);
-  $('#rackImgInfo').textContent = rackArt ? 'Usando a sua imagem: vale para todos os racks.' : 'Sem imagem, o app desenha o rack. Envie uma foto de frente do rack (recortada ou com fundo branco).';
+  renderParts();
   $('#sizeAllRow').classList.toggle('hide', !infraT); $('#sizeAll').checked = defaults.sizeAll !== false;
   $('#pBendBox').classList.toggle('hide', isCurva); $('#pOriBox').classList.toggle('hide', !isCurva); $('#pClampRow').classList.toggle('hide', isCurva);
   $$('#pBend button').forEach(b => b.classList.toggle('on', b.dataset.b === (pipe ? pipeBend(pipe) : defaults.pipeBend)));
@@ -2122,9 +2259,26 @@ function setPipeD(v) {
   for (const it of targets) setItemD(it, v);
   defaults.pipeD = v; saveDefaults(); render(); refreshUI();
 }
-$('#bRackImg').onclick = () => $('#fRackImg').click();
-$('#fRackImg').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; await setRackImg(f); render(); refreshUI(); flash('Imagem do rack salva: todos os racks usam esta foto.'); };
-$('#bRackImgDel').onclick = async () => { await setRackImg(null); render(); refreshUI(); };
+let partPick = null, partsSig = '';
+function renderParts() {
+  const sig = Object.keys(PARTS).map(k => k + (partThumb[k] ? partThumb[k].length : 0)).join('|'); if (sig === partsSig) return; partsSig = sig;
+  for (const [box, ks] of [['#partsInfra', ['rack', 'cond', 'curva', 'pipe']], ['#partsCan', ['can']]]) {
+    const el = $(box); el.innerHTML = '';
+    for (const k of ks) {
+      const row = document.createElement('div'); row.className = 'prow';
+      row.innerHTML = `<span class="pth">${partThumb[k] ? `<img src="${partThumb[k]}" alt="">` : 'sem foto'}</span><span class="pn"></span><button class="btn">${partThumb[k] ? 'Trocar' : 'Enviar foto'}</button>${partThumb[k] ? '<button class="lx" title="Remover foto">×</button>' : ''}`;
+      row.querySelector('.pn').innerHTML = `${PARTS[k][0]}<small class="${partThumb[k] ? 'ok' : ''}">${partThumb[k] ? 'usando a sua foto' : PARTS[k][1]}</small>`;
+      row.querySelector('.btn').onclick = () => { partPick = k; $('#fPart').click(); };
+      const x = row.querySelector('.lx'); if (x) x.onclick = async () => { await setPartImg(k, null); render(); refreshUI(); };
+      el.appendChild(row);
+    }
+  }
+}
+$('#fPart').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !partPick) return;
+  try { await setPartImg(partPick, f); flash(`Foto do(a) ${PARTS[partPick][0].toLowerCase()} salva: todas as peças desse tipo usam esta foto.`); } catch (err) { flash('Não foi possível ler essa imagem.'); }
+  render(); refreshUI();
+};
 $('#sizeAll').onchange = () => { defaults.sizeAll = $('#sizeAll').checked; saveDefaults(); };
 $('#bRotL').onclick = () => rotateSel(true); $('#bRotR').onclick = () => rotateSel(false);
 $$('#pDs button').forEach(b => b.onclick = () => setPipeD(+b.dataset.d));
@@ -2234,8 +2388,10 @@ async function projectBlob(p) {
   const ms = {};
   for (const id of new Set(screensOf(p).map(i => i.model))) { const m = getModel(id); ms[id] = {name: m.name, kind: m.kind, W: m.W, H: m.H, base: m.base, tilt: m.tilt, data: m.blob ? await blobToDataURL(m.blob) : null}; }
   const photo = p.blob ? await blobToDataURL(p.blob) : (() => { const c = document.createElement('canvas'); c.width = p.w; c.height = p.h; c.getContext('2d').drawImage(p.img, 0, 0); return c.toDataURL('image/jpeg', 0.95); })();
-  const rackImg = rackBlob && p.items.some(i => i.type === 'box' && i.kind === 'rack') ? await blobToDataURL(rackBlob) : null;
-  return new Blob([JSON.stringify({app: 'simulador-telas', v: 2, name: p.name, photo, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, models: ms, rackImg})], {type: 'application/octet-stream'});   // octet-stream: o navegador não troca a extensão .simtela
+  const used = {rack: p.items.some(i => i.type === 'box' && i.kind === 'rack'), cond: p.items.some(i => (i.type === 'box' && i.kind === 'condulete') || (i.type === 'pipe' && pipeBend(i) === 'condulete')),
+    curva: p.items.some(i => i.type === 'pipe' && i.kind === 'curva'), pipe: p.items.some(i => i.type === 'pipe'), can: p.items.some(i => i.type === 'can')}, parts = {};
+  for (const k of Object.keys(partBlob)) if (used[k]) parts[k] = await blobToDataURL(partBlob[k]);
+  return new Blob([JSON.stringify({app: 'simulador-telas', v: 2, name: p.name, photo, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, models: ms, parts})], {type: 'application/octet-stream'});   // octet-stream: o navegador não troca a extensão .simtela
 }
 async function exportCurrent() {
   if (!cur) return;
@@ -2258,7 +2414,7 @@ $('#bExportAll').onclick = async () => {
 { const v = new URLSearchParams(location.search).get('v'); if (v) $('#ver').textContent = 'v' + v; }
 fillColors();
 (async () => {
-  await initModels(); await loadRackArt();
+  await initModels(); await loadPartArts();
   if (!models.some(m => m.id === defaults.model)) defaults.model = models[0].id;
   refreshUI();
   if (document.fonts) document.fonts.load('700 40px Montserrat').then(() => { if (cur) render(); });
