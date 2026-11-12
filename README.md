@@ -6,7 +6,8 @@ Com ele dá para:
 
 - marcar uma **medida** do croqui (parede, botoeira ou porta) para a tela entrar no tamanho real e em perspectiva;
 - colocar uma ou mais **telas** em locais diferentes (arte e tamanho configuráveis na engrenagem ⚙), cada uma já com a canaleta até o teto;
-- montar a **infraestrutura**: canaleta (até o teto ou trajeto livre), eletroduto com condulete nas curvas e abraçadeiras, condulete avulso e rack de parede;
+- adicionar a **canaleta** (até o teto ou trajeto livre);
+- montar a **infraestrutura**: rack de parede, eletroduto com curva ou condulete nas mudanças de direção, curva 90° avulsa e condulete;
 - fazer **marcações**: rack existente, objeto a remover, tela a remover ou texto livre;
 - **baixar o PNG**, que vai para `Imagens\Simulações`.
 

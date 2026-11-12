@@ -152,9 +152,6 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
 #mPrev{width:100%;border-radius:8px;background:#0c0d0f;display:block;margin:10px 0}
 .dlgfoot{display:flex;align-items:center;gap:8px;margin-top:18px}
 /* passos, ferramentas e lista de itens */
-.tabs button .stepn{position:absolute;top:5px;right:7px;font-size:9.5px;font-weight:700;color:#5d646c}
-.tabs button.done .stepn{font-size:0}
-.tabs button.done .stepn::after{content:"\2713";font-size:11px;color:#3ccf6e}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .tools button{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:10px;border-radius:10px;background:var(--bg);border:1px solid var(--line);text-align:left;font-size:12.5px;font-weight:600;color:#cfd3d7}
 .tools button small{font-weight:400;color:var(--muted);font-size:11px;line-height:1.25}
@@ -181,6 +178,7 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
 .btn.block{width:100%;height:42px;display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0 14px;border-radius:10px}
 .btn.acc{background:var(--acc);color:#1a1000;font-weight:700}
 .btn.acc:hover{filter:brightness(1.07)}
+#pOri button{font-size:19px;line-height:1;padding:4px}
 .btn.acc.on{background:var(--accbg);color:var(--acc);outline:1px dashed var(--acc)}
 </style>
 </head>
@@ -202,10 +200,11 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
   <button class="rbtn" id="bSelect" title="Selecionar e mover (V)" data-i="pointer">Selecionar</button>
   <div class="rsep"></div>
   <div class="tabs">
-    <button data-tab="medida" data-i="ruler"><span class="stepn">1</span>Medida</button>
-    <button data-tab="elem" data-i="tela"><span class="stepn">2</span>Telas</button>
-    <button data-tab="infra" data-i="pipe"><span class="stepn">3</span>Infra</button>
-    <button data-tab="marcacao" data-i="tag"><span class="stepn">4</span>Marcas</button>
+    <button data-tab="medida" data-i="ruler">Medida</button>
+    <button data-tab="elem" data-i="tela">Telas</button>
+    <button data-tab="canaleta" data-i="canaleta">Canaleta</button>
+    <button data-tab="infra" data-i="pipe">Infra</button>
+    <button data-tab="marcacao" data-i="tag">Marcas</button>
   </div>
   <div class="rspacer"></div>
   <button class="rbtn" id="bUndo" title="Desfazer (Ctrl+Z)" data-i="undo">Desfazer</button>
@@ -228,7 +227,6 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
       <button class="btn acc block" id="bPlace" data-i="plus" data-s="1"><span id="bPlaceTxt">Colocar tela</span></button>
       <div class="mlist" id="modelList"></div>
       <div class="links" style="margin-bottom:6px"><button class="link" id="bNewModel">+ Novo modelo (tela, TV, rack com imagem…)</button></div>
-      <label class="chk"><input type="checkbox" id="autoCan"><span>Canaleta até o teto automática<br><span class="small">Cada tela já entra com a canaleta saindo do centro até o teto.</span></span></label>
       <p class="ins" id="elemIns"></p>
       <div id="objProps" class="hide">
         <h5 class="sect">Elemento selecionado</h5>
@@ -260,28 +258,35 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
       </div>
     </div>
 
+    <div class="panel" data-panel="canaleta">
+      <div class="tools" id="canTools">
+        <button data-t="canup" data-i="canaleta">Até o teto<small>Sai do centro da tela</small></button>
+        <button data-t="can" data-i="path">Trajeto livre<small>Clique os pontos</small></button>
+      </div>
+      <label class="chk"><input type="checkbox" id="autoCan"><span>Automática em cada tela<br><span class="small">Toda tela já entra com a canaleta saindo do centro até o teto.</span></span></label>
+      <p class="ins" id="canIns"></p>
+      <h5 class="sect">Cor e largura</h5>
+      <div class="sw" id="cColor"></div>
+      <div class="row">Largura <input type="number" class="fld" id="cW" step="0.5"> cm</div>
+      <div class="links"><button class="link" id="bCanCeil">Voltar a ir até o teto</button></div>
+    </div>
+
     <div class="panel" data-panel="infra">
       <div class="tools" id="infraTools">
-        <button data-t="canup" data-i="canaleta">Canaleta até o teto<small>Do centro da tela</small></button>
-        <button data-t="can" data-i="path">Canaleta livre<small>Trajeto por pontos</small></button>
+        <button data-t="rack" data-i="rack">Rack<small>Clique onde fica</small></button>
         <button data-t="pipe" data-i="pipe">Eletroduto<small>Tubo por pontos</small></button>
+        <button data-t="curva" data-i="curva">Curva 90°<small>Clique no canto</small></button>
         <button data-t="cond" data-i="cond">Condulete<small>Clique para colocar</small></button>
-        <button data-t="rack" data-i="rack" class="wide">Rack de parede<small>clique onde fica</small></button>
       </div>
       <p class="ins" id="infraIns"></p>
-      <div id="ipCan" class="hide">
-        <h5 class="sect">Canaleta</h5>
-        <div class="sw" id="cColor"></div>
-        <div class="row">Largura <input type="number" class="fld" id="cW" step="0.5"> cm</div>
-        <div class="links"><button class="link" id="bCanCeil">Voltar a ir até o teto</button></div>
-      </div>
       <div id="ipPipe" class="hide">
         <h5 class="sect">Eletroduto</h5>
         <div class="sw" id="pColor"></div>
         <div class="chips" id="pDs"><button data-d="2.7">3/4"</button><button data-d="3.3">1"</button><button data-d="4.2">1 1/4"</button><button data-d="6">2"</button></div>
         <div class="row">Diâmetro <input type="number" class="fld" id="pD" step="0.1"> cm</div>
-        <label class="chk"><input type="checkbox" id="pFit"> Condulete nas curvas</label>
-        <label class="chk"><input type="checkbox" id="pClamp"> Abraçadeiras a cada 60 cm</label>
+        <div id="pBendBox"><h5 class="sect">Nas mudanças de direção</h5><div class="seg" id="pBend"><button data-b="curva">Curva</button><button data-b="condulete">Condulete</button><button data-b="nenhum">Nada</button></div></div>
+        <div id="pOriBox"><h5 class="sect">Posição da curva</h5><div class="seg" id="pOri"><button data-o="ld">┐</button><button data-o="rd">┌</button><button data-o="lu">┘</button><button data-o="ru">└</button></div></div>
+        <label class="chk" id="pClampRow"><input type="checkbox" id="pClamp"> Abraçadeiras a cada 60 cm</label>
       </div>
       <div id="ipCond" class="hide">
         <h5 class="sect">Condulete</h5>
@@ -372,6 +377,7 @@ const IC = {
   fit: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
   pipe: '<path d="M3 6h9a6 6 0 0 1 6 6v9"/><path d="M3 10h9a2 2 0 0 1 2 2v9"/>',
   path: '<path d="M5 20v-8h14V4"/><circle cx="5" cy="20" r="1.6"/><circle cx="19" cy="4" r="1.6"/>',
+  curva: '<path d="M4 3v5a11 11 0 0 0 11 11h6"/><path d="M8.5 3v5a6.5 6.5 0 0 0 6.5 6.5h6"/>',
   cond: '<rect x="7" y="5" width="10" height="14" rx="2.5"/><path d="M10 2v3M14 2v3M10 19v3M14 19v3"/><circle cx="12" cy="8.5" r=".6"/><circle cx="12" cy="15.5" r=".6"/>',
   rack: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M7 7h10M7 10.5h10M7 14h10"/><path d="M16 17v1.5"/>',
   minus: '<path d="M5 12h14"/>', plus: '<path d="M12 5v14M5 12h14"/>'
@@ -470,7 +476,7 @@ const RACK_COLORS = {
 };
 const MARKS = {rack: 'Rack existente', objeto: 'Objeto a ser removido', telarem: 'Tela a remover', outro: null};
 const oldDefaults = store.get('defaults') || {};
-const defaults = Object.assign({model: 'tela-elevador', color: 'inox', canCm: 8, markScale: 1, markFont: 1, markOutline: 1, markPos: 'top', condo: oldDefaults.condo || '', autoCan: true, pipeColor: 'galv', pipeD: 2.7, pipeFit: true, pipeClamp: true, condColor: 'galv', condOri: 'v', rackColor: 'preto', rackW: 57, rackH: 40, rackD: 35}, store.get('defaults2') || {});
+const defaults = Object.assign({model: 'tela-elevador', color: 'inox', canCm: 8, markScale: 1, markFont: 1, markOutline: 1, markPos: 'top', condo: oldDefaults.condo || '', autoCan: true, pipeColor: 'galv', pipeD: 2.7, pipeBend: 'curva', curvaOri: 'ld', pipeFit: true, pipeClamp: true, condColor: 'galv', condOri: 'v', rackColor: 'preto', rackW: 57, rackH: 40, rackD: 35}, store.get('defaults2') || {});
 const saveDefaults = () => store.set('defaults2', defaults);
 const photos = [];
 let cur = null, tool = 'select', curTab = 'medida', pending = [], sel = null, drag = null, fast = false, mouse = null;
@@ -632,13 +638,14 @@ function newObj(m) {
 function rebuildCalib(p) {
   const c = p.calib; if (!c) return;
   let [A, B] = c.wl; if (B[0] < A[0]) { [A, B] = [B, A]; c.wl = [A, B]; }
-  // Escala única (px por cm) nas duas direções. Com a altura marcada (teto ao piso), vale a escala
-  // dela: assim base, topo e tamanho batem com o croqui (base 190 + tela 38 = topo 228).
-  // Sem altura, vale a escala da largura.
-  const sw = dist(A, B) / c.wcm;
-  const s = c.hl ? Math.max(0.01, Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : sw;
+  // Cada direção usa a sua medida: na horizontal, a linha azul (largura); na vertical, a vermelha (altura).
+  // Assim a tela fica com a largura e a altura reais mesmo quando a foto tem escalas diferentes nas duas
+  // direções (lente, recorte ou foto esticada), e base/topo batem com o croqui (190 + 38 = 228).
+  // Sem altura marcada, a vertical usa a mesma escala da largura.
+  const sx = dist(A, B) / c.wcm;
+  const sy = c.hl ? Math.max(0.01, Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : sx;
   const w = c.wcm, h = c.hl ? c.hcm : 100;
-  c.pts = [A, [A[0] + s * w, A[1]], [A[0] + s * w, A[1] + s * h], [A[0], A[1] + s * h]];
+  c.pts = [A, [A[0] + sx * w, A[1]], [A[0] + sx * w, A[1] + sy * h], [A[0], A[1] + sy * h]];
   c.w = w; c.h = h;
 }
 function getCalib(p) {
@@ -648,7 +655,7 @@ function getCalib(p) {
 }
 const toImg = (p, q) => hApply(getCalib(p).H, q[0], q[1]);
 const toPlane = (p, q) => hApply(getCalib(p).Hi, q[0], q[1]);
-function kxy(p) { const c = p.calib; if (!c) return 1; const sx = (c.pts[1][0] - c.pts[0][0]) / c.w, sy = (c.pts[3][1] - c.pts[0][1]) / c.h; return sy > 0 ? sx / sy : 1; }
+function kxy() { return 1; }   // o plano já está em cm reais nas duas direções
 const pxPerCm = p => (p.calib.pts[1][0] - p.calib.pts[0][0]) / p.calib.w;
 const hPlane = (p, s) => s.H * kxy(p);
 function floorImg(p) { const c = p && p.calib; if (!c || c.noFloor) return null; if (c.floor) return c.floor; return c.hl ? (c.hl[0][1] > c.hl[1][1] ? c.hl[0] : c.hl[1]) : null; }
@@ -786,6 +793,11 @@ function drawScreen(g, p, s, quick) {
 }
 
 /* ---------------- desenho: canaleta ---------------- */
+function photoMeanL(p) {
+  if (p._pm == null) { const s = p.small, d = s.getContext('2d').getImageData(0, 0, s.width, s.height).data; let L = 0; for (let i = 0; i < d.length; i += 4) L += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; p._pm = L / (d.length / 4); }
+  return p._pm;
+}
+function smallPx(p) { if (!p._sd) p._sd = p.small.getContext('2d').getImageData(0, 0, p.small.width, p.small.height).data; return p._sd; }
 function origPixels(p) {
   if (!p._od) { const c = document.createElement('canvas'); c.width = p.w; c.height = p.h; const x = c.getContext('2d', {willReadFrequently: true}); x.drawImage(p.img, 0, 0); p._od = x.getImageData(0, 0, p.w, p.h).data; }
   return p._od;
@@ -837,7 +849,7 @@ function drawCanQuad(g, p, q, col, od, topShade) {
   const sm = blurArr(behind, Math.max(2, Math.round(W * 0.5))), ev = blurArr(env, Math.max(3, Math.round(W * 1.4)));
   let meanL = 0; for (let i = 0; i < N; i++) meanL += 0.2126 * sm[i * 3] + 0.7152 * sm[i * 3 + 1] + 0.0722 * sm[i * 3 + 2]; meanL = Math.max(20, meanL / N);
   const cxA = A[0] + ux * L / 2, cxD = D[0] + ux * L / 2, nearIsD = Math.abs(cxD - p.w / 2) < Math.abs(cxA - p.w / 2);
-  const sideW = 0.07 + 0.11 * clamp(Math.abs((cxA + cxD) / 2 - p.w / 2) / (p.w / 2), 0, 1);
+  const pm = photoMeanL(p);
   const NC = Math.max(16, Math.ceil(W * 3)), streak = new Float32Array(NC);
   let seed = 7 + (N % 97); const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < NC; i++) streak[i] = rnd() * 2 - 1;
@@ -858,33 +870,19 @@ function drawCanQuad(g, p, q, col, od, topShade) {
       const t = dv / W, tt = nearIsD ? t : 1 - t, k3 = Math.min(N - 1, du | 0) * 3;
       const wl = 0.2126 * sm[k3] + 0.7152 * sm[k3 + 1] + 0.0722 * sm[k3 + 2];
       const el = 0.2126 * ev[k3] + 0.7152 * ev[k3 + 1] + 0.0722 * ev[k3 + 2];
-      const light = clamp(0.72 + 0.5 * (wl / 255), 0.72, 1.18);
-      let cr, cg, cb;
-      if (metal) {
-        // base metálica + reflexo colorido do ambiente (lados) + variação de luz da parede atrás
-        const mixE = 0.56 * metal, gain = 1.18;
-        cr = col.base[0] * light * (1 - mixE) + ev[k3] * gain * mixE;
-        cg = col.base[1] * light * (1 - mixE) + ev[k3 + 1] * gain * mixE;
-        cb = col.base[2] * light * (1 - mixE) + ev[k3 + 2] * gain * mixE;
-        const rl = (wl - meanL) * 0.35; cr += rl; cg += rl; cb += rl;
-        // faixa de brilho (reflexo da luz) e faixa escura, como metal polido
-        const hi = 72 * metal * bump((tt - 0.3) / 0.075) * clamp(0.55 + el / 255, 0.6, 1.35) + 18 * metal * bump((tt - 0.3) / 0.2);
-        const lo = 1 - 0.13 * metal * bump((tt - 0.64) / 0.2);
-        cr = cr * lo + hi; cg = cg * lo + hi; cb = cb * lo + hi;
-        const st = streak[Math.min(NC - 1, (t * NC) | 0)] * 6 * metal; cr += st; cg += st; cb += st;
-      } else {
-        const lf = clamp(wl / meanL, 0.75, 1.2), tint = 0.08;
-        cr = (col.base[0] * (1 - tint) + ev[k3] * tint) * lf * light; cg = (col.base[1] * (1 - tint) + ev[k3 + 1] * tint) * lf * light; cb = (col.base[2] * (1 - tint) + ev[k3 + 2] * tint) * lf * light;
-      }
-      // perfil: quina de fora, filete de luz, face, vinco e lateral com volume
-      let f = 1, add = 0;
-      f *= 0.6 + 0.4 * smooth(tt / 0.04);
-      add += (metal ? 50 : 22) * bump((tt - 0.08) / 0.045);
-      if (tt > 1 - sideW) { f *= 0.66 + 0.14 * ((tt - (1 - sideW)) / sideW); f *= 0.7 + 0.3 * smooth((1 - tt) / 0.035); }
-      f *= 1 - 0.25 * bump((tt - (1 - sideW)) / 0.022);
+      // Perfil calibrado pela canaleta real da foto de referência: face fosca e uniforme, quina escura do lado de
+      // fora, filete claro na dobra voltada para o centro da foto e quina escura logo depois. Brilho pela exposição da foto.
+      const expo = clamp(0.58 + 0.75 * pm / 255, 0.72, 1.1), along = du / L, mixE = metal ? 0.14 * metal : 0.06, rl = (wl - meanL) * 0.12;
+      let cr = col.base[0] * expo * (1 - mixE) + ev[k3] * 1.1 * mixE + rl;
+      let cg = col.base[1] * expo * (1 - mixE) + ev[k3 + 1] * 1.1 * mixE + rl;
+      let cb = col.base[2] * expo * (1 - mixE) + ev[k3 + 2] * 1.1 * mixE + rl;
+      let f = 0.97 + 0.05 * tt + 0.03 * (1 - along), add = streak[Math.min(NC - 1, (t * NC) | 0)] * 2.5 * metal;
+      f *= 0.7 + 0.3 * smooth(tt / 0.05);
+      f *= 1 + (metal ? 0.33 : 0.12) * bump((tt - 0.9) / 0.045);
+      f *= 0.62 + 0.38 * smooth((1 - tt) / 0.045);
       if (topShade) { const e = (L - du) / (W * 1.6); if (e < 1) f *= 0.3 + 0.7 * Math.pow(Math.max(0, e), 0.65); }
       const gn = ((((x0 + ix) * 73856093) ^ ((y0 + jy) * 19349663)) >>> 0) % 1000 / 1000 - 0.5;
-      r += clamp(cr * f + add + gn * 8, 0, 255); gg += clamp(cg * f + add + gn * 8, 0, 255); b += clamp(cb * f + add + gn * 8, 0, 255);
+      r += clamp(cr * f + add + gn * 5, 0, 255); gg += clamp(cg * f + add + gn * 5, 0, 255); b += clamp(cb * f + add + gn * 5, 0, 255);
     }
     if (!n) continue;
     const k = (jy * bw + ix) * 4;
@@ -1041,66 +1039,96 @@ function drawBox(g, p, b, quick) {
   const wpx = Math.max(dist(front[0], front[1]), dist(front[3], front[2])), hpx = Math.max(dist(front[0], front[3]), dist(front[1], front[2]));
   warpTex(g, p, front, boxTex(b, clamp(Math.round(wpx * 1.5), 8, 1600), clamp(Math.round(hpx * 1.5), 8, 1600)), br, 2.5);
 }
-/* Eletroduto: cilindro desenhado ponto a ponto. Luz vinda do lado oposto à sombra, brilho especular estreito
-   (metal) ou suave (PVC), reflexo da parede ao redor, bordas escurecendo como num tubo de verdade. */
-function drawPipeQuad(g, p, q, col, od, Lv) {
-  const A = q[0], B = q[1], D = q[3];
-  let ux = B[0] - A[0], uy = B[1] - A[1]; const L = Math.hypot(ux, uy); if (L < 1) return; ux /= L; uy /= L;
-  let vx = D[0] - A[0], vy = D[1] - A[1]; const W = Math.hypot(vx, vy); if (W < 0.5) return; vx /= W; vy /= W;
-  const metal = col.metal || 0, pix = (x, y) => (clamp(y | 0, 0, p.h - 1) * p.w + clamp(x | 0, 0, p.w - 1)) * 4;
-  const N = Math.ceil(L) + 1, behind = new Float32Array(N), env = new Float32Array(N * 3), offs = [-2.2, -1.6, 2.6, 3.2];
-  for (let i = 0; i < N; i++) {
-    let s = 0; for (const t of [0.2, 0.5, 0.8]) { const k = pix(A[0] + ux * i + vx * W * t, A[1] + uy * i + vy * W * t); s += 0.2126 * od[k] + 0.7152 * od[k + 1] + 0.0722 * od[k + 2]; }
-    behind[i] = s / 3;
-    let r = 0, gg = 0, b = 0; for (const t of offs) { const k = pix(A[0] + ux * i + vx * W * t, A[1] + uy * i + vy * W * t); r += od[k]; gg += od[k + 1]; b += od[k + 2]; }
-    env[i * 3] = r / offs.length; env[i * 3 + 1] = gg / offs.length; env[i * 3 + 2] = b / offs.length;
+/* Eletroduto: eixo de retas e curvas (raio 4 × diâmetro) e cilindro desenhado ponto a ponto pela distância ao eixo.
+   Luz vinda do lado oposto à sombra, brilho estreito (metal) ou suave (PVC), reflexo do ambiente e bordas escurecendo. */
+const pipeBend = s => s.bend || (s.fit === false ? 'nenhum' : 'condulete');
+function pipeShape(p, s) {
+  const k = pxPerCm(p), P = s.pts.map(q => toImg(p, q)), n = P.length, prims = [], R0 = s.d * 4 * k, curva = pipeBend(s) === 'curva';
+  let a = P[0];
+  for (let i = 1; i < n; i++) {
+    const b = P[i];
+    if (curva && i < n - 1) {
+      const c = P[i + 1], l1 = dist(a, b), l2 = dist(b, c);
+      if (l1 > 1 && l2 > 1) {
+        const u1 = [(b[0] - a[0]) / l1, (b[1] - a[1]) / l1], u2 = [(c[0] - b[0]) / l2, (c[1] - b[1]) / l2];
+        const cr = u1[0] * u2[1] - u1[1] * u2[0], th = Math.acos(clamp(u1[0] * u2[0] + u1[1] * u2[1], -1, 1));
+        if (Math.abs(cr) > 1e-3 && th > 0.05) {
+          const tn = Math.tan(th / 2), e = Math.min(R0 * tn, l1 * 0.95, l2 * 0.5), R = e / tn, sg = Math.sign(cr);
+          const t1 = [b[0] - u1[0] * e, b[1] - u1[1] * e], t2 = [b[0] + u2[0] * e, b[1] + u2[1] * e], ctr = [t1[0] - u1[1] * R * sg, t1[1] + u1[0] * R * sg];
+          prims.push({t: 'seg', a, b: t1}, {t: 'arc', c: ctr, R, v1: [t1[0] - ctr[0], t1[1] - ctr[1]], v2: [t2[0] - ctr[0], t2[1] - ctr[1]]});
+          a = t2; continue;
+        }
+      }
+    }
+    prims.push({t: 'seg', a, b}); a = b;
   }
-  const blur1 = (src, R, ch) => { const out = new Float32Array(src.length); for (let i = 0; i < N; i++) for (let c = 0; c < ch; c++) { let s = 0, n = 0; for (let j = Math.max(0, i - R); j <= Math.min(N - 1, i + R); j++) { s += src[j * ch + c]; n++; } out[i * ch + c] = s / n; } return out; };
-  const sm = blur1(behind, Math.max(2, Math.round(W)), 1), ev = blur1(env, Math.max(3, Math.round(W * 2)), 3);
-  let meanL = 0; for (let i = 0; i < N; i++) meanL += sm[i]; meanL = Math.max(20, meanL / N);
-  const lx = clamp(Lv[0] * vx + Lv[1] * vy, -1, 1) * 0.85;
-  const xs = q.map(v => v[0]), ys = q.map(v => v[1]);
-  const x0 = clamp(Math.floor(Math.min(...xs)) - 1, 0, p.w), x1 = clamp(Math.ceil(Math.max(...xs)) + 1, 0, p.w);
-  const y0 = clamp(Math.floor(Math.min(...ys)) - 1, 0, p.h), y1 = clamp(Math.ceil(Math.max(...ys)) + 1, 0, p.h);
+  return {prims, r: s.d / 2 * k, k};
+}
+const cross2 = (u, v) => u[0] * v[1] - u[1] * v[0];
+function closestOnPrim(pr, x, y) {
+  if (pr.t === 'seg') { const a = pr.a, dx = pr.b[0] - a[0], dy = pr.b[1] - a[1], L = dx * dx + dy * dy, t = L ? clamp(((x - a[0]) * dx + (y - a[1]) * dy) / L, 0, 1) : 0; return [a[0] + dx * t, a[1] + dy * t]; }
+  const w = [x - pr.c[0], y - pr.c[1]], s12 = Math.sign(cross2(pr.v1, pr.v2));
+  if (Math.sign(cross2(pr.v1, w)) === s12 && Math.sign(cross2(w, pr.v2)) === s12) { const L = Math.hypot(w[0], w[1]) || 1; return [pr.c[0] + w[0] / L * pr.R, pr.c[1] + w[1] / L * pr.R]; }
+  const p1 = [pr.c[0] + pr.v1[0], pr.c[1] + pr.v1[1]], p2 = [pr.c[0] + pr.v2[0], pr.c[1] + pr.v2[1]];
+  return Math.hypot(x - p1[0], y - p1[1]) < Math.hypot(x - p2[0], y - p2[1]) ? p1 : p2;
+}
+function pipePath(g, sh, dx = 0, dy = 0) {
+  g.beginPath();
+  for (const pr of sh.prims) {
+    if (pr.t === 'seg') { g.moveTo(pr.a[0] + dx, pr.a[1] + dy); g.lineTo(pr.b[0] + dx, pr.b[1] + dy); }
+    else { const a1 = Math.atan2(pr.v1[1], pr.v1[0]), a2 = Math.atan2(pr.v2[1], pr.v2[0]); g.moveTo(pr.c[0] + pr.v1[0] + dx, pr.c[1] + pr.v1[1] + dy); g.arc(pr.c[0] + dx, pr.c[1] + dy, pr.R, a1, a2, cross2(pr.v1, pr.v2) < 0); }
+  }
+}
+function drawPipeBody(g, p, sh, col, Lv) {
+  const {prims, r} = sh; if (r < 0.4 || !prims.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const pr of prims) for (const q of pr.t === 'seg' ? [pr.a, pr.b] : [[pr.c[0] - pr.R, pr.c[1] - pr.R], [pr.c[0] + pr.R, pr.c[1] + pr.R]]) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+  x0 = clamp(Math.floor(x0 - r - 2), 0, p.w); y0 = clamp(Math.floor(y0 - r - 2), 0, p.h); x1 = clamp(Math.ceil(x1 + r + 2), 0, p.w); y1 = clamp(Math.ceil(y1 + r + 2), 0, p.h);
   const bw = x1 - x0, bh = y1 - y0; if (bw <= 0 || bh <= 0) return;
+  const sd = smallPx(p), sw = p.small.width, shh = p.small.height, ks = sw / p.w, meanL = Math.max(20, photoMeanL(p)), metal = col.metal || 0;
+  const samp = (x, y) => { const k = (clamp((y * ks) | 0, 0, shh - 1) * sw + clamp((x * ks) | 0, 0, sw - 1)) * 4; return [sd[k], sd[k + 1], sd[k + 2]]; };
+  const best = (x, y) => { let bd = Infinity, bp = null; for (const pr of prims) { const c = closestOnPrim(pr, x, y), d = Math.hypot(x - c[0], y - c[1]); if (d < bd) { bd = d; bp = c; } } return [bd, bp]; };
   const layer = new ImageData(bw, bh), d = layer.data, SS = [0.25, 0.75];
   for (let jy = 0; jy < bh; jy++) for (let ix = 0; ix < bw; ix++) {
-    let r = 0, gg = 0, b = 0, n = 0;
+    if (best(x0 + ix + 0.5, y0 + jy + 0.5)[0] > r + 1) continue;
+    let rr = 0, gg = 0, bb = 0, n = 0;
     for (const oy of SS) for (const ox of SS) {
-      const px = x0 + ix + ox - A[0], py = y0 + jy + oy - A[1], du = px * ux + py * uy, dv = px * vx + py * vy;
-      if (du < 0 || du > L || dv < 0 || dv > W) continue;
+      const X = x0 + ix + ox, Y = y0 + jy + oy, [dd, cp] = best(X, Y); if (dd > r) continue;
       n++;
-      const k = Math.min(N - 1, du | 0), nn = 2 * dv / W - 1, z = Math.sqrt(Math.max(0, 1 - nn * nn));
-      const ndl = clamp(z * 0.72 + nn * lx * 0.7, 0, 1), wl = sm[k], light = clamp(0.7 + 0.55 * wl / 255, 0.7, 1.2), rl = (wl - meanL) * 0.25;
-      const diff = 0.32 + 0.78 * ndl;
+      const o = [(X - cp[0]) / r, (Y - cp[1]) / r], ol = Math.hypot(o[0], o[1]), z = Math.sqrt(Math.max(0, 1 - ol * ol));
+      const nd = ol > 0.02 ? [o[0] / ol, o[1] / ol] : [1, 0];
+      const ndl = clamp(z * 0.72 + (o[0] * Lv[0] + o[1] * Lv[1]) * 0.6, 0, 1), bh0 = samp(cp[0], cp[1]), wl = 0.2126 * bh0[0] + 0.7152 * bh0[1] + 0.0722 * bh0[2];
+      const e1 = samp(cp[0] + nd[0] * r * 2.6, cp[1] + nd[1] * r * 2.6), e2 = samp(cp[0] - nd[0] * r * 2.6, cp[1] - nd[1] * r * 2.6);
+      const light = clamp(0.7 + 0.55 * wl / 255, 0.7, 1.2), rl = (wl - meanL) * 0.2, diff = 0.32 + 0.78 * ndl;
       let cr, cg, cb, spec;
       if (metal) {
-        const mixE = 0.45 * metal, ek = (0.5 + 0.6 * z) * mixE;
-        cr = col.base[0] * diff * light * (1 - mixE) + ev[k * 3] * ek; cg = col.base[1] * diff * light * (1 - mixE) + ev[k * 3 + 1] * ek; cb = col.base[2] * diff * light * (1 - mixE) + ev[k * 3 + 2] * ek;
-        spec = metal * (140 * Math.pow(ndl, 28) + 30 * Math.pow(ndl, 5));
-      } else { cr = col.base[0] * diff * light; cg = col.base[1] * diff * light; cb = col.base[2] * diff * light; spec = 38 * Math.pow(ndl, 16); }
+        const mixE = 0.4 * metal, ek = (0.5 + 0.6 * z) * mixE / 2;
+        cr = col.base[0] * diff * light * (1 - mixE) + (e1[0] + e2[0]) * ek; cg = col.base[1] * diff * light * (1 - mixE) + (e1[1] + e2[1]) * ek; cb = col.base[2] * diff * light * (1 - mixE) + (e1[2] + e2[2]) * ek;
+        spec = metal * (130 * Math.pow(ndl, 28) + 26 * Math.pow(ndl, 5));
+      } else { cr = col.base[0] * diff * light; cg = col.base[1] * diff * light; cb = col.base[2] * diff * light; spec = 36 * Math.pow(ndl, 16); }
       const rim = 0.58 + 0.42 * Math.pow(z, 0.55), gn = ((((x0 + ix) * 73856093) ^ ((y0 + jy) * 19349663)) >>> 0) % 1000 / 1000 - 0.5;
-      r += clamp(cr * rim + spec + rl + gn * 7, 0, 255); gg += clamp(cg * rim + spec + rl + gn * 7, 0, 255); b += clamp(cb * rim + spec + rl + gn * 7, 0, 255);
+      rr += clamp(cr * rim + spec + rl + gn * 7, 0, 255); gg += clamp(cg * rim + spec + rl + gn * 7, 0, 255); bb += clamp(cb * rim + spec + rl + gn * 7, 0, 255);
     }
     if (!n) continue;
-    const kk = (jy * bw + ix) * 4; d[kk] = r / n; d[kk + 1] = gg / n; d[kk + 2] = b / n; d[kk + 3] = Math.round(255 * n / 4);
+    const kk = (jy * bw + ix) * 4; d[kk] = rr / n; d[kk + 1] = gg / n; d[kk + 2] = bb / n; d[kk + 3] = Math.round(255 * n / 4);
   }
   const off = document.createElement('canvas'); off.width = bw; off.height = bh; off.getContext('2d').putImageData(layer, 0, 0);
   g.save(); g.filter = `blur(${clamp(p.w / 2600, 0.35, 0.9).toFixed(2)}px)`; g.drawImage(off, x0, y0); g.restore();
 }
-// abraçadeiras: fita metálica sobre o tubo com duas orelhas parafusadas na parede
-function drawClamps(g, p, s) {
-  const mt = [205, 208, 210], ppc = pxPerCm(p);
-  for (let i = 0; i < s.pts.length - 1; i++) {
-    const a = s.pts[i], b = s.pts[i + 1], L = dist(a, b); if (L < 12) continue;
-    const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], n = [-u[1], u[0]], r = s.d / 2, ts = [];
+// abraçadeiras nos trechos retos: fita metálica sobre o tubo com duas orelhas parafusadas na parede
+function drawClamps(g, p, sh, s) {
+  const mt = [205, 208, 210], k = sh.k, r = s.d / 2;
+  for (const pr of sh.prims) {
+    if (pr.t !== 'seg') continue;
+    const Lp = dist(pr.a, pr.b), L = Lp / k; if (L < 12) continue;
+    const u = [(pr.b[0] - pr.a[0]) / Lp, (pr.b[1] - pr.a[1]) / Lp], n = [-u[1], u[0]], ts = [];
     if (L < 40) ts.push(L / 2); else for (let t = 18; t <= L - 12; t += 60) ts.push(t);
     for (const t of ts) {
-      const c = [a[0] + u[0] * t, a[1] + u[1] * t], P = (du, dn) => toImg(p, [c[0] + u[0] * du + n[0] * dn, c[1] + u[1] * du + n[1] * dn]);
+      const P = (du, dn) => [pr.a[0] + (u[0] * (t + du) + n[0] * dn) * k, pr.a[1] + (u[1] * (t + du) + n[1] * dn) * k];
       for (const sg of [-1, 1]) {
         polyPath(g, [P(-0.9, sg * (r + 0.1)), P(0.9, sg * (r + 0.1)), P(0.9, sg * (r + 1.9)), P(-0.9, sg * (r + 1.9))]);
-        g.fillStyle = rgb(mt, 0.9); g.fill(); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = Math.max(0.5, ppc * 0.08); g.stroke();
-        const sc = P(0, sg * (r + 1.05)); g.fillStyle = rgb(mt, 0.62); g.beginPath(); g.arc(sc[0], sc[1], Math.max(0.6, ppc * 0.42), 0, 7); g.fill();
+        g.fillStyle = rgb(mt, 0.9); g.fill(); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = Math.max(0.5, k * 0.08); g.stroke();
+        const sc = P(0, sg * (r + 1.05)); g.fillStyle = rgb(mt, 0.62); g.beginPath(); g.arc(sc[0], sc[1], Math.max(0.6, k * 0.42), 0, 7); g.fill();
       }
       const e0 = P(0, -r - 0.2), e1 = P(0, r + 0.2), gr = g.createLinearGradient(e0[0], e0[1], e1[0], e1[1]);
       gr.addColorStop(0, rgb(mt, 0.5)); gr.addColorStop(0.3, rgb(mt, 1.15)); gr.addColorStop(0.62, rgb(mt, 0.88)); gr.addColorStop(1, rgb(mt, 0.45));
@@ -1108,29 +1136,30 @@ function drawClamps(g, p, s) {
     }
   }
 }
-// condulete automático numa curva do eletroduto (deitado ou em pé conforme o trecho que chega)
+// condulete numa emenda do eletroduto (deitado ou em pé conforme o trecho que chega)
 function fittingAt(p, s, i) {
   const a = s.pts[i - 1], q = s.pts[i], v = Math.abs(q[1] - a[1]) > Math.abs(q[0] - a[0]);
   const W0 = Math.max(6, s.d * 2.2), H0 = Math.max(11, s.d * 4.2), W = v ? W0 : H0, H = v ? H0 : W0;
-  return {type: 'box', kind: 'condulete', ori: v ? 'v' : 'h', color: s.color, W, H, D: Math.max(4, s.d * 1.6), x: q[0] - W / 2, y: q[1] - H * kxy(p) / 2};
+  return {type: 'box', kind: 'condulete', ori: v ? 'v' : 'h', color: s.color, W, H, D: Math.max(4, s.d * 1.6), x: q[0] - W / 2, y: q[1] - H / 2};
 }
 const pipeQuads = (p, s) => canQuads(p, {pts: s.pts, width: s.d});
 function drawPipe(g, p, s, quick) {
-  const quads = pipeQuads(p, s); if (!quads.length) return;
-  if (quick) { g.fillStyle = 'rgba(170,175,180,.92)'; for (const q of quads) { polyPath(g, q); g.fill(); } return; }
-  const col = PIPE_COLORS[s.color] || PIPE_COLORS.galv, wpx = Math.max(1, dist(quads[0][0], quads[0][3])), ppc = pxPerCm(p);
-  const [sdx, sdy] = shadowDir(p), off = (s.d / 2 + 0.8) * ppc, path = (q, dx, dy) => polyPath(g, q.map(v => [v[0] + dx, v[1] + dy]));
-  g.save(); g.globalCompositeOperation = 'multiply';
-  g.filter = `blur(${Math.max(1, off * 0.6)}px)`; g.fillStyle = 'rgba(0,0,0,.36)';
-  for (const q of quads) { path(q, sdx * off * 0.8, sdy * off * 0.8); g.fill(); }
-  g.filter = `blur(${Math.max(0.6, wpx * 0.08)}px)`; g.fillStyle = 'rgba(0,0,0,.34)';
-  for (const q of quads) { path(q, sdx * off * 0.25, sdy * off * 0.25); g.fill(); }
+  if (s.pts.length < 2) return;
+  const sh = pipeShape(p, s), col = PIPE_COLORS[s.color] || PIPE_COLORS.galv;
+  g.save(); g.lineCap = 'butt'; g.lineJoin = 'round';
+  if (quick) { g.strokeStyle = 'rgba(170,175,180,.92)'; g.lineWidth = sh.r * 2; pipePath(g, sh); g.stroke(); g.restore(); return; }
+  const [sdx, sdy] = shadowDir(p), off = (s.d / 2 + 0.8) * sh.k;
+  g.globalCompositeOperation = 'multiply'; g.lineWidth = sh.r * 2;
+  g.filter = `blur(${Math.max(1, off * 0.6)}px)`; g.strokeStyle = 'rgba(0,0,0,.36)'; pipePath(g, sh, sdx * off * 0.8, sdy * off * 0.8); g.stroke();
+  g.filter = `blur(${Math.max(0.6, sh.r * 0.16)}px)`; g.strokeStyle = 'rgba(0,0,0,.34)'; pipePath(g, sh, sdx * off * 0.25, sdy * off * 0.25); g.stroke();
   g.restore();
-  const od = origPixels(p);
-  for (const q of quads) drawPipeQuad(g, p, q, col, od, [-sdx, -sdy]);
-  if (s.clamp !== false) drawClamps(g, p, s);
-  if (s.fit !== false) for (let i = 1; i < s.pts.length - 1; i++) drawBox(g, p, fittingAt(p, s, i), false);
+  drawPipeBody(g, p, sh, col, [-sdx, -sdy]);
+  if (s.clamp !== false) drawClamps(g, p, sh, s);
+  if (pipeBend(s) === 'condulete') for (let i = 1; i < s.pts.length - 1; i++) drawBox(g, p, fittingAt(p, s, i), false);
 }
+// curva 90° avulsa: canto + duas pernas curtas, na posição escolhida (┐ ┌ ┘ └)
+const CURVA_DIRS = {ld: [[-1, 0], [0, 1]], rd: [[1, 0], [0, 1]], lu: [[-1, 0], [0, -1]], ru: [[1, 0], [0, -1]]};
+function curvaPts(c, d, ori, leg) { const [a, b] = CURVA_DIRS[ori] || CURVA_DIRS.ld, L = leg || d * 4 + 6; return [[c[0] + a[0] * L, c[1] + a[1] * L], [c[0], c[1]], [c[0] + b[0] * L, c[1] + b[1] * L]]; }
 
 /* ---------------- desenho: marcações ---------------- */
 const MARK_COLOR = '#f7931e';
@@ -1255,7 +1284,7 @@ function drawOverlay() {
     measLine(c.wl[0], c.wl[1], '#2f80ff', cm(c.wcm) + ' cm');
     if (c.hl) measLine(c.hl[0], c.hl[1], '#ef3b3b', cm(c.hcm) + ' cm');
   }
-  if (c && (curTab === 'medida' || curTab === 'infra' || tool === 'place' || tool === 'canup')) {
+  if (c && (curTab === 'medida' || curTab === 'infra' || curTab === 'canaleta' || tool === 'place' || tool === 'canup')) {
     const f = floorImg(cur), t = ceilImg(cur);
     if (f) levelLine(f, '#22b14c', 'piso'); if (t) levelLine(t, '#b06cff', 'teto');
   }
@@ -1297,7 +1326,7 @@ function drawOverlay() {
     octx.fillStyle = '#ffd23f'; octx.strokeStyle = '#000'; octx.lineWidth = 1; octx.beginPath(); octx.rect(s[0] - 4.5, s[1] - 4.5, 9, 9); octx.fill(); octx.stroke();
   }
   // lupa nos cliques de precisão
-  if (mouse && !asking && (tool.startsWith('meas') || ['place', 'can', 'canup', 'pipe', 'cond', 'rack'].includes(tool) || (drag && drag.kind === 'handle'))) {
+  if (mouse && !asking && (tool.startsWith('meas') || ['place', 'can', 'canup', 'pipe', 'curva', 'cond', 'rack'].includes(tool) || (drag && drag.kind === 'handle'))) {
     const R = 58, Z = 4, m = P(mouse); let lx = m[0] + 22, ly = m[1] + 22;
     if (lx + 2 * R > css.W) lx = m[0] - 22 - 2 * R; if (ly + 2 * R > css.H) ly = m[1] - 22 - 2 * R;
     const sw = (2 * R / Z) / sc;
@@ -1466,7 +1495,7 @@ function finishCan() {   // termina a canaleta livre ou o eletroduto
   pending = [];
   if (pts.length >= 2) {
     pushUndo();
-    const it = tool === 'pipe' ? {type: 'pipe', id: newId(), pts, d: defaults.pipeD, color: defaults.pipeColor, fit: defaults.pipeFit, clamp: defaults.pipeClamp}
+    const it = tool === 'pipe' ? {type: 'pipe', id: newId(), pts, d: defaults.pipeD, color: defaults.pipeColor, bend: defaults.pipeBend, clamp: defaults.pipeClamp}
       : {type: 'can', id: newId(), pts, width: defaults.canCm, color: defaults.color};
     cur.items.push(it); sel = it;
   }
@@ -1489,6 +1518,10 @@ function newBox(kind, q) {
     : {type: 'box', id: newId(), kind: 'condulete', color: defaults.condColor, ori: defaults.condOri, W: h ? 12 : 6.5, H: h ? 6.5 : 12, D: 4.5};
   b.x = +(q[0] - b.W / 2).toFixed(1); b.y = +(q[1] - b.H * k / 2).toFixed(1);
   return b;
+}
+function placeCurva(q) {
+  pushUndo(); const it = {type: 'pipe', kind: 'curva', id: newId(), d: defaults.pipeD, color: defaults.pipeColor, bend: 'curva', clamp: false, ori: defaults.curvaOri, pts: curvaPts(q, defaults.pipeD, defaults.curvaOri)};
+  cur.items.push(it); sel = it; render(); refreshUI();
 }
 function placeBox(kind, q) { pushUndo(); const b = newBox(kind, q); cur.items.push(b); sel = b; if (kind === 'rack') tool = 'select'; render(); refreshUI(); }
 const evPt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cur.w, (e.clientY - r.top) / r.height * cur.h]; };
@@ -1518,7 +1551,7 @@ function hitTest(pt, only) {
 }
 function startMove(it, pt) {
   sel = it; pushUndo();
-  curTab = it.type === 'mark' ? 'marcacao' : it.type === 'screen' ? 'elem' : 'infra';
+  curTab = it.type === 'mark' ? 'marcacao' : it.type === 'screen' ? 'elem' : it.type === 'can' ? 'canaleta' : 'infra';
   drag = {kind: 'move', it, start: pt, startPl: cur.calib ? toPlane(cur, pt) : null, orig: clone(it), moved: false};
 }
 
@@ -1574,6 +1607,7 @@ ov.addEventListener('mousedown', e => {
   }
   if (tool === 'canup' && canupTarget) { makeCanUp(canupTarget, toPlane(cur, pt)[1], false); return; }
   if (tool === 'can' || tool === 'pipe') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; } pending.push(canSnap(pt)); drawOverlay(); return; }
+  if (tool === 'curva') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; } placeCurva(toPlane(cur, pt)); return; }
   if (tool === 'cond' || tool === 'rack') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; } placeBox(tool, toPlane(cur, pt)); return; }
   if (tool === 'mark') {
     const hit = hitTest(pt, 'mark');
@@ -1680,7 +1714,8 @@ window.addEventListener('keyup', e => { window.__shift = e.shiftKey; if (e.key =
 const PANEL_INFO = {
   medida: ['Medida da parede', 'Dê a escala da foto com as medidas do croqui.'],
   elem: ['Telas', 'Uma ou mais telas por foto, no tamanho real.'],
-  infra: ['Infraestrutura', 'Canaleta, eletroduto, condulete e rack.'],
+  canaleta: ['Canaleta', 'Da tela até o teto, ou um trajeto livre.'],
+  infra: ['Infraestrutura', 'Rack, eletroduto, curva e condulete.'],
   marcacao: ['Marcações', 'Rack, objeto ou tela a remover.']
 };
 function labelText() { return MARKS[markKind] || ($('#mText').value || ''); }
@@ -1697,6 +1732,7 @@ function hintHtml() {
     case 'canup': return 'Clique na altura onde a <b>canaleta</b> termina (teto)';
     case 'can': return 'Clique os pontos da <b>canaleta</b> · duplo clique termina · trava sozinho na horizontal/vertical';
     case 'pipe': return 'Clique os pontos do <b>eletroduto</b> · duplo clique termina · trava sozinho na horizontal/vertical';
+    case 'curva': return 'Clique onde fica o <b>canto da curva</b> · escolha a posição (┐ ┌ ┘ └) no painel · <kbd>Esc</kbd> sai';
     case 'cond': return 'Clique onde vai cada <b>condulete</b> · <kbd>Esc</kbd> sai';
     case 'rack': return 'Clique onde fica o centro do <b>rack</b>';
     case 'mark': return `Arraste sobre o item para marcar <b>${labelText() || 'texto livre'}</b>`;
@@ -1740,9 +1776,6 @@ function fillModels() {
 const fx = v => (+v).toFixed(1).replace('.', ',') + '×';
 function refreshUI() {
   $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === curTab));
-  { const its = cur ? cur.items : [], c0 = cur && cur.calib;
-    const st = {medida: !!(c0 && floorImg(cur)), elem: its.some(i => i.type === 'screen'), infra: its.some(i => ['can', 'pipe', 'box'].includes(i.type)), marcacao: its.some(i => i.type === 'mark')};
-    $$('.tabs button').forEach(b => b.classList.toggle('done', !!st[b.dataset.tab])); }
   $$('.panel').forEach(pn => pn.classList.toggle('on', pn.dataset.panel === curTab));
   $('#bSelect').classList.toggle('on', !!cur && tool === 'select');
   ov.style.cursor = tool === 'select' ? 'default' : 'crosshair';
@@ -1763,8 +1796,8 @@ function refreshUI() {
   $('#calProg').innerHTML = !cur ? '' : !cb ? 'Marque a <b>largura</b> de algo conhecido na parede. O app pergunta a medida na hora.'
     : !fl ? 'Falta o <b>piso</b>: marque a altura (do teto ao piso) ou clique em Piso → Marcar.' : 'Pronto. Use a aba <b>Elementos</b> para colocar a tela.';
   if (cb && cb.hl) {
-    const est = dist(cb.wl[0], cb.wl[1]) / pxPerCm(cur);
-    if (Math.abs(est / cb.wcm - 1) > 0.05) $('#calProg').innerHTML += `<br><span class="small">A escala vem da altura. Por ela, a linha azul mede <b style="color:var(--text)">${cm(est)} cm</b> na foto (você informou ${cm(cb.wcm)}).</span>`;
+    const sx = pxPerCm(cur), sy = (cb.pts[3][1] - cb.pts[0][1]) / cb.h, rr = sx / sy;
+    if (Math.abs(rr - 1) > 0.08) $('#calProg').innerHTML += `<br><span class="small">Nesta foto 1 cm na horizontal vale ${cm(rr)}× o da vertical. Cada direção usa a sua medida, então a tela sai com largura e altura reais.</span>`;
   }
   // elementos
   const so = cb && sel && sel.type === 'screen' ? sel : null, m = so && getModel(so.model);
@@ -1772,7 +1805,6 @@ function refreshUI() {
     : tool === 'place' ? 'Clique <b>2 pontos</b> do local (início e fim) e a tela entra centralizada, no tamanho real. Para mais telas, repita em outro local.' : so ? '' : screensOf(cur).length ? 'Para outra tela em outro local, clique em <b>Adicionar outra tela</b> (ou num modelo).' : 'Escolha o modelo e clique em <b>Colocar tela</b>.';
   $('#bPlace').classList.toggle('on', tool === 'place');
   $('#bPlaceTxt').textContent = tool === 'place' ? 'Clique o local na foto…' : cur && screensOf(cur).length ? 'Adicionar outra tela' : 'Colocar tela';
-  $('#autoCan').checked = !!defaults.autoCan;
   $('#objProps').classList.toggle('hide', !so);
   if (so) {
     const k = kxy(cur);
@@ -1797,17 +1829,25 @@ function refreshUI() {
   }
   // canaleta
   const can = cur && sel && sel.type === 'can' ? sel : null, pipe = cur && sel && sel.type === 'pipe' ? sel : null, cond = selBox('condulete'), rack = selBox('rack');
-  const infraT = can ? 'can' : pipe ? 'pipe' : cond ? 'cond' : rack ? 'rack' : (tool === 'canup' || tool === 'can') ? 'can' : ['pipe', 'cond', 'rack'].includes(tool) ? tool : null;
-  $$('#infraTools button').forEach(b => b.classList.toggle('on', b.dataset.t === tool));
-  for (const [id, t] of [['#ipCan', 'can'], ['#ipPipe', 'pipe'], ['#ipCond', 'cond'], ['#ipRack', 'rack']]) $(id).classList.toggle('hide', infraT !== t);
-  $('#infraIns').innerHTML = !cur ? '' : !cb ? 'Marque a medida da parede primeiro (aba <b>Medida</b>).'
+  const isCurva = (pipe && pipe.kind === 'curva') || (!sel && tool === 'curva');
+  const infraT = pipe ? 'pipe' : cond ? 'cond' : rack ? 'rack' : (tool === 'pipe' || tool === 'curva') ? 'pipe' : ['cond', 'rack'].includes(tool) ? tool : null;
+  $$('#infraTools button, #canTools button').forEach(b => b.classList.toggle('on', b.dataset.t === tool));
+  for (const [id, t] of [['#ipPipe', 'pipe'], ['#ipCond', 'cond'], ['#ipRack', 'rack']]) $(id).classList.toggle('hide', infraT !== t);
+  $('#pBendBox').classList.toggle('hide', isCurva); $('#pOriBox').classList.toggle('hide', !isCurva); $('#pClampRow').classList.toggle('hide', isCurva);
+  $$('#pBend button').forEach(b => b.classList.toggle('on', b.dataset.b === (pipe ? pipeBend(pipe) : defaults.pipeBend)));
+  $$('#pOri button').forEach(b => b.classList.toggle('on', b.dataset.o === (pipe && pipe.kind === 'curva' ? pipe.ori : defaults.curvaOri)));
+  $('#autoCan').checked = !!defaults.autoCan;
+  $('#canIns').innerHTML = !cur ? '' : !cb ? 'Marque a medida da parede primeiro (aba <b>Medida</b>).'
     : tool === 'canup' ? 'Sem teto marcado: clique na foto, na altura onde a canaleta termina.'
     : tool === 'can' ? 'Clique os pontos do trajeto e dê <b>duplo clique</b> para terminar.'
-    : tool === 'pipe' ? 'Clique os pontos do eletroduto e dê <b>duplo clique</b> para terminar. Nas curvas entra um condulete.'
-    : tool === 'cond' ? 'Clique onde vai cada condulete. <kbd>Esc</kbd> para sair.' : tool === 'rack' ? 'Clique onde fica o centro do rack.'
     : can ? (can.link ? 'Canaleta da tela: arraste a bolinha de cima para ajustar o fim.' : 'Canaleta: arraste os pontos para ajustar.')
-    : pipe ? 'Eletroduto: arraste os pontos para ajustar o trajeto.' : (cond || rack) ? 'Arraste para mover; os quadradinhos ajustam o tamanho.'
-    : 'Escolha uma ferramenta acima. Tudo entra no tamanho real, com sombra e luz da foto.';
+    : '<b>Até o teto</b> sobe reta do centro da tela. <b>Trajeto livre</b> segue os pontos que você clicar.';
+  $('#infraIns').innerHTML = !cur ? '' : !cb ? 'Marque a medida da parede primeiro (aba <b>Medida</b>).'
+    : tool === 'pipe' ? 'Clique os pontos do eletroduto e dê <b>duplo clique</b> para terminar.'
+    : tool === 'curva' ? 'Escolha a posição abaixo e clique onde fica o canto da curva.'
+    : tool === 'cond' ? 'Clique onde vai cada condulete. <kbd>Esc</kbd> para sair.' : tool === 'rack' ? 'Clique onde fica o centro do rack.'
+    : pipe ? 'Arraste os pontos para ajustar o trajeto.' : (cond || rack) ? 'Arraste para mover; os quadradinhos ajustam o tamanho.'
+    : 'Escolha uma peça acima. Tudo entra no tamanho real, com sombra e luz da foto.';
   $$('#cColor button').forEach(b => b.classList.toggle('on', b.dataset.c === (can ? can.color : defaults.color)));
   if (document.activeElement !== $('#cW')) $('#cW').value = can ? +can.width.toFixed(1) : defaults.canCm;
   $('#bCanCeil').classList.toggle('hide', !(can && can.link && !can.toCeil));
@@ -1815,7 +1855,7 @@ function refreshUI() {
   $$('#pColor button').forEach(b => b.classList.toggle('on', b.dataset.c === (pipe ? pipe.color : defaults.pipeColor)));
   $$('#pDs button').forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.d - pd) < 0.05));
   if (document.activeElement !== $('#pD')) $('#pD').value = +(+pd).toFixed(1);
-  $('#pFit').checked = pipe ? pipe.fit !== false : defaults.pipeFit; $('#pClamp').checked = pipe ? pipe.clamp !== false : defaults.pipeClamp;
+  $('#pClamp').checked = pipe ? pipe.clamp !== false : defaults.pipeClamp;
   $$('#cdOri button').forEach(b => b.classList.toggle('on', b.dataset.o === (cond ? cond.ori || 'v' : defaults.condOri)));
   $$('#cdColor button').forEach(b => b.classList.toggle('on', b.dataset.c === (cond ? cond.color : defaults.condColor)));
   const rs = rack ? [rack.W, rack.H, rack.D] : [defaults.rackW, defaults.rackH, defaults.rackD];
@@ -1847,7 +1887,7 @@ function itemName(it) {
   const ss = cur ? screensOf(cur) : [], n = s => ss.indexOf(s) + 1;
   if (it.type === 'screen') return `Tela ${n(it)} · ${getModel(it.model).name}`;
   if (it.type === 'can') { const s = it.link && ss.find(x => x.id === it.link); return s ? `Canaleta da tela ${n(s)}` : 'Canaleta'; }
-  if (it.type === 'pipe') return `Eletroduto Ø ${cm(it.d)} cm`;
+  if (it.type === 'pipe') return it.kind === 'curva' ? `Curva 90° Ø ${cm(it.d)} cm` : `Eletroduto Ø ${cm(it.d)} cm`;
   if (it.type === 'box') return it.kind === 'rack' ? `Rack ${cm(it.W)} × ${cm(it.H)} cm` : 'Condulete';
   return `Marcação: ${it.label || 'sem texto'}`;
 }
@@ -1857,10 +1897,10 @@ function renderLayers() {
   if (!its.length) { box.innerHTML = `<div class="lempty">${cur ? 'Nada colocado ainda.' : 'Abra uma foto para começar.'}</div>`; return; }
   for (const it of its) {
     const r = document.createElement('button'); r.className = 'lrow' + (it === sel ? ' on' : '');
-    const ic = {screen: 'tela', can: 'canaleta', pipe: 'pipe', box: it.kind === 'rack' ? 'rack' : 'cond', mark: 'tag'}[it.type] || 'tag';
+    const ic = {screen: 'tela', can: 'canaleta', pipe: it.kind === 'curva' ? 'curva' : 'pipe', box: it.kind === 'rack' ? 'rack' : 'cond', mark: 'tag'}[it.type] || 'tag';
     r.innerHTML = `<svg class="i s" viewBox="0 0 24 24">${IC[ic]}</svg><span class="nm"></span><span class="lx" title="Remover">×</span>`;
     r.querySelector('.nm').textContent = itemName(it);
-    r.onclick = () => { if (!cur.calib && it.type !== 'mark') return; endAsk(false); sel = it; pending = []; tool = 'select'; curTab = it.type === 'mark' ? 'marcacao' : it.type === 'screen' ? 'elem' : 'infra'; render(); refreshUI(); };
+    r.onclick = () => { if (!cur.calib && it.type !== 'mark') return; endAsk(false); sel = it; pending = []; tool = 'select'; curTab = it.type === 'mark' ? 'marcacao' : it.type === 'screen' ? 'elem' : it.type === 'can' ? 'canaleta' : 'infra'; render(); refreshUI(); };
     r.querySelector('.lx').onclick = e => { e.stopPropagation(); sel = it; deleteSel(); };
     box.appendChild(r);
   }
@@ -1919,7 +1959,7 @@ function drawDial() {
   dial.addEventListener('pointermove', e => { if (dragging) setFrom(e); });
   dial.addEventListener('pointerup', () => { dragging = false; }); }
 // canaleta
-$$('#infraTools button').forEach(b => b.onclick = () => {
+$$('#infraTools button, #canTools button').forEach(b => b.onclick = () => {
   if (!cur || !cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; }
   endAsk(false); const t = b.dataset.t;
   if (t === 'canup') {
@@ -1934,7 +1974,13 @@ $('#bCanCeil').onclick = () => { if (sel && sel.type === 'can' && sel.link) { pu
 function setPipeD(v) { v = clamp(v, 0.8, 15); if (sel && sel.type === 'pipe') { pushUndo(); sel.d = v; } defaults.pipeD = v; saveDefaults(); render(); refreshUI(); }
 $$('#pDs button').forEach(b => b.onclick = () => setPipeD(+b.dataset.d));
 $('#pD').addEventListener('change', () => { const v = +$('#pD').value; if (v > 0) setPipeD(v); });
-for (const [id, key, dk] of [['#pFit', 'fit', 'pipeFit'], ['#pClamp', 'clamp', 'pipeClamp']]) $(id).onchange = () => { const v = $(id).checked; if (sel && sel.type === 'pipe') { pushUndo(); sel[key] = v; } defaults[dk] = v; saveDefaults(); render(); refreshUI(); };
+$$('#pBend button').forEach(b => b.onclick = () => { const v = b.dataset.b; if (sel && sel.type === 'pipe') { pushUndo(); sel.bend = v; delete sel.fit; } defaults.pipeBend = v; saveDefaults(); render(); refreshUI(); });
+$$('#pOri button').forEach(b => b.onclick = () => {
+  const o = b.dataset.o; defaults.curvaOri = o; saveDefaults();
+  if (sel && sel.type === 'pipe' && sel.kind === 'curva' && sel.ori !== o) { pushUndo(); const leg = Math.max(dist(sel.pts[0], sel.pts[1]), dist(sel.pts[1], sel.pts[2])); sel.ori = o; sel.pts = curvaPts(sel.pts[1], sel.d, o, leg); }
+  render(); refreshUI();
+});
+for (const [id, key, dk] of [['#pClamp', 'clamp', 'pipeClamp']]) $(id).onchange = () => { const v = $(id).checked; if (sel && sel.type === 'pipe') { pushUndo(); sel[key] = v; } defaults[dk] = v; saveDefaults(); render(); refreshUI(); };
 $$('#cdOri button').forEach(b => b.onclick = () => {
   const o = b.dataset.o, s = selBox('condulete'); defaults.condOri = o; saveDefaults();
   if (s && (s.ori || 'v') !== o) { pushUndo(); const k = kxy(cur), cx = s.x + s.W / 2, cy = s.y + s.H * k / 2; s.ori = o; [s.W, s.H] = [s.H, s.W]; s.x = +(cx - s.W / 2).toFixed(1); s.y = +(cy - s.H * k / 2).toFixed(1); }
