@@ -1480,7 +1480,7 @@ function drawOverlay() {
     measLine(c.wl[0], c.wl[1], '#2f80ff', cm(c.wcm) + ' cm');
     if (c.hl) measLine(c.hl[0], c.hl[1], '#ef3b3b', cm(c.hcm) + ' cm');
   }
-  if (c && (curTab === 'medida' || curTab === 'infra' || curTab === 'canaleta' || tool === 'place' || tool === 'canup')) {
+  if (c && curTab === 'medida') {   // linhas de teto e piso: só na aba Medida
     const f = floorImg(cur), t = ceilImg(cur);
     if (f) levelLine(f, '#22b14c', 'piso'); if (t) levelLine(t, '#b06cff', 'teto');
   }
@@ -1601,6 +1601,7 @@ async function openProject(file) {
   const blob = await dataURLToBlob(j.photo), img = await loadImg(URL.createObjectURL(blob));
   const p = addPhoto(img, j.name || file.name, blob);
   p.calib = j.calib || null; p.items = j.items || []; p.lightAuto = j.lightAuto; p.lightAngle = j.lightAngle;
+  if (p.calib && p.calib.wl) { if (p.calib.pts) changeCalib(p, () => {}); else rebuildCalib(p); }   // arquivo de versão antiga: refaz a escala atual mantendo tudo no mesmo lugar da foto
   return p;
 }
 async function loadFiles(files) {
