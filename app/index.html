@@ -338,10 +338,14 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
       </div>
       <div id="ipRack" class="hide">
         <h5 class="sect">Rack</h5>
-        <div class="chips" id="rSizes"><button data-s="57x31x35">5U</button><button data-s="57x40x35">8U</button><button data-s="57x53x45">12U</button><button data-s="57x71x45">16U</button></div>
+        <div class="chips" id="rSizes"><button data-s="57x20x35">3U</button><button data-s="57x31x35">5U</button><button data-s="57x40x35">8U</button><button data-s="57x53x45">12U</button><button data-s="57x71x45">16U</button></div>
         <div class="row">Largura <input type="number" class="fld" id="rW" step="1"> Altura <input type="number" class="fld" id="rH" step="1"> cm</div>
         <div class="row">Profundidade <input type="number" class="fld" id="rD" step="1"> cm</div>
         <div class="sw" id="rColor"></div>
+        <h5 class="sect">Imagem do rack</h5>
+        <div class="row" style="gap:12px"><button class="btn" id="bRackImg">Enviar imagem do rack…</button><button class="link" id="bRackImgDel">remover</button></div>
+        <input type="file" id="fRackImg" accept="image/*" hidden>
+        <p class="small" id="rackImgInfo"></p>
         <p class="small">Medidas típicas de rack de parede; ajuste conforme o croqui.</p>
       </div>
       <label class="chk hide" id="sizeAllRow"><input type="checkbox" id="sizeAll"><span>Tamanho igual para todos<br><span class="small">Mudar o tamanho de um muda todos da foto (eletroduto, curva e condulete juntos; racks entre si). Desmarque para mudar só o selecionado.</span></span></label>
@@ -522,6 +526,7 @@ const MARKS = {rack: 'Rack existente', objeto: 'Objeto a ser removido', telarem:
 const oldDefaults = store.get('defaults') || {};
 const defaults = Object.assign({model: 'tela-elevador', color: 'inox', canCm: 8, markScale: 1, markFont: 1, markOutline: 1, markPos: 'top', condo: oldDefaults.condo || '', autoCan: true, pipeColor: 'galv', pipeD: 2.7, pipeBend: 'curva', curvaOri: 'ld', pipeFit: true, pipeClamp: true, condColor: 'galv', condOri: 'v', rackColor: 'preto', rackW: 57, rackH: 40, rackD: 35, sizeAll: true}, store.get('defaults2') || {});
 const saveDefaults = () => store.set('defaults2', defaults);
+if (defaults.rackPresetV !== 2) { Object.assign(defaults, {rackW: 57, rackH: 20, rackD: 35, rackPresetV: 2}); saveDefaults(); }   // padrão: rack 3U
 const photos = [];
 let cur = null, tool = 'select', curTab = 'medida', pending = [], sel = null, drag = null, fast = false, mouse = null;
 let css = {W: 1, H: 1, sc: 1, dpr: 1}, zoom = 1, asking = null, pendLine = null, markKind = 'rack', canupTarget = null;
@@ -789,11 +794,11 @@ function drawScreen(g, p, s, quick) {
     for (let i = 0; i < N; i++) {
       const t = (i + 1) / N;
       g.filter = `blur(${Math.max(1, hpx * 0.015 + spread * t)}px)`;
-      g.fillStyle = `rgba(0,0,0,${clamp(dens * 0.62 * Math.pow(1 - t, 1.3) + dens * 0.05, 0, 1)})`;
-      quad(reach * t * (0.55 + 0.45 * soft), 1 + 0.04 * t * soft); g.fill();
+      g.fillStyle = `rgba(0,0,0,${clamp(dens * 0.42 * Math.pow(1 - t, 1.6) + dens * 0.04, 0, 1)})`;
+      quad(reach * (0.15 + 0.85 * t) * (0.55 + 0.45 * soft), 1 + 0.03 * t * soft); g.fill();
     }
-    g.filter = `blur(${Math.max(1, hpx * 0.02)}px)`; g.fillStyle = `rgba(0,0,0,${clamp(dens * 0.85, 0, 0.92)})`;
-    quad(hpx * 0.02, 1.01); g.fill(); g.restore();
+    g.filter = `blur(${Math.max(0.8, hpx * 0.012)}px)`; g.fillStyle = `rgba(0,0,0,${clamp(dens * 0.6, 0, 0.8)})`;
+    quad(hpx * 0.006, 1.004); g.fill(); g.restore();
   }
   const xs = c.map(q => q[0]), ys = c.map(q => q[1]);
   const x0 = Math.max(0, Math.floor(Math.min(...xs)) - 1), x1 = Math.min(p.w, Math.ceil(Math.max(...xs)) + 1);
@@ -828,7 +833,7 @@ function drawScreen(g, p, s, quick) {
   }
   g.putImageData(img, x0, y0);
   if (isTela && sinT > 0.01) { // parte de baixo do aparelho, visível por causa da inclinação
-    const dpt = Math.max(1, (hpx / Math.max(0.2, Math.cos(Math.asin(sinT)))) / s.H * 4.5 * sinT), [, , BR, BL] = c, inset = dist(BL, BR) * 0.012;
+    const dpt = Math.max(1, (hpx / Math.max(0.2, Math.cos(Math.asin(sinT)))) / s.H * 2.5 * sinT), [, , BR, BL] = c, inset = dist(BL, BR) * 0.012;
     const gr = g.createLinearGradient(0, BL[1], 0, BL[1] + dpt), lum = clamp(br, 0.6, 1.05);
     gr.addColorStop(0, `rgb(${58 * lum | 0},${60 * lum | 0},${64 * lum | 0})`); gr.addColorStop(1, `rgb(${14 * lum | 0},${15 * lum | 0},${16 * lum | 0})`);
     g.beginPath(); g.moveTo(BL[0], BL[1]); g.lineTo(BR[0], BR[1]); g.lineTo(BR[0] - inset, BR[1] + dpt); g.lineTo(BL[0] + inset, BL[1] + dpt); g.closePath();
@@ -1055,10 +1060,15 @@ function rackTex(col, w, h, Hcm) {   // rack de parede: estrutura, ventilação,
   return c;
 }
 const texCache = new Map();
+// imagem do rack enviada pelo usuário (vista de frente): substitui o desenho do app na frente de todos os racks
+let rackBlob = null, rackArt = null;
+async function setRackImg(blob) { rackBlob = blob || null; rackArt = blob ? prepArt(await loadImg(URL.createObjectURL(blob))) : null; texCache.clear(); await idb.set('rackImg', blob ? {blob} : null); }
+async function loadRackArt() { const r = await idb.get('rackImg'); if (r && r.blob) { rackBlob = r.blob; try { rackArt = prepArt(await loadImg(URL.createObjectURL(r.blob))); } catch (e) { rackArt = null; } } }
 function boxTex(b, tw, th) {
   const key = [b.kind, b.color, b.ori, b.W, b.H, tw, th].join('|'); if (texCache.has(key)) return texCache.get(key);
   let t;
-  if (b.kind === 'rack') t = rackTex(RACK_COLORS[b.color] || RACK_COLORS.preto, tw, th, b.H);
+  if (b.kind === 'rack' && rackArt) { t = document.createElement('canvas'); t.width = tw; t.height = th; const g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(rackArt, 0, 0, tw, th); }
+  else if (b.kind === 'rack') t = rackTex(RACK_COLORS[b.color] || RACK_COLORS.preto, tw, th, b.H);
   else {
     const col = PIPE_COLORS[b.color] || PIPE_COLORS.galv;
     if (b.ori === 'h') { const v = condTex(col, th, tw); t = document.createElement('canvas'); t.width = tw; t.height = th; const g = t.getContext('2d'); g.translate(tw, 0); g.rotate(Math.PI / 2); g.drawImage(v, 0, 0); }
@@ -1143,10 +1153,10 @@ function drawPipeBody(g, p, sh, col, Lv) {
       const nd = ol > 0.02 ? [o[0] / ol, o[1] / ol] : [1, 0];
       const ndl = clamp(z * 0.72 + (o[0] * Lv[0] + o[1] * Lv[1]) * 0.6, 0, 1), bh0 = samp(cp[0], cp[1]), wl = 0.2126 * bh0[0] + 0.7152 * bh0[1] + 0.0722 * bh0[2];
       const e1 = samp(cp[0] + nd[0] * r * 2.6, cp[1] + nd[1] * r * 2.6), e2 = samp(cp[0] - nd[0] * r * 2.6, cp[1] - nd[1] * r * 2.6);
-      const light = clamp(0.7 + 0.55 * wl / 255, 0.7, 1.2), rl = (wl - meanL) * 0.2, diff = 0.32 + 0.78 * ndl;
+      const light = clamp(0.82 + 0.3 * wl / 255, 0.85, 1.1), rl = (wl - meanL) * 0.04, diff = 0.32 + 0.78 * ndl;
       let cr, cg, cb, spec;
       if (metal) {
-        const mixE = 0.4 * metal, ek = (0.5 + 0.6 * z) * mixE / 2;
+        const mixE = 0.12 * metal, ek = (0.5 + 0.6 * z) * mixE / 2;
         cr = col.base[0] * diff * light * (1 - mixE) + (e1[0] + e2[0]) * ek; cg = col.base[1] * diff * light * (1 - mixE) + (e1[1] + e2[1]) * ek; cb = col.base[2] * diff * light * (1 - mixE) + (e1[2] + e2[2]) * ek;
         spec = metal * (130 * Math.pow(ndl, 28) + 26 * Math.pow(ndl, 5));
       } else { cr = col.base[0] * diff * light; cg = col.base[1] * diff * light; cb = col.base[2] * diff * light; spec = 36 * Math.pow(ndl, 16); }
@@ -1346,6 +1356,10 @@ function drawOverlay() {
   if (c && sel && ((sel.type === 'screen' && curTab === 'elem') || (sel.type === 'box' && sel.kind === 'rack')) && !drag && !fast) {
     const hp = hPlane(cur, sel), k = kxy(cur), cx = sel.x + sel.W / 2, fy = floorPlaneY(cur), cy = ceilPlaneY(cur);
     if (fy != null) ruler(toImg(cur, [cx, sel.y + hp]), toImg(cur, [cx, fy]), '#22b14c', 'base ' + cm(fy - sel.y - hp) + ' cm');
+    if (sel.type === 'screen') {   // conferência: altura e largura reais medidas pelas linhas da foto
+      ruler(toImg(cur, [sel.x + sel.W + 4, sel.y]), toImg(cur, [sel.x + sel.W + 4, sel.y + hp]), '#f7931e', 'altura ' + cm(sel.H) + ' cm');
+      ruler(toImg(cur, [sel.x, sel.y - 5]), toImg(cur, [sel.x + sel.W, sel.y - 5]), '#f7931e', 'largura ' + cm(sel.W) + ' cm');
+    }
     if (cy != null) ruler(toImg(cur, [cx + sel.W * 0.38, cy]), toImg(cur, [cx + sel.W * 0.38, sel.y]), '#b06cff', cm(sel.y - cy) + ' cm');
   }
   if (pending.length && (tool === 'can' || tool === 'pipe' || tool === 'mark')) {
@@ -1445,6 +1459,7 @@ async function openProject(file) {
     await loadModelArt(nm); models.push(nm);
   }
   saveModels();
+  if (j.rackImg && !rackBlob) await setRackImg(await dataURLToBlob(j.rackImg));
   const blob = await dataURLToBlob(j.photo), img = await loadImg(URL.createObjectURL(blob));
   const p = addPhoto(img, j.name || file.name, blob);
   p.calib = j.calib || null; p.items = j.items || []; p.lightAuto = j.lightAuto; p.lightAngle = j.lightAngle;
@@ -1959,6 +1974,8 @@ function refreshUI() {
   $$('#infraTools button, #canTools button').forEach(b => b.classList.toggle('on', b.dataset.t === tool));
   for (const [id, t] of [['#ipPipe', 'pipe'], ['#ipCond', 'cond'], ['#ipRack', 'rack']]) $(id).classList.toggle('hide', infraT !== t);
   $('#ipSize').classList.toggle('hide', !(infraT === 'pipe' || infraT === 'cond')); $('#ipRot').classList.toggle('hide', !(infraT === 'pipe' || infraT === 'cond'));
+  $('#bRackImgDel').classList.toggle('hide', !rackArt);
+  $('#rackImgInfo').textContent = rackArt ? 'Usando a sua imagem: vale para todos os racks.' : 'Sem imagem, o app desenha o rack. Envie uma foto de frente do rack (recortada ou com fundo branco).';
   $('#sizeAllRow').classList.toggle('hide', !infraT); $('#sizeAll').checked = defaults.sizeAll !== false;
   $('#pBendBox').classList.toggle('hide', isCurva); $('#pOriBox').classList.toggle('hide', !isCurva); $('#pClampRow').classList.toggle('hide', isCurva);
   $$('#pBend button').forEach(b => b.classList.toggle('on', b.dataset.b === (pipe ? pipeBend(pipe) : defaults.pipeBend)));
@@ -2105,6 +2122,9 @@ function setPipeD(v) {
   for (const it of targets) setItemD(it, v);
   defaults.pipeD = v; saveDefaults(); render(); refreshUI();
 }
+$('#bRackImg').onclick = () => $('#fRackImg').click();
+$('#fRackImg').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; await setRackImg(f); render(); refreshUI(); flash('Imagem do rack salva: todos os racks usam esta foto.'); };
+$('#bRackImgDel').onclick = async () => { await setRackImg(null); render(); refreshUI(); };
 $('#sizeAll').onchange = () => { defaults.sizeAll = $('#sizeAll').checked; saveDefaults(); };
 $('#bRotL').onclick = () => rotateSel(true); $('#bRotR').onclick = () => rotateSel(false);
 $$('#pDs button').forEach(b => b.onclick = () => setPipeD(+b.dataset.d));
@@ -2214,7 +2234,8 @@ async function projectBlob(p) {
   const ms = {};
   for (const id of new Set(screensOf(p).map(i => i.model))) { const m = getModel(id); ms[id] = {name: m.name, kind: m.kind, W: m.W, H: m.H, base: m.base, tilt: m.tilt, data: m.blob ? await blobToDataURL(m.blob) : null}; }
   const photo = p.blob ? await blobToDataURL(p.blob) : (() => { const c = document.createElement('canvas'); c.width = p.w; c.height = p.h; c.getContext('2d').drawImage(p.img, 0, 0); return c.toDataURL('image/jpeg', 0.95); })();
-  return new Blob([JSON.stringify({app: 'simulador-telas', v: 2, name: p.name, photo, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, models: ms})], {type: 'application/octet-stream'});   // octet-stream: o navegador não troca a extensão .simtela
+  const rackImg = rackBlob && p.items.some(i => i.type === 'box' && i.kind === 'rack') ? await blobToDataURL(rackBlob) : null;
+  return new Blob([JSON.stringify({app: 'simulador-telas', v: 2, name: p.name, photo, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, models: ms, rackImg})], {type: 'application/octet-stream'});   // octet-stream: o navegador não troca a extensão .simtela
 }
 async function exportCurrent() {
   if (!cur) return;
@@ -2237,7 +2258,7 @@ $('#bExportAll').onclick = async () => {
 { const v = new URLSearchParams(location.search).get('v'); if (v) $('#ver').textContent = 'v' + v; }
 fillColors();
 (async () => {
-  await initModels();
+  await initModels(); await loadRackArt();
   if (!models.some(m => m.id === defaults.model)) defaults.model = models[0].id;
   refreshUI();
   if (document.fonts) document.fonts.load('700 40px Montserrat').then(() => { if (cur) render(); });
