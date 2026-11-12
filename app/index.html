@@ -233,6 +233,7 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
   <div class="brand"><span class="logo" data-i="tela"></span>Simulador de Telas <span class="small" id="ver"></span></div>
   <label class="condo" title="Os arquivos vão para Imagens\Simulações\(nome do condomínio)"><span data-i="folder" data-s="1"></span><input id="condo" placeholder="Nome do condomínio (pasta)"></label>
   <div class="strip" id="photos"></div>
+  <button class="icon hide" id="bCloseAll" title="Fechar todas as fotos" data-i="trash"></button>
   <button class="add" id="bOpen" title="Abrir fotos ou arquivos editáveis (.simtela)" data-i="images" data-s="1">Abrir</button>
   <input type="file" id="fOpen" accept="image/*,.simtela,.json" multiple hidden>
   <button class="icon" id="bModels" title="Modelos de tela e rack" data-i="gear"></button>
@@ -253,7 +254,7 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
     <button data-tab="marcacao" data-i="tag">Marcas</button>
   </div>
   <div class="rspacer"></div>
-  <button class="rbtn" id="bUndo" title="Desfazer (Ctrl+Z)" data-i="undo">Desfazer</button>
+  <button class="rbtn" id="bUndo" title="Desfazer (Ctrl+Z) · Refazer (Ctrl+Y)" data-i="undo">Desfazer</button>
 </nav>
 
 <aside>
@@ -267,6 +268,10 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
       <div class="mrow"><span class="mdot" style="background:#b06cff"></span><b>Teto</b><span class="small" id="ceilTxt"></span><button class="btn sm" id="bCeil">Marcar</button></div>
       <p class="ins" id="calProg" style="margin-top:12px"></p>
       <div class="links"><button class="link" id="bDelH">Remover altura</button></div>
+      <h5 class="sect">Conferir</h5>
+      <div class="mrow"><span class="mdot" style="background:#0ea5a4"></span><b>Régua</b><span class="small" id="rulerTxt"></span><button class="btn sm" id="bRuler">Medir</button></div>
+      <p class="small" style="margin:0">Meça qualquer coisa na foto (porta, botoeira) para conferir com o croqui. Não sai na imagem baixada.</p>
+      <div class="links"><button class="link" id="bRulerClr">Limpar réguas</button></div>
     </div>
 
     <div class="panel" data-panel="elem">
@@ -298,7 +303,10 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
           <summary>Brilho e acabamento</summary>
           <div class="row"><label><input type="checkbox" id="sAuto"> Brilho automático</label></div>
           <div class="row sl">Brilho <span><input type="range" id="sBright" min="0.4" max="1.2" step="0.01"></span></div>
-          <div class="row sl">Reflexo <span><input type="range" id="sGloss" min="0" max="1" step="0.01"></span></div>
+          <div class="row sl">Reflexo no vidro <span><input type="range" id="sGloss" min="0" max="1" step="0.01"></span></div>
+          <div class="row sl">Luz na parede <span><input type="range" id="sGlow" min="0" max="1" step="0.01"></span></div>
+          <div class="row sl">Reflexo na parede <span><input type="range" id="sWall" min="0" max="1" step="0.01"> <b id="sWallVal"></b></span></div>
+          <div class="links" style="margin-top:2px"><button class="link" id="bWallAuto">reflexo na parede: voltar ao automático</button></div>
           <div class="row sl">Granulado <span><input type="range" id="sNoise" min="0" max="12" step="0.5"></span></div>
         </details>
       </div>
@@ -441,6 +449,7 @@ const IC = {
   curva: '<path d="M4 3v5a11 11 0 0 0 11 11h6"/><path d="M8.5 3v5a6.5 6.5 0 0 0 6.5 6.5h6"/>',
   cond: '<rect x="7" y="5" width="10" height="14" rx="2.5"/><path d="M10 2v3M14 2v3M10 19v3M14 19v3"/><circle cx="12" cy="8.5" r=".6"/><circle cx="12" cy="15.5" r=".6"/>',
   rack: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M7 7h10M7 10.5h10M7 14h10"/><path d="M16 17v1.5"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
   minus: '<path d="M5 12h14"/>', plus: '<path d="M12 5v14M5 12h14"/>'
 };
 $$('[data-i]').forEach(el => el.insertAdjacentHTML('afterbegin', `<svg class="i${el.dataset.s ? ' s' : ''}" viewBox="0 0 24 24">${IC[el.dataset.i]}</svg>`));
@@ -510,6 +519,7 @@ const idb = {
     });
   },
   async get(k) { try { const db = await this.open(); return await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); } catch (e) { return null; } },
+  async del(k) { try { const db = await this.open(); return await new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = () => res(true); tx.onerror = () => res(false); }); } catch (e) { return false; } },
   async set(k, v) { try { const db = await this.open(); return await new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = () => res(true); tx.onerror = () => res(false); }); } catch (e) { return false; } }
 };
 const blobToDataURL = b => new Promise(res => { const f = new FileReader(); f.onload = () => res(f.result); f.readAsDataURL(b); });
@@ -691,7 +701,7 @@ function artFor(s) {
 }
 function newObj(m) {
   return {type: 'screen', id: newId(), model: m.id, W: m.W, H: modelH(m), base: m.base ?? null, tilt: m.tilt || 0, x: 0, y: 0,
-    bright: null, gloss: m.kind === 'tela' ? 0.35 : 0, noise: 3, shadow: 0.7, shadowDist: 1, shadowSoft: 1, auto: true};
+    bright: null, glow: 0.5, wallRefl: null, gloss: m.kind === 'tela' ? 0.35 : 0, noise: 3, shadow: 0.7, shadowDist: 1, shadowSoft: 1, auto: true};
 }
 
 /* ---------------- medida ----------------
@@ -790,6 +800,58 @@ function screenCorners(p, s) {
   const ht = [(TR[0] - TL[0]) / 2 * (1 + t), (TR[1] - TL[1]) / 2 * (1 + t)], hb = [(BR[0] - BL[0]) / 2 * (1 - t), (BR[1] - BL[1]) / 2 * (1 - t)];
   return [[tm[0] - ht[0], tm[1] - ht[1]], [tm[0] + ht[0], tm[1] + ht[1]], [nb[0] + hb[0], nb[1] + hb[1]], [nb[0] - hb[0], nb[1] - hb[1]]];
 }
+// foto reduzida e borrada: é o "ambiente" que aparece refletido no vidro da tela
+function envPixels(p) {
+  if (!p._env) { const c = document.createElement('canvas'); c.width = p.small.width; c.height = p.small.height; const g = c.getContext('2d', {willReadFrequently: true}); g.filter = 'blur(3px)'; g.drawImage(p.small, 0, 0); p._env = {w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data}; }
+  return p._env;
+}
+// cores médias da arte em 6 colunas (para a luz que a tela acesa joga na parede)
+function artCols(m) {
+  if (!m._cols) { const c = document.createElement('canvas'); c.width = 6; c.height = 1; const g = c.getContext('2d', {willReadFrequently: true}); g.drawImage(m._art, 0, 0, 6, 1); const d = g.getImageData(0, 0, 6, 1).data; m._cols = []; for (let i = 0; i < 6; i++) m._cols.push([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]]); }
+  return m._cols;
+}
+// quão espelhada é a parede em volta (0 = fosca, 1 = inox polido): paredes brilhantes têm pontos de luz bem acima da média
+function wallGloss(p, c) {
+  // olha só a faixa de parede logo abaixo da tela (onde o reflexo apareceria)
+  const s = p.small, k = s.width / p.w, [TL, , BR, BL] = c, hp = dist(TL, BL);
+  const x0 = clamp(Math.floor(Math.min(BL[0], BR[0]) * k), 0, s.width - 1), x1 = clamp(Math.ceil(Math.max(BL[0], BR[0]) * k), x0 + 1, s.width);
+  const y0 = clamp(Math.floor((Math.max(BL[1], BR[1]) + hp * 0.08) * k), 0, s.height - 1), y1 = clamp(Math.ceil((Math.max(BL[1], BR[1]) + hp * 0.9) * k), y0, s.height);
+  if (y1 - y0 < 2) return 0;
+  const d = smallPx(p), L = []; let sat = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * s.width + x) * 4, mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]); L.push(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]); sat += mx ? (mx - mn) / mx : 0; }
+  L.sort((a, b) => a - b); sat /= L.length;
+  const med = Math.max(12, L[L.length >> 1]), hi = L[Math.floor(L.length * 0.96)];
+  // inox: cor quase neutra com faixas de claro e escuro. Parede pintada lisa ou pedra colorida: sem reflexo automático.
+  const metal = clamp((0.36 - sat) / 0.18, 0, 1) * clamp((hi / med - 1.15) / 0.3, 0, 1);
+  return +clamp(Math.max(0.6 * metal, (hi / med - 1.6) / 1.0), 0, 0.85).toFixed(2);
+}
+const wallReflOf = (p, s, c) => s.wallRefl ?? wallGloss(p, c);
+function drawScreenAmbient(g, p, s, c, hpx) {
+  const m = getModel(s.model), [TL, TR, BR, BL] = c, glow = s.glow ?? 0.5, wr = wallReflOf(p, s, c);
+  if (glow > 0.01) {   // luz da tela acesa na parede em volta (um pouco mais embaixo, por causa da inclinação)
+    const cols = artCols(m), lm = mid(TL, BL), rm = mid(TR, BR), gr = g.createLinearGradient(lm[0], lm[1], rm[0], rm[1]);
+    cols.forEach((cc, i) => gr.addColorStop((i + 0.5) / cols.length, `rgb(${cc})`));
+    const cx = (TL[0] + TR[0] + BR[0] + BL[0]) / 4, cy = (TL[1] + TR[1] + BR[1] + BL[1]) / 4;
+    g.save(); g.globalCompositeOperation = 'screen'; g.globalAlpha = clamp(0.55 * glow, 0, 0.9); g.filter = `blur(${Math.max(2, hpx * 0.3)}px)`; g.fillStyle = gr;
+    polyPath(g, c.map(q => [cx + (q[0] - cx) * 1.05, cy + (q[1] - cy) * 1.1 + hpx * 0.07])); g.fill(); g.restore();
+  }
+  if (wr > 0.02) {   // parede brilhante: reflexo espelhado da tela logo abaixo dela, sumindo aos poucos
+    const art = artFor(s), hl = Math.max(1, dist(TL, BL)), len = hpx * 0.85, D = [(BL[0] - TL[0]) / hl * len, (BL[1] - TL[1]) / hl * len];
+    const pts = [BL, BR, [BR[0] + D[0], BR[1] + D[1]], [BL[0] + D[0], BL[1] + D[1]]], pad = Math.ceil(hpx * 0.3);
+    const x0 = Math.floor(Math.min(...pts.map(q => q[0]))) - pad, y0 = Math.floor(Math.min(...pts.map(q => q[1]))) - pad;
+    const w = Math.ceil(Math.max(...pts.map(q => q[0]))) + pad - x0, h = Math.ceil(Math.max(...pts.map(q => q[1]))) + pad - y0;
+    if (w > 2 && h > 2 && w * h < 3e7) {
+      const oc = document.createElement('canvas'); oc.width = w; oc.height = h; const og = oc.getContext('2d');
+      og.setTransform((BR[0] - BL[0]) / art.width, (BR[1] - BL[1]) / art.width, -D[0] / art.height, -D[1] / art.height, BL[0] + D[0] - x0, BL[1] + D[1] - y0);
+      og.imageSmoothingQuality = 'high'; og.drawImage(art, 0, 0);
+      og.setTransform(1, 0, 0, 1, 0, 0); og.globalCompositeOperation = 'destination-in';
+      const bm = mid(BL, BR), fade = og.createLinearGradient(bm[0] - x0, bm[1] - y0, bm[0] + D[0] - x0, bm[1] + D[1] - y0);
+      fade.addColorStop(0, 'rgba(0,0,0,.85)'); fade.addColorStop(0.5, 'rgba(0,0,0,.3)'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+      og.fillStyle = fade; og.fillRect(0, 0, w, h);
+      g.save(); g.globalCompositeOperation = 'screen'; g.globalAlpha = clamp(wr * 0.9, 0, 0.7); g.filter = `blur(${Math.max(1.5, hpx * 0.08)}px)`; g.drawImage(oc, x0, y0); g.restore();
+    }
+  }
+}
 function drawScreen(g, p, s, quick) {
   const c = screenCorners(p, s);
   if (quick) { g.beginPath(); c.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.closePath(); g.fillStyle = 'rgba(20,20,22,.85)'; g.fill(); g.strokeStyle = '#f7931e'; g.lineWidth = Math.max(1, p.w * 0.002); g.stroke(); return; }
@@ -813,6 +875,8 @@ function drawScreen(g, p, s, quick) {
     g.filter = `blur(${Math.max(0.8, hpx * 0.012)}px)`; g.fillStyle = `rgba(0,0,0,${clamp(dens * 0.6, 0, 0.8)})`;
     quad(hpx * 0.006, 1.004); g.fill(); g.restore();
   }
+  if (isTela) drawScreenAmbient(g, p, s, c, hpx);
+  const env = envPixels(p), eks = env.w / p.w, ecx = (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, ecy = (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4, rf = [0, 0, 0];
   const xs = c.map(q => q[0]), ys = c.map(q => q[1]);
   const x0 = Math.max(0, Math.floor(Math.min(...xs)) - 1), x1 = Math.min(p.w, Math.ceil(Math.max(...xs)) + 1);
   const y0 = Math.max(0, Math.floor(Math.min(...ys)) - 1), y1 = Math.min(p.h, Math.ceil(Math.max(...ys)) + 1);
@@ -832,11 +896,18 @@ function drawScreen(g, p, s, quick) {
       n++;
       const fx = u * (tw - 1), fy = v * (th - 1), ix = Math.min(tw - 2, fx | 0), iy = Math.min(th - 2, fy | 0), ax = fx - ix, ay = fy - iy;
       const k00 = (iy * tw + ix) * 4, k10 = k00 + 4, k01 = k00 + tw * 4, k11 = k01 + 4;
-      const gl = s.gloss * Math.max(0, 1 - Math.abs(u * 0.8 + v * 0.55 - 0.6) * 3.2) * 38;
+      // vidro da tela: reflete o ambiente da foto (espelhado e desfocado) + um leve brilho vindo de cima
+      let glT = 0;
+      if (s.gloss > 0) {
+        const ex = clamp((ecx + (0.5 - u) * wpx * 1.9) * eks, 0, env.w - 1.001), ey = clamp((ecy + (v - 0.5) * hpx * 1.9 + hpx * 1.1) * eks, 0, env.h - 1.001);
+        const ix2 = ex | 0, iy2 = ey | 0, fx2 = ex - ix2, fy2 = ey - iy2, e0 = (iy2 * env.w + ix2) * 4, e1 = e0 + 4, e2 = e0 + env.w * 4, e3 = e2 + 4, ed = env.d;
+        for (let ch = 0; ch < 3; ch++) rf[ch] = s.gloss * 0.24 * ((ed[e0 + ch] * (1 - fx2) + ed[e1 + ch] * fx2) * (1 - fy2) + (ed[e2 + ch] * (1 - fx2) + ed[e3 + ch] * fx2) * fy2);
+        glT = s.gloss * 16 * (1 - v) * (1 - v);
+      } else rf[0] = rf[1] = rf[2] = 0;
       const al = ((td[k00 + 3] * (1 - ax) + td[k10 + 3] * ax) * (1 - ay) + (td[k01 + 3] * (1 - ax) + td[k11 + 3] * ax) * ay) / 255;
       for (let ch = 0; ch < 3; ch++) {
         const val = (td[k00 + ch] * (1 - ax) + td[k10 + ch] * ax) * (1 - ay) + (td[k01 + ch] * (1 - ax) + td[k11 + ch] * ax) * ay;
-        const o = (val * br + gl) * al + d[kb + ch] * (1 - al);
+        const o = (val * br + rf[ch] + glT) * al + d[kb + ch] * (1 - al);
         if (ch === 0) r += o; else if (ch === 1) gg += o; else b += o;
       }
     }
@@ -1423,6 +1494,7 @@ function render() {
     for (const it of cur.items) if (it.type === 'screen') drawScreen(ctx, cur, it, fast);
   }
   for (const it of cur.items) if (it.type === 'mark') drawMark(ctx, cur, it);
+  if (!fast) scheduleSave();
   drawOverlay();
 }
 // durante arrastes e teclas seguradas: no máximo um desenho por quadro, em modo rápido (evita travar)
@@ -1451,8 +1523,8 @@ const clampPt = v => [clamp(v[0], 0, cur.w), clamp(v[1], 0, cur.h)];
 function getHandles() {
   const H = []; if (!cur) return H;
   if (cur.calib && curTab === 'medida' && !tool.startsWith('meas') && !asking) {
-    cur.calib.wl.forEach((q, i) => H.push({pt: q, kind: 'w', set: v => changeCalib(cur, c => { c.wl[i] = v; })}));
-    if (cur.calib.hl) cur.calib.hl.forEach((q, i) => H.push({pt: q, kind: 'h', set: v => changeCalib(cur, c => { c.hl[i] = v; })}));
+    cur.calib.wl.forEach((q, i) => H.push({pt: q, kind: 'w', set: v => changeCalib(cur, c => { c.wl[i] = edgeSnap(v, 'x'); })}));
+    if (cur.calib.hl) cur.calib.hl.forEach((q, i) => H.push({pt: q, kind: 'h', set: v => changeCalib(cur, c => { c.hl[i] = edgeSnap(v, 'y'); })}));
   }
   if (sel && (sel.type === 'screen' || (sel.type === 'box' && sel.kind === 'rack')) && cur.calib) screenResizeHandles(sel).forEach(h => H.push(h));
   if (sel && sel.type === 'can' && cur.calib) canPtsImg(cur, sel).forEach((q, i) => { if (sel.link && i === 0) return; H.push({pt: q, set: v => { const x = sel.pts[i][0]; sel.pts[i] = toPlane(cur, v); if (sel.link) { sel.pts[i][0] = x; sel.toCeil = false; } }}); });
@@ -1512,7 +1584,20 @@ function drawOverlay() {
     if (f) levelLine(f, '#22b14c', 'piso'); if (t) levelLine(t, '#b06cff', 'teto');
   }
   if (pendLine) measLine(pendLine.a, pendLine.b, pendLine.kind === 'measW' ? '#2f80ff' : '#ef3b3b', '');
-  if (pending.length && tool.startsWith('meas')) measLine(pending[0], mouse ? measSnap(mouse) : pending[0], tool === 'measW' ? '#2f80ff' : '#ef3b3b', '');
+  if (pending.length && tool.startsWith('meas')) measLine(pending[0], mouse ? measSnap(edgeSnap(mouse, measAxis(tool))) : pending[0], tool === 'measW' ? '#2f80ff' : '#ef3b3b', '');
+  if (mouse && !asking && tool.startsWith('meas')) {   // mostra onde a ponta vai grudar
+    const ax = measAxis(tool), sp = edgeSnap(mouse, ax);
+    if (sp[0] !== mouse[0] || sp[1] !== mouse[1]) { const s0 = P(sp); octx.strokeStyle = '#38bdf8'; octx.lineWidth = 2.5; octx.beginPath(); if (ax === 'x') { octx.moveTo(s0[0], s0[1] - 16); octx.lineTo(s0[0], s0[1] + 16); } else { octx.moveTo(s0[0] - 16, s0[1]); octx.lineTo(s0[0] + 16, s0[1]); } octx.stroke(); }
+  }
+  if (c && (curTab === 'medida' || tool === 'check')) {
+    for (const k of cur.checks || []) ruler(k.a, k.b, '#0ea5a4', cm(checkCm(k.a, k.b)) + ' cm');
+    if (tool === 'check' && pending.length && mouse) { const b = checkSnap(mouse); ruler(pending[0], b, '#0ea5a4', cm(checkCm(pending[0], b)) + ' cm'); }
+  }
+  for (const gd of guides) {   // guias de alinhamento ao arrastar
+    const vert = gd.x != null, A = vert ? P([toImg(cur, [gd.x, 0])[0], 0]) : P([0, toImg(cur, [0, gd.y])[1]]), B = vert ? P([toImg(cur, [gd.x, 0])[0], cur.h]) : P([cur.w, toImg(cur, [0, gd.y])[1]]);
+    octx.strokeStyle = '#ff4fd8'; octx.lineWidth = 1.5; octx.setLineDash([6, 4]); octx.beginPath(); octx.moveTo(A[0], A[1]); octx.lineTo(B[0], B[1]); octx.stroke(); octx.setLineDash([]);
+    if (gd.label) tag(vert ? A[0] : A[0] + 60, vert ? A[1] + 16 : A[1], gd.label, '#c026a8');
+  }
   if (c && tool === 'place' && pending.length) {
     const end = mouse ? [mouse[0], pending[0][1]] : pending[0];
     ruler(pending[0], end, '#f7931e', cm(Math.abs(toPlane(cur, end)[0] - toPlane(cur, pending[0])[0])) + ' cm', true);
@@ -1560,7 +1645,7 @@ function drawOverlay() {
     octx.fillStyle = '#ffd23f'; octx.strokeStyle = '#000'; octx.lineWidth = 1; octx.beginPath(); octx.rect(s[0] - 4.5, s[1] - 4.5, 9, 9); octx.fill(); octx.stroke();
   }
   // lupa nos cliques de precisão
-  if (mouse && !asking && (tool.startsWith('meas') || ['place', 'can', 'canup', 'pipe', 'curva', 'cond', 'rack'].includes(tool) || (drag && drag.kind === 'handle'))) {
+  if (mouse && !asking && (tool.startsWith('meas') || ['place', 'can', 'canup', 'pipe', 'curva', 'cond', 'rack', 'check'].includes(tool) || (drag && drag.kind === 'handle'))) {
     const R = 58, Z = 4, m = P(mouse); let lx = m[0] + 22, ly = m[1] + 22;
     if (lx + 2 * R > css.W) lx = m[0] - 22 - 2 * R; if (ly + 2 * R > css.H) ly = m[1] - 22 - 2 * R;
     const sw = (2 * R / Z) / sc;
@@ -1608,11 +1693,12 @@ ov.addEventListener('wheel', e => {
   window.addEventListener('mouseup', e => { if (e.button === 1) pan = null; }); }
 
 /* ---------------- fotos e arquivos editáveis ---------------- */
-function addPhoto(img, name, blob) {
+function addPhoto(img, name, blob, id) {
   const small = document.createElement('canvas'), k = 256 / img.naturalWidth;
   small.width = 256; small.height = Math.max(1, Math.round(img.naturalHeight * k));
   small.getContext('2d', {willReadFrequently: true}).drawImage(img, 0, 0, small.width, small.height);
-  const p = {name, img, blob, w: img.naturalWidth, h: img.naturalHeight, small, thumb: small.toDataURL('image/jpeg', 0.7), calib: null, items: [], undo: [], exported: false};
+  const p = {name, img, blob, w: img.naturalWidth, h: img.naturalHeight, small, thumb: small.toDataURL('image/jpeg', 0.7), calib: null, items: [], undo: [], redo: [], checks: [], exported: false, id: id || newId()};
+  if (!id && blob) idb.set('sess:b:' + p.id, blob);   // a foto fica guardada para a sessão voltar depois
   photos.push(p); return p;
 }
 async function openProject(file) {
@@ -1656,7 +1742,7 @@ function selectPhoto(p) {
 function removePhoto(p) {
   if (p.items.length && !confirm(`Remover "${p.name}"? A simulação dessa foto será perdida (a menos que você já tenha baixado o arquivo editável).`)) return;
   const i = photos.indexOf(p); if (i < 0) return;
-  photos.splice(i, 1);
+  photos.splice(i, 1); idb.del('sess:b:' + p.id);
   if (cur === p) {
     const next = photos[i] || photos[i - 1];
     if (next) selectPhoto(next);
@@ -1664,7 +1750,40 @@ function removePhoto(p) {
   }
   renderList();
 }
+/* Sessão salva sozinha: fotos abertas e tudo o que foi colocado voltam ao reabrir o app (ou depois de atualizar). */
+let saveTimer = 0, restoring = false;
+function scheduleSave() {
+  if (restoring) return; clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => idb.set('session', {v: 1, cur: photos.indexOf(cur), photos: photos.map(p => ({id: p.id, name: p.name, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, exported: p.exported, checks: p.checks}))}), 700);
+}
+async function restoreSession() {
+  const s = await idb.get('session'); if (!s || !Array.isArray(s.photos) || !s.photos.length) return false;
+  restoring = true;
+  for (const m of s.photos) {
+    try {
+      const blob = await idb.get('sess:b:' + m.id); if (!blob) continue;
+      const p = addPhoto(await loadImg(URL.createObjectURL(blob)), m.name, blob, m.id);
+      p.calib = m.calib || null; p.items = m.items || []; p.lightAuto = m.lightAuto; p.lightAngle = m.lightAngle; p.exported = !!m.exported; p.checks = m.checks || [];
+      if (p.calib && p.calib.wl) { if (p.calib.pts) changeCalib(p, () => {}); else rebuildCalib(p); }
+    } catch (e) {}
+  }
+  restoring = false;
+  if (!photos.length) return false;
+  selectPhoto(photos[clamp(s.cur | 0, 0, photos.length - 1)]); renderList();
+  flash(`Sessão anterior restaurada: ${photos.length} foto${photos.length > 1 ? 's' : ''}. Para começar do zero, use a lixeira no topo.`);
+  return true;
+}
+function closeAll() {
+  if (!photos.length) return;
+  const pend = photos.filter(p => p.items.length && !p.exported).length;
+  if (!confirm(pend ? `Fechar todas as fotos? ${pend} ainda não ${pend > 1 ? 'foram baixadas' : 'foi baixada'} e ${pend > 1 ? 'serão perdidas' : 'será perdida'}.` : 'Fechar todas as fotos?')) return;
+  for (const p of photos) idb.del('sess:b:' + p.id);
+  photos.length = 0; cur = null; sel = null; pending = []; clip = null;
+  ['#wrap', '#ov', '#zoomCtl'].forEach(id => $(id).classList.add('hide')); $('#drop').classList.remove('hide');
+  drawOverlay(); refreshUI(); renderList();
+}
 function renderList() {
+  scheduleSave();
   const box = $('#photos'); box.innerHTML = '';
   photos.forEach(p => {
     const d = document.createElement('button'); d.className = 'thumb' + (p === cur ? ' sel' : ''); d.title = p.name;
@@ -1675,6 +1794,7 @@ function renderList() {
   });
 }
 $('#bOpen').onclick = () => $('#fOpen').click();
+$('#bCloseAll').onclick = closeAll;
 $('#drop').onclick = () => $('#fOpen').click();
 $('#fOpen').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
 const sbox = $('#stagebox');
@@ -1683,10 +1803,17 @@ sbox.addEventListener('dragleave', () => $('#drop').classList.remove('over'));
 sbox.addEventListener('drop', e => { e.preventDefault(); $('#drop').classList.remove('over'); loadFiles(e.dataTransfer.files); });
 
 /* ---------------- desfazer ---------------- */
-function pushUndo() { if (!cur) return; cur.undo.push(JSON.stringify({calib: cur.calib, items: cur.items})); if (cur.undo.length > 60) cur.undo.shift(); }
+function pushUndo(keepRedo) { if (!cur) return; cur.undo.push(JSON.stringify({calib: cur.calib, items: cur.items})); if (cur.undo.length > 60) cur.undo.shift(); if (!keepRedo) cur.redo = []; }
 function undo() {
   if (!cur || !cur.undo.length) return; endAsk(false);
+  (cur.redo = cur.redo || []).push(JSON.stringify({calib: cur.calib, items: cur.items}));
   const s = JSON.parse(cur.undo.pop()); cur.calib = s.calib; cur.items = s.items; sel = null; pending = []; pendLine = null;
+  tool = toolForTab(curTab); render(); refreshUI();
+}
+function redo() {
+  if (!cur || !cur.redo || !cur.redo.length) return; endAsk(false);
+  cur.undo.push(JSON.stringify({calib: cur.calib, items: cur.items}));
+  const s = JSON.parse(cur.redo.pop()); cur.calib = s.calib; cur.items = s.items; sel = null; pending = []; pendLine = null;
   tool = toolForTab(curTab); render(); refreshUI();
 }
 $('#bUndo').onclick = undo;
@@ -1717,6 +1844,28 @@ function endAsk(ok) { if (!asking) return; const a = asking; asking = null; $('#
 $('#askIn').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') endAsk(true); if (e.key === 'Escape') endAsk(false); });
 $('#askIn').addEventListener('blur', () => setTimeout(() => endAsk(true), 0));
 
+// Encaixe nas bordas: perto de uma quina (parede, teto, piso), o ponto gruda na borda mais forte. Alt desliga.
+function edgeSnap(pt, axis) {
+  if (!cur || window.__alt) return pt;
+  const od = origPixels(cur), W = cur.w, H = cur.h, zs = Math.max(css.sc, 25 / W), tol = Math.max(3, Math.round(10 / zs)), w = Math.max(2, Math.round(1.5 / zs)), band = Math.max(2, Math.round(4 / zs)), st = Math.max(1, band >> 1);
+  const Lm = (x, y) => { const k = (clamp(y, 0, H - 1) * W + clamp(x, 0, W - 1)) * 4; return 0.2126 * od[k] + 0.7152 * od[k + 1] + 0.0722 * od[k + 2]; };
+  const bx = Math.round(pt[0]), by = Math.round(pt[1]); let best = 0, bi = null;
+  for (let dd = -tol; dd <= tol; dd++) {
+    let a = 0, b = 0, n = 0;
+    for (let t = -band; t <= band; t += st) for (let j = 0; j < w; j++) {
+      if (axis === 'x') { a += Lm(bx + dd + j, by + t); b += Lm(bx + dd - 1 - j, by + t); } else { a += Lm(bx + t, by + dd + j); b += Lm(bx + t, by + dd - 1 - j); }
+      n++;
+    }
+    const sc = Math.abs(a - b) / n * (1 - 0.45 * Math.abs(dd) / tol);
+    if (sc > best) { best = sc; bi = dd; }
+  }
+  if (bi == null || best < 18) return pt;
+  return axis === 'x' ? [bx + bi, pt[1]] : [pt[0], by + bi];
+}
+const measAxis = t => (t === 'measW' ? 'x' : 'y');
+// régua de conferência: mede qualquer coisa na foto, em cm (não sai no PNG)
+const checkCm = (a, b) => dist(toPlane(cur, a), toPlane(cur, b));
+function checkSnap(pt) { if (!window.__shift || !pending.length) return pt; const a = pending[0]; return Math.abs(pt[0] - a[0]) > Math.abs(pt[1] - a[1]) ? [pt[0], a[1]] : [a[0], pt[1]]; }
 function measSnap(pt) { if (!window.__shift || !pending.length) return pt; const a = pending[0]; return tool === 'measH' ? [a[0], pt[1]] : [pt[0], a[1]]; }
 function canSnap(pt) { // ponto no plano da parede; Shift trava em 90°
   let q = toPlane(cur, pt);
@@ -1847,7 +1996,7 @@ function hitTest(pt, only) {
   return null;
 }
 function startMove(it, pt) {
-  sel = it; pushUndo();
+  sel = it; pushUndo(true);
   curTab = it.type === 'mark' ? 'marcacao' : it.type === 'screen' ? 'elem' : it.type === 'can' ? 'canaleta' : 'infra';
   drag = {kind: 'move', it, start: pt, startPl: cur.calib ? toPlane(cur, pt) : null, orig: clone(it), moved: false};
 }
@@ -1858,15 +2007,16 @@ ov.addEventListener('mousedown', e => {
   if (asking) { endAsk(true); return; }
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const pt = evPt(e); mouse = pt;
-  const precise = tool.startsWith('meas') || tool === 'can' || tool === 'pipe' || tool === 'canup' || (tool === 'place' && pending.length);
+  const precise = tool === 'check' || tool.startsWith('meas') || tool === 'can' || tool === 'pipe' || tool === 'canup' || (tool === 'place' && pending.length);
   if (!precise) {
     let h = null, best = 9 / css.sc;
     for (const c of getHandles()) { const dd = dist(c.pt, pt); if (dd < best) { best = dd; h = c; } }
     if (h) { pushUndo(); drag = {kind: 'handle', h}; return; }
   }
   if (tool === 'measW' || tool === 'measH') {
-    if (!pending.length) { pending = [pt]; refreshUI(); drawOverlay(); return; }
-    const a = pending[0], b = measSnap(pt), kind = tool; pending = [];
+    const sp = edgeSnap(pt, measAxis(tool));
+    if (!pending.length) { pending = [sp]; refreshUI(); drawOverlay(); return; }
+    const a = pending[0], b = measSnap(sp), kind = tool; pending = [];
     if (dist(a, b) * css.sc < 8) { refreshUI(); drawOverlay(); return; }
     pendLine = {a, b, kind};
     const c0 = cur.calib, prev = kind === 'measW' ? (c0 ? c0.wcm : '') : (c0 && c0.hl ? c0.hcm : '');
@@ -1886,10 +2036,16 @@ ov.addEventListener('mousedown', e => {
     return;
   }
   if (tool === 'measFloor' || tool === 'measCeil') {
-    pushUndo(); changeCalib(cur, c => { if (tool === 'measFloor') { c.floor = pt; c.noFloor = false; } else { c.ceil = pt; c.noCeil = false; } });
+    pushUndo(); const sp = edgeSnap(pt, 'y'); changeCalib(cur, c => { if (tool === 'measFloor') { c.floor = sp; c.noFloor = false; } else { c.ceil = sp; c.noCeil = false; } });
     tool = 'select'; render();
     if (floorImg(cur) && ceilImg(cur) && !screensOf(cur).length) { goTab('elem'); return; }
     refreshUI(); return;
+  }
+  if (tool === 'check') {
+    if (!cur.calib) { flash('Marque a medida da parede primeiro.'); return; }
+    if (!pending.length) { pending = [pt]; drawOverlay(); refreshChrome(); return; }
+    const b = checkSnap(pt); if (dist(pending[0], b) * css.sc > 4) cur.checks.push({a: pending[0], b});
+    pending = []; scheduleSave(); refreshUI(); drawOverlay(); return;
   }
   if (tool === 'place') {
     if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; }
@@ -1916,7 +2072,7 @@ ov.addEventListener('mousedown', e => {
   render(); refreshUI();
 });
 window.addEventListener('mousemove', e => {
-  window.__shift = e.shiftKey;
+  window.__shift = e.shiftKey; window.__alt = e.altKey;
   if (!cur) return;
   const r = ov.getBoundingClientRect(), inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom, pt = evPt(e);
   mouse = inside || drag ? pt : null;
@@ -1924,7 +2080,7 @@ window.addEventListener('mousemove', e => {
   if (drag.kind === 'handle') { drag.h.set(pt); drag.h.pt = pt; fast = true; requestRender(); return; }
   if (drag.kind === 'mark') { pending[1] = clampPt(pt); drawOverlay(); return; }
   if (drag.kind === 'move') {
-    const it = drag.it, o = drag.orig; drag.moved = true;
+    const it = drag.it, o = drag.orig; if (!drag.moved) cur.redo = []; drag.moved = true;
     if (it.type === 'mark') {
       let dx = pt[0] - drag.start[0], dy = pt[1] - drag.start[1];
       dx = clamp(dx, -Math.min(o.r[0], o.r[2]), cur.w - Math.max(o.r[0], o.r[2])); dy = clamp(dy, -Math.min(o.r[1], o.r[3]), cur.h - Math.max(o.r[1], o.r[3]));
@@ -1934,6 +2090,7 @@ window.addEventListener('mousemove', e => {
       if (window.__shift) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }   // Shift: só na horizontal ou na vertical
       if (it.type === 'screen' || it.type === 'box') { it.x = +(o.x + dx).toFixed(2); it.y = +(o.y + dy).toFixed(2); it.auto = false; }
       if ((it.type === 'can' && !it.link) || it.type === 'pipe') it.pts = o.pts.map(v => [v[0] + dx, v[1] + dy]);
+      guides = []; if ((it.type === 'screen' || it.type === 'box') && !window.__shift && !window.__alt) alignSnap(it);
       if (isInfra(it)) { snapHit = null; snapItem(it); }
     }
     fast = true; requestRender();
@@ -1952,7 +2109,7 @@ function endDrag() {
   if (drag.kind === 'move' && !drag.moved) cur.undo.pop();
   if (drag.kind === 'handle' && sel && sel.type === 'box' && sel.kind === 'rack' && defaults.sizeAll !== false)   // racks com o mesmo tamanho
     for (const r of cur.items) if (r !== sel && r.type === 'box' && r.kind === 'rack') { const cx = r.x + r.W / 2; r.W = sel.W; r.H = sel.H; r.x = +(cx - r.W / 2).toFixed(2); }
-  snapHit = null;
+  snapHit = null; guides = [];
   drag = null; fast = false; render(); refreshUI();
 }
 window.addEventListener('mouseup', endDrag);
@@ -1975,6 +2132,43 @@ function deleteSel() {
   const gone = sel; cur.items = cur.items.filter(i => i !== gone && !(gone.type === 'screen' && i.type === 'can' && i.link === gone.id));
   sel = null; tool = toolForTab(curTab); render(); refreshUI();
 }
+// copiar e colar (Ctrl+C / Ctrl+V), inclusive de uma foto para outra: cai na mesma posição relativa da foto
+let clip = null, guides = [];
+function copySel() {
+  if (!sel || !cur || sel.type === 'meas') return;
+  const lc = sel.type === 'screen' ? cur.items.find(i => i.type === 'can' && i.link === sel.id) : null;
+  clip = {it: clone(sel), src: cur, can: lc ? clone(lc) : null};
+  flash(`Copiado: ${itemName(sel)}. Aperte Ctrl+V aqui ou em outra foto.`);
+}
+function pasteClip() {
+  if (!clip || !cur) return;
+  const src = clip.src, it = clone(clip.it), same = src === cur;
+  if (it.type !== 'mark' && !cur.calib) { flash('Marque a medida nesta foto antes de colar.'); return; }
+  const map = q => { if (same || !src.calib) return q; const i = toImg(src, q); return toPlane(cur, [i[0] / src.w * cur.w, i[1] / src.h * cur.h]); };
+  pushUndo(); if (it.id) it.id = newId();
+  if (it.type === 'mark') { const fx = cur.w / src.w, fy = cur.h / src.h, d = same ? 30 : 0; it.r = [it.r[0] * fx + d, it.r[1] * fy + d, it.r[2] * fx + d, it.r[3] * fy + d]; }
+  else if (it.type === 'screen' || it.type === 'box') {
+    const c = same ? [it.x + it.W * 1.5 + 10, it.y + it.H / 2] : map([it.x + it.W / 2, it.y + it.H / 2]);
+    it.x = +(c[0] - it.W / 2).toFixed(2); it.y = +(c[1] - it.H / 2).toFixed(2); it.auto = false; it.glued = false; delete it.region; delete it.regionY;
+    if (it.type === 'screen' && !same && it.base != null && floorPlaneY(cur) != null) { it.region = [c[0], c[0]]; it.regionY = c[1]; it.auto = true; autoPlace(cur, it); }   // respeita a base nesta foto
+  } else { it.pts = same ? it.pts.map(v => [v[0] + 15, v[1]]) : it.pts.map(map); delete it.link; delete it.toCeil; }
+  cur.items.push(it);
+  if (it.type === 'screen' && clip.can) { const nc = canFor(it, null, true); nc.width = clip.can.width; nc.color = clip.can.color; cur.items.push(nc); }
+  sel = it; tool = 'select'; curTab = it.type === 'mark' ? 'marcacao' : it.type === 'screen' ? 'elem' : it.type === 'can' ? 'canaleta' : 'infra';
+  render(); refreshUI();
+}
+// guias de alinhamento: ao arrastar tela, rack ou condulete, gruda no centro da medida e nas bordas/centros dos outros
+function alignSnap(it) {
+  const c = cur.calib, tx = 6 / css.sc / pxPerCm(cur), ty = 6 / css.sc / ((c.pts[3][1] - c.pts[0][1]) / c.h);
+  const xs = [[c.w / 2, 'centro da medida']], ys = [];
+  if (it.region && it.region[1] - it.region[0] > 1) xs.push([(it.region[0] + it.region[1]) / 2, 'centro do local']);
+  for (const o of cur.items) { if (o === it || (o.type !== 'screen' && o.type !== 'box')) continue; xs.push([o.x], [o.x + o.W / 2], [o.x + o.W]); ys.push([o.y], [o.y + o.H / 2], [o.y + o.H]); }
+  let bx = null, by = null;
+  for (const [v, lb] of xs) for (const m of [it.x, it.x + it.W / 2, it.x + it.W]) { const d = v - m; if (Math.abs(d) < tx && (!bx || Math.abs(d) < Math.abs(bx[0]))) bx = [d, v, lb]; }
+  for (const [v] of ys) for (const m of [it.y, it.y + it.H / 2, it.y + it.H]) { const d = v - m; if (Math.abs(d) < ty && (!by || Math.abs(d) < Math.abs(by[0]))) by = [d, v]; }
+  if (bx) { it.x = +(it.x + bx[0]).toFixed(2); guides.push({x: bx[1], label: bx[2]}); }
+  if (by) { it.y = +(it.y + by[0]).toFixed(2); guides.push({y: by[1]}); }
+}
 function duplicateSel() {
   if (!sel || !cur || sel.type === 'meas') return;
   pushUndo(); const c = clone(sel); if (c.id) c.id = newId();
@@ -1993,11 +2187,14 @@ window.addEventListener('keydown', e => {
   window.__shift = e.shiftKey;
   if (e.key === 'Shift' && cur) drawOverlay();
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (!typing) { e.preventDefault(); undo(); } return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (!typing) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); } return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { if (!typing) { e.preventDefault(); redo(); } return; }
   if (e.key === 'Escape' && typing && document.activeElement !== $('#askIn') && cur && !$('#dlg').open) { document.activeElement.blur(); escapeAll(); return; }
   if (typing || !cur || $('#dlg').open) return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); duplicateSel(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 'c') { copySel(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 'v') { e.preventDefault(); pasteClip(); return; }
   if ((e.ctrlKey || e.metaKey) && k === '0') { e.preventDefault(); setZoom(1); return; }
   if (k === 'v' && !e.ctrlKey && !e.metaKey) { setTool('select'); return; }
   if (k === 'r' && !e.ctrlKey && !e.metaKey) { rotateSel(e.shiftKey); return; }
@@ -2033,6 +2230,7 @@ function hintHtml() {
     case 'measW': return `<b>Largura</b>: clique no ${ini} de algo com medida conhecida (parede, porta) · <kbd>Shift</kbd> reta`;
     case 'measH': return `<b>Altura</b>: clique no ${ini}, do teto ao piso · <kbd>Shift</kbd> reta · <kbd>Esc</kbd> pula`;
     case 'measFloor': return 'Clique no <b>piso</b>, rente à parede';
+    case 'check': return `<b>Régua</b>: clique no ${ini} do que quer medir · <kbd>Shift</kbd> reta · <kbd>Esc</kbd> sai`;
     case 'measCeil': return 'Clique no <b>teto</b>, rente à parede';
     case 'place': return !cur.calib ? 'Marque a <b>medida</b> da parede primeiro' : pending.length ? 'Clique no <b>fim</b> do local (ou no mesmo ponto para centralizar ali)' : `<b>${models.length ? getModel(defaults.model).name : ''}</b>: clique no início do local onde vai ficar (ex.: um lado da parede)`;
     case 'canup': return 'Clique na altura onde a <b>canaleta</b> termina (teto)';
@@ -2042,7 +2240,7 @@ function hintHtml() {
     case 'cond': return 'Clique onde vai cada <b>condulete</b> · <kbd>Esc</kbd> sai';
     case 'rack': return 'Clique onde fica o centro do <b>rack</b>';
     case 'mark': return `Arraste sobre o item para marcar <b>${labelText() || 'texto livre'}</b>`;
-    default: return sel ? '<b>Selecionar</b> · arraste para mover · quadradinhos ajustam · <kbd>Del</kbd> remove · <kbd>Ctrl</kbd>+<kbd>D</kbd> duplica' : '<b>Selecionar</b> · clique em um elemento para selecionar · <kbd>Esc</kbd> cancela qualquer ação · <kbd>Alt</kbd> + rolagem: zoom';
+    default: return sel ? '<b>Selecionar</b> · arraste para mover (<kbd>Alt</kbd> solta as guias) · quadradinhos ajustam · <kbd>Del</kbd> remove · <kbd>Ctrl</kbd>+<kbd>D</kbd> duplica' : '<b>Selecionar</b> · clique em um elemento para selecionar · <kbd>Esc</kbd> cancela qualquer ação · <kbd>Alt</kbd> + rolagem: zoom';
   }
 }
 function refreshChrome() {
@@ -2099,6 +2297,8 @@ function refreshUI() {
   for (const [el, has, key] of [['#floorTxt', fl, 'floor'], ['#ceilTxt', ce, 'ceil']])
     $(el).innerHTML = !has ? '—' : `<span style="color:#3ccf6e;font-weight:600">✓ marcado</span>${cb[key] ? '' : ' (pela altura)'}`;
   $('#bDelH').classList.toggle('hide', !(cb && cb.hl));
+  { const nR = cur && cur.checks ? cur.checks.length : 0, br = $('#bRuler'); br.disabled = !cb; br.style.opacity = cb ? '' : '.45'; br.classList.toggle('on', tool === 'check'); br.textContent = tool === 'check' ? 'Medindo…' : 'Medir';
+    $('#rulerTxt').textContent = nR ? `${nR} medida${nR > 1 ? 's' : ''}` : '—'; $('#bRulerClr').classList.toggle('hide', !nR); }
   $('#calProg').innerHTML = !cur ? '' : !cb ? 'Marque a <b>largura</b> de algo conhecido na parede. O app pergunta a medida na hora.'
     : !fl ? 'Falta o <b>piso</b>: marque a altura (do teto ao piso) ou clique em Piso → Marcar.' : 'Pronto. Use a aba <b>Elementos</b> para colocar a tela.';
   if (cb && cb.hl) {
@@ -2130,7 +2330,8 @@ function refreshUI() {
     $('#sSoft').value = so.shadowSoft ?? 1; $('#sSoftVal').textContent = cm(so.shadowSoft ?? 1);
     $('#sAuto').checked = so.bright == null; $('#sBright').disabled = so.bright == null;
     $('#sBright').value = so.bright == null ? autoBright(cur, screenCorners(cur, so)) : so.bright;
-    $('#sGloss').value = so.gloss; $('#sNoise').value = so.noise;
+    $('#sGloss').value = so.gloss; $('#sNoise').value = so.noise; $('#sGlow').value = so.glow ?? 0.5;
+    { const wv = wallReflOf(cur, so, screenCorners(cur, so)); $('#sWall').value = wv; $('#sWallVal').textContent = so.wallRefl == null ? 'auto' : Math.round(wv * 100) + '%'; $('#bWallAuto').classList.toggle('hide', so.wallRefl == null); }
     $('#lAuto').checked = cur.lightAuto !== false; drawDial();
   }
   // canaleta
@@ -2189,7 +2390,7 @@ function refreshUI() {
   if (sel) $('#pillTxt').textContent = sel.type === 'meas' ? {w: 'Largura', h: 'Altura', floor: 'Piso', ceil: 'Teto'}[sel.which] + ' selecionado(a)'
     : itemName(sel) + ' · selecionado';
   $('#bDup').classList.toggle('hide', !!(sel && sel.type === 'meas'));
-  $('#bExportAll').classList.toggle('hide', photos.length < 2);
+  $('#bExportAll').classList.toggle('hide', photos.length < 2); $('#bCloseAll').classList.toggle('hide', !photos.length);
   renderLayers();
 }
 // nome legível de cada item (lista "Nesta foto" e seleção)
@@ -2221,6 +2422,8 @@ $('#bMeasW').onclick = () => { if (!cur) return; endAsk(false); sel = null; setT
 $('#bMeasH').onclick = () => { if (!cur || !cur.calib) return; endAsk(false); sel = null; setTool('measH'); render(); };
 $('#bFloor').onclick = () => { if (!cur || !cur.calib) return; sel = null; setTool('measFloor'); render(); };
 $('#bCeil').onclick = () => { if (!cur || !cur.calib) return; sel = null; setTool('measCeil'); render(); };
+$('#bRuler').onclick = () => { if (!cur || !cur.calib) return; endAsk(false); sel = null; setTool(tool === 'check' ? 'select' : 'check'); render(); };
+$('#bRulerClr').onclick = () => { if (!cur) return; cur.checks = []; scheduleSave(); refreshUI(); drawOverlay(); };
 $('#bDelH').onclick = () => { if (!cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hl = null; }); render(); refreshUI(); };
 $('#calW').addEventListener('change', () => { const v = +$('#calW').value; if (!(v > 0) || !cur || !cur.calib) return; pushUndo(); changeCalib(cur, c => { c.wcm = v; }); render(); refreshUI(); });
 $('#calH').addEventListener('change', () => { const v = +$('#calH').value; if (!(v > 0) || !cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hcm = v; }); render(); refreshUI(); });
@@ -2244,7 +2447,8 @@ function bindSlider(id, key, fmt) {
   });
 }
 bindSlider('#sTilt', 'tilt', v => v + '°'); bindSlider('#sShadow', 'shadow', v => Math.round(v * 100) + '%'); bindSlider('#sDist', 'shadowDist', cm); bindSlider('#sSoft', 'shadowSoft', cm);
-bindSlider('#sBright', 'bright'); bindSlider('#sGloss', 'gloss'); bindSlider('#sNoise', 'noise');
+bindSlider('#sBright', 'bright'); bindSlider('#sGloss', 'gloss'); bindSlider('#sNoise', 'noise'); bindSlider('#sGlow', 'glow'); bindSlider('#sWall', 'wallRefl', v => Math.round(v * 100) + '%');
+$('#bWallAuto').onclick = () => { const s = selScreen(); if (!s) return; pushUndo(); s.wallRefl = null; render(); refreshUI(); };
 $('#sAuto').onchange = () => { const s = selScreen(); if (!s) return; pushUndo(); s.bright = $('#sAuto').checked ? null : +$('#sBright').value; render(); refreshUI(); };
 $('#lAuto').onchange = () => { if (!cur) return; pushUndo(); cur.lightAuto = $('#lAuto').checked; if (!cur.lightAuto) cur.lightAngle = Math.round(autoLightAngle(cur)); render(); refreshUI(); };
 function drawDial() {
@@ -2450,6 +2654,7 @@ fillColors();
   if (document.fonts) document.fonts.load('700 40px Montserrat').then(() => { if (cur) render(); });
   // ?img=a.jpg,b.jpg carrega fotos por URL (para testes)
   const qs = new URLSearchParams(location.search).get('img');
+  if (!qs) await restoreSession();
   if (qs) for (const u of qs.split(',')) { const blob = await (await fetch(u)).blob(), p = addPhoto(await loadImg(URL.createObjectURL(blob)), u.split('/').pop(), blob); if (!cur) selectPhoto(p); renderList(); }
 })();
 </script>

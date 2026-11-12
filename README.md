@@ -8,8 +8,11 @@ Com ele dá para:
 - colocar uma ou mais **telas** em locais diferentes (arte e tamanho configuráveis na engrenagem ⚙), cada uma já com a canaleta até o teto;
 - adicionar a **canaleta** (até o teto ou trajeto livre);
 - montar a **infraestrutura**: rack de parede, eletroduto com curva ou condulete nas mudanças de direção, curva 90° avulsa e condulete;
+- conferir medidas com a **régua** e marcar as linhas com encaixe automático nas bordas;
 - fazer **marcações**: rack existente, objeto a remover, tela a remover ou texto livre;
 - **baixar o PNG**, que vai para `Imagens\Simulações`.
+
+As fotos abertas e a simulação são salvas sozinhas e voltam ao reabrir o app. Atalhos: Ctrl+Z desfaz, Ctrl+Y refaz, Ctrl+C / Ctrl+V copia e cola (inclusive entre fotos), R gira peças de infra, Esc volta para Selecionar.
 
 O app roda 100% no computador. As fotos não são enviadas para lugar nenhum.
 
