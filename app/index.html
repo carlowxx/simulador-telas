@@ -253,6 +253,14 @@ details.fold[open]{padding-bottom:10px}
 #tour p b{color:var(--text)}
 .tstep{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--acc);font-weight:700}
 .tfoot{display:flex;align-items:center;gap:8px}
+/* barras de rolagem discretas, no tom do app */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#30363d;border-radius:8px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#4d5660;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:active{background:var(--acc);border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-button{display:none}
+::-webkit-scrollbar-corner{background:transparent}
 </style>
 </head>
 <body>
@@ -411,7 +419,8 @@ details.fold[open]{padding-bottom:10px}
       <input id="mText" class="txt" placeholder="Texto da marcação">
       <p class="ins" id="mIns"></p>
       <h5 class="sect">Posição do texto</h5>
-      <div class="seg" id="mPos"><button data-pos="top">Em cima</button><button data-pos="bottom">Embaixo</button><button data-pos="left">Esquerda</button><button data-pos="right">Direita</button></div>
+      <div class="seg" id="mPos" style="margin-bottom:8px"><button data-pos="top">Em cima</button><button data-pos="bottom">Embaixo</button><button data-pos="left">Esquerda</button><button data-pos="right">Direita</button></div>
+      <p class="small" style="margin:0 0 4px">Ou <b style="color:var(--text)">arraste o texto na foto</b> para onde quiser: linhas rosa mostram quando ele está alinhado com o retângulo. <span id="mPosFree" class="hide" style="color:var(--acc);font-weight:600">Posição livre em uso; os botões acima voltam às prontas.</span></p>
       <h5 class="sect">Aparência</h5>
       <div class="row sl">Tamanho do texto <span><input type="range" id="mFont" min="0.5" max="2.5" step="0.05"> <b id="mFontVal"></b></span></div>
       <div class="row sl">Tracejado <span><input type="range" id="mScale" min="0.5" max="3" step="0.1"> <b id="mScaleVal"></b></span></div>
@@ -1517,7 +1526,16 @@ function curvaPts(c, d, ori, leg) { const [a, b] = CURVA_DIRS[ori] || CURVA_DIRS
 
 /* ---------------- desenho: marcações ---------------- */
 const MARK_COLOR = '#f7931e';
+const labelBox = new WeakMap();   // onde ficou o texto de cada marca (para arrastar o texto na foto)
+function labelHit(pt) {
+  if (!cur) return null; const tol = 5 / css.sc, its = cur.items;
+  const inB = it => { const b = it.type === 'mark' && it.label && labelBox.get(it); return b && Math.abs(pt[0] - b.cx) <= b.w / 2 + tol && Math.abs(pt[1] - b.cy) <= b.h / 2 + tol; };
+  if (sel && inB(sel)) return sel;
+  for (let i = its.length - 1; i >= 0; i--) if (inB(its[i])) return its[i];
+  return null;
+}
 function drawMark(g, p, s) {
+  labelBox.delete(s);
   const [ax, ay, bx, by] = s.r, x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
   const lw = Math.max(2, p.w * 0.0045) * (s.scale ?? 1), ol = Math.max(1.5, p.w * 0.0016) * (s.outline ?? 1);
   const sidePath = (P, Q) => {
@@ -1539,6 +1557,11 @@ function drawMark(g, p, s) {
     let tx = clamp((x0 + x1) / 2, tw / 2 + 4, p.w - tw / 2 - 4), ty = (y0 + y1) / 2; g.textAlign = 'center'; g.textBaseline = 'middle';
     if (pos === 'top') ty = y0 - gap - fs / 2; else if (pos === 'bottom') ty = y1 + gap + fs / 2;
     else if (pos === 'left') { g.textAlign = 'right'; tx = x0 - gap; } else { g.textAlign = 'left'; tx = x1 + gap; }
+    let bcx = pos === 'left' ? tx - tw / 2 : pos === 'right' ? tx + tw / 2 : tx;
+    if (s.lo) {   // posição livre: deslocamento do centro do texto em relação ao centro do retângulo
+      g.textAlign = 'center'; tx = bcx = clamp((x0 + x1) / 2 + s.lo[0], tw / 2 + 2, p.w - tw / 2 - 2); ty = clamp((y0 + y1) / 2 + s.lo[1], fs / 2 + 2, p.h - fs / 2 - 2);
+    }
+    labelBox.set(s, {cx: bcx, cy: ty, w: tw, h: fs, gap});
     if (ol > 0.05) { g.lineJoin = 'round'; g.lineWidth = ol * 2 + fs * 0.03; g.strokeStyle = '#000'; g.strokeText(s.label, tx, ty); }
     g.fillStyle = MARK_COLOR; g.fillText(s.label, tx, ty);
   }
@@ -1667,7 +1690,7 @@ function drawOverlay() {
     if (tool === 'check' && pending.length && mouse) { const b = checkSnap(mouse); ruler(pending[0], b, '#0ea5a4', cm(checkCm(pending[0], b)) + ' cm'); }
   }
   for (const gd of guides) {   // guias de alinhamento ao arrastar
-    const vert = gd.x != null, A = vert ? P([toImg(cur, [gd.x, 0])[0], 0]) : P([0, toImg(cur, [0, gd.y])[1]]), B = vert ? P([toImg(cur, [gd.x, 0])[0], cur.h]) : P([cur.w, toImg(cur, [0, gd.y])[1]]);
+    const vert = gd.x != null || gd.ix != null, gv = vert ? (gd.ix ?? toImg(cur, [gd.x, 0])[0]) : (gd.iy ?? toImg(cur, [0, gd.y])[1]), A = vert ? P([gv, 0]) : P([0, gv]), B = vert ? P([gv, cur.h]) : P([cur.w, gv]);
     octx.strokeStyle = '#ff4fd8'; octx.lineWidth = 1.5; octx.setLineDash([6, 4]); octx.beginPath(); octx.moveTo(A[0], A[1]); octx.lineTo(B[0], B[1]); octx.stroke(); octx.setLineDash([]);
     if (gd.label) tag(vert ? A[0] : A[0] + 60, vert ? A[1] + 16 : A[1], gd.label, '#c026a8');
   }
@@ -1696,7 +1719,8 @@ function drawOverlay() {
     if (sel.type === 'screen' && c) { poly(screenCorners(cur, sel), true); octx.stroke(); }
     if ((sel.type === 'can' || sel.type === 'pipe') && c) { poly(canPtsImg(cur, sel), false); octx.stroke(); }
     if (sel.type === 'box' && c) { poly(boxGeom(cur, sel).front, true); octx.stroke(); }
-    if (sel.type === 'mark') { const [a, b, cc, d] = sel.r; poly([[a, b], [cc, b], [cc, d], [a, d]], true); octx.stroke(); }
+    if (sel.type === 'mark') { const [a, b, cc, d] = sel.r; poly([[a, b], [cc, b], [cc, d], [a, d]], true); octx.stroke();
+      const lb = sel.label && labelBox.get(sel); if (lb) { const hw = lb.w / 2 + 3 / sc, hh = lb.h / 2 + 3 / sc; poly([[lb.cx - hw, lb.cy - hh], [lb.cx + hw, lb.cy - hh], [lb.cx + hw, lb.cy + hh], [lb.cx - hw, lb.cy + hh]], true); octx.stroke(); } }
     octx.setLineDash([]);
     if (sel.type === 'meas' && c) {
       octx.lineWidth = 9; octx.strokeStyle = 'rgba(255,210,63,.55)'; octx.lineCap = 'round'; const [xa, xb] = measExtentX(), f = floorImg(cur), t = ceilImg(cur);
@@ -1917,9 +1941,11 @@ const TOUR = [
   ['#bOpen', '2. Abra as fotos', 'Clique em <b>Abrir</b> ou arraste as fotos da vistoria para o app. Também abre o arquivo editável (<b>.simtela</b>) de um trabalho anterior.'],
   ['.tabs button[data-tab="medida"]', '3. Medida', 'Marque a <b>largura</b> de algo conhecido (linha azul) e a <b>altura</b> do teto ao piso (linha vermelha), com as medidas do croqui. As pontas grudam sozinhas nas quinas.'],
   ['.tabs button[data-tab="elem"]', '4. Telas', 'Clique em <b>Colocar tela</b> e marque o local com 2 cliques. Ela entra no tamanho real, com a base a 190 cm e a canaleta até o teto. Repita para mais telas.'],
-  ['.tabs', '5. Canaleta, Infra e Marcas', '<b>Canaleta</b>: até o teto ou trajeto livre. <b>Infra</b>: rack, eletroduto, curva e condulete, que se encaixam pelas pontas. <b>Marcas</b>: rack existente, objeto ou tela a remover.'],
-  ['.layers', '6. O que está na foto', 'Aqui aparece tudo o que você colocou: clique para selecionar, <b>×</b> para apagar. No campo de cima você muda o <b>nome da imagem</b>, que vira o nome do arquivo.'],
-  ['#bExport', '7. Baixar', 'Baixa a imagem (<b>PNG</b>) e o arquivo <b>editável</b> na pasta do projeto. Seu trabalho também é salvo sozinho: se fechar o app, tudo volta ao reabrir.']
+  ['.tabs button[data-tab="canaleta"]', '5. Canaleta', 'Cada tela já entra com a canaleta saindo do centro <b>até o teto</b>. Aqui você muda a cor e a largura, ou desenha um <b>trajeto livre</b> clicando os pontos.'],
+  ['.tabs button[data-tab="infra"]', '6. Infra', '<b>Rack</b>, <b>eletroduto</b>, <b>curva</b> e <b>condulete</b>, no tamanho real. As peças se encaixam pelas pontas (pontos azuis), <kbd>R</kbd> gira e <kbd>Shift</kbd> deixa em 90°. Você pode enviar a foto real de cada peça.'],
+  ['.tabs button[data-tab="marcacao"]', '7. Marcas', 'Arraste um retângulo tracejado sobre o que precisa ser indicado: <b>Rack existente</b>, <b>Objeto a remover</b>, <b>Tela a remover</b> ou um texto seu. Dá para escolher de que lado o texto fica.'],
+  ['.layers', '8. O que está na foto', 'Aqui aparece tudo o que você colocou: clique para selecionar, <b>×</b> para apagar. No campo de cima você muda o <b>nome da imagem</b>, que vira o nome do arquivo.'],
+  ['#bExport', '9. Baixar', 'Baixa a imagem (<b>PNG</b>) e o arquivo <b>editável</b> na pasta do projeto. Seu trabalho também é salvo sozinho: se fechar o app, tudo volta ao reabrir.']
 ];
 let tourI = -1;
 function tourShow(i) {
@@ -2159,6 +2185,10 @@ ov.addEventListener('mousedown', e => {
     for (const c of getHandles()) { const dd = dist(c.pt, pt); if (dd < best) { best = dd; h = c; } }
     if (h) { pushUndo(); drag = {kind: 'handle', h}; return; }
   }
+  if (tool === 'select' || tool === 'mark') {   // arrastar o texto da marca para onde quiser
+    const lm = labelHit(pt);
+    if (lm) { sel = lm; curTab = 'marcacao'; pushUndo(true); drag = {kind: 'label', it: lm, start: pt, o: labelBox.get(lm), moved: false}; render(); refreshUI(); return; }
+  }
   if (tool === 'measW' || tool === 'measH') {
     const sp = edgeSnap(pt, measAxis(tool));
     if (!pending.length) { pending = [sp]; refreshUI(); drawOverlay(); return; }
@@ -2225,6 +2255,21 @@ window.addEventListener('mousemove', e => {
   if (!drag) { drawOverlay(); return; }
   if (drag.kind === 'handle') { drag.h.set(pt); drag.h.pt = pt; fast = true; requestRender(); return; }
   if (drag.kind === 'mark') { pending[1] = clampPt(pt); drawOverlay(); return; }
+  if (drag.kind === 'label') {
+    const it = drag.it, b = drag.o, r = it.r, rx0 = Math.min(r[0], r[2]), rx1 = Math.max(r[0], r[2]), ry0 = Math.min(r[1], r[3]), ry1 = Math.max(r[1], r[3]), rcx = (rx0 + rx1) / 2, rcy = (ry0 + ry1) / 2;
+    let cx = b.cx + pt[0] - drag.start[0], cy = b.cy + pt[1] - drag.start[1];
+    if (!drag.moved) cur.redo = []; drag.moved = true; guides = [];
+    if (!window.__alt) {   // simetria com o retângulo: centro, bordas e a mesma distância das posições prontas
+      const tol = 7 / css.sc, hw = b.w / 2, hh = b.h / 2;
+      const xs = [[rcx - cx, rcx], [rx0 - (cx - hw), rx0], [rx1 - (cx + hw), rx1], [rx0 - b.gap - (cx + hw), null], [rx1 + b.gap - (cx - hw), null]];
+      const ys = [[rcy - cy, rcy], [ry0 - (cy - hh), ry0], [ry1 - (cy + hh), ry1], [ry0 - b.gap - (cy + hh), null], [ry1 + b.gap - (cy - hh), null]];
+      const pick = a => a.reduce((m, c) => (Math.abs(c[0]) < tol && (!m || Math.abs(c[0]) < Math.abs(m[0])) ? c : m), null), bx = pick(xs), by = pick(ys);
+      if (bx) { cx += bx[0]; if (bx[1] != null) guides.push({ix: bx[1]}); }
+      if (by) { cy += by[0]; if (by[1] != null) guides.push({iy: by[1]}); }
+    }
+    cx = clamp(cx, b.w / 2 + 2, cur.w - b.w / 2 - 2); cy = clamp(cy, b.h / 2 + 2, cur.h - b.h / 2 - 2);
+    it.lo = [+(cx - rcx).toFixed(1), +(cy - rcy).toFixed(1)]; fast = true; requestRender(); return;
+  }
   if (drag.kind === 'move') {
     const it = drag.it, o = drag.orig; if (!drag.moved) cur.redo = []; drag.moved = true;
     if (it.type === 'mark') {
@@ -2252,7 +2297,7 @@ function endDrag() {
     }
     pending = [];
   }
-  if (drag.kind === 'move' && !drag.moved) cur.undo.pop();
+  if ((drag.kind === 'move' || drag.kind === 'label') && !drag.moved) cur.undo.pop();
   if (drag.kind === 'handle' && sel && sel.type === 'box' && sel.kind === 'rack' && defaults.sizeAll !== false)   // racks com o mesmo tamanho
     for (const r of cur.items) if (r !== sel && r.type === 'box' && r.kind === 'rack') { const cx = r.x + r.W / 2; r.W = sel.W; r.H = sel.H; r.x = +(cx - r.W / 2).toFixed(2); }
   snapHit = null; guides = [];
@@ -2292,7 +2337,7 @@ function pasteClip() {
   if (it.type !== 'mark' && !cur.calib) { flash('Marque a medida nesta foto antes de colar.'); return; }
   const map = q => { if (same || !src.calib) return q; const i = toImg(src, q); return toPlane(cur, [i[0] / src.w * cur.w, i[1] / src.h * cur.h]); };
   pushUndo(); if (it.id) it.id = newId();
-  if (it.type === 'mark') { const fx = cur.w / src.w, fy = cur.h / src.h, d = same ? 30 : 0; it.r = [it.r[0] * fx + d, it.r[1] * fy + d, it.r[2] * fx + d, it.r[3] * fy + d]; }
+  if (it.type === 'mark') { const fx = cur.w / src.w, fy = cur.h / src.h, d = same ? 30 : 0; it.r = [it.r[0] * fx + d, it.r[1] * fy + d, it.r[2] * fx + d, it.r[3] * fy + d]; if (it.lo) it.lo = [it.lo[0] * fx, it.lo[1] * fy]; }
   else if (it.type === 'screen' || it.type === 'box') {
     const c = same ? [it.x + it.W * 1.5 + 10, it.y + it.H / 2] : map([it.x + it.W / 2, it.y + it.H / 2]);
     it.x = +(c[0] - it.W / 2).toFixed(2); it.y = +(c[1] - it.H / 2).toFixed(2); it.auto = false; it.glued = false; delete it.region; delete it.regionY;
@@ -2530,9 +2575,10 @@ function refreshUI() {
   $$('#mChips button').forEach(b => b.classList.toggle('on', b.dataset.mk === markKind));
   $('#mText').classList.toggle('hide', !mk && markKind !== 'outro');
   if (document.activeElement !== $('#mText') && mk) $('#mText').value = mk.label;
-  $('#mIns').textContent = mk ? 'Marcação selecionada: edite o texto, a posição e arraste os cantos.' : 'Escolha o rótulo e arraste um retângulo sobre o item na foto.';
+  $('#mIns').textContent = mk ? 'Marcação selecionada: edite o texto, arraste os cantos do retângulo ou arraste o próprio texto.' : 'Escolha o rótulo e arraste um retângulo sobre o item na foto.';
   const pos = mk ? (mk.pos || 'top') : defaults.markPos;
-  $$('#mPos button').forEach(b => b.classList.toggle('on', b.dataset.pos === pos));
+  $$('#mPos button').forEach(b => b.classList.toggle('on', !(mk && mk.lo) && b.dataset.pos === pos));
+  $('#mPosFree').classList.toggle('hide', !(mk && mk.lo));
   const ms = mk ? (mk.scale ?? 1) : defaults.markScale, mf = mk ? (mk.fontScale ?? 1) : defaults.markFont, mo = mk ? (mk.outline ?? 1) : defaults.markOutline;
   $('#mScale').value = ms; $('#mScaleVal').textContent = fx(ms); $('#mFont').value = mf; $('#mFontVal').textContent = fx(mf);
   $('#mOutline').value = mo; $('#mOutlineVal').textContent = mo < 0.05 ? 'sem' : fx(mo);
@@ -2702,7 +2748,7 @@ $$('#mChips button').forEach(b => b.onclick = () => {
 });
 $('#mText').addEventListener('focus', () => { if (sel && sel.type === 'mark') pushUndo(); });
 $('#mText').addEventListener('input', () => { if (cur && sel && sel.type === 'mark') { sel.label = $('#mText').value; render(); } refreshChrome(); });
-$$('#mPos button').forEach(b => b.onclick = () => { defaults.markPos = b.dataset.pos; saveDefaults(); if (sel && sel.type === 'mark') { pushUndo(); sel.pos = b.dataset.pos; render(); } refreshUI(); });
+$$('#mPos button').forEach(b => b.onclick = () => { defaults.markPos = b.dataset.pos; saveDefaults(); if (sel && sel.type === 'mark') { pushUndo(); sel.pos = b.dataset.pos; delete sel.lo; render(); } refreshUI(); });
 for (const [id, key, dkey] of [['#mFont', 'fontScale', 'markFont'], ['#mScale', 'scale', 'markScale'], ['#mOutline', 'outline', 'markOutline']]) {
   $(id).addEventListener('pointerdown', () => { if (sel && sel.type === 'mark') pushUndo(); });
   $(id).addEventListener('input', () => {
