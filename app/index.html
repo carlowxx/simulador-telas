@@ -226,17 +226,45 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
 .prow .btn{padding:6px 10px;font-size:12px}
 .prow .lx{width:24px;height:24px;border-radius:6px;color:var(--muted);font-size:15px}
 .prow .lx:hover{background:rgba(192,57,43,.25);color:#ffb4ab}
+.thumb{display:flex;align-items:center;gap:8px;padding-right:10px;background:var(--card);opacity:.72;height:42px}
+.thumb img{height:42px;width:42px;object-fit:cover;border-radius:7px 0 0 7px}
+.thumb.sel{background:var(--card2)}
+.tinfo{display:flex;flex-direction:column;align-items:flex-start;line-height:1.25;min-width:0}
+.tinfo b{font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px}
+.tinfo span{font-size:10.5px;font-weight:600;white-space:nowrap}
+.st-warn{color:#e5a13a}.st-info{color:#6aa9ff}.st-work{color:#f7931e}.st-ok{color:#3ccf6e}
+.thumb .x{left:auto;right:3px;top:3px}
+details.fold{border:1px solid var(--line);border-radius:10px;padding:0 12px;margin-top:10px;background:rgba(255,255,255,.02)}
+details.fold summary{padding:10px 0;font-weight:600;color:var(--text);font-size:13px}
+details.fold[open]{padding-bottom:10px}
+#dlgHelp{width:min(560px,94vw)}
+.keys{display:grid;grid-template-columns:max-content 1fr;gap:9px 16px;font-size:13px;color:#cfd3d7;align-items:center}
+.keys span:nth-child(odd){white-space:nowrap;color:var(--muted)}
+#zoomCtl #zOrig{margin-left:4px;border-left:1px solid var(--line);border-radius:0 8px 8px 0}
+.pname{display:flex;align-items:center;gap:8px;margin:0 12px 8px;padding:0 10px;height:34px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--muted)}
+.pname input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--text);font-size:12.5px;font-weight:600}
+.pname:focus-within{border-color:var(--acc);color:var(--acc)}
+#tourBlock{position:fixed;inset:0;z-index:48}
+#tourBlock.dim{background:rgba(0,0,0,.66)}
+#spot{position:fixed;z-index:49;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.66);outline:2px solid var(--acc);outline-offset:2px;pointer-events:none;transition:left .2s,top .2s,width .2s,height .2s}
+#tour{position:fixed;z-index:50;width:350px;background:var(--panel);border:1px solid #4a3a26;border-radius:14px;padding:18px 18px 14px;box-shadow:0 18px 50px rgba(0,0,0,.65)}
+#tour h3{margin:5px 0 7px;font-size:16.5px}
+#tour p{margin:0 0 16px;color:#cfd3d7;font-size:13.5px;line-height:1.55}
+#tour p b{color:var(--text)}
+.tstep{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--acc);font-weight:700}
+.tfoot{display:flex;align-items:center;gap:8px}
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><span class="logo" data-i="tela"></span>Simulador de Telas <span class="small" id="ver"></span></div>
-  <label class="condo" title="Os arquivos vão para Imagens\Simulações\(nome do condomínio)"><span data-i="folder" data-s="1"></span><input id="condo" placeholder="Nome do condomínio (pasta)"></label>
+  <label class="condo" title="Projeto: os arquivos vão para Imagens\Simulações\(nome do projeto)"><span data-i="folder" data-s="1"></span><input id="condo" placeholder="Nome do projeto (pasta)"></label>
   <div class="strip" id="photos"></div>
   <button class="icon hide" id="bCloseAll" title="Fechar todas as fotos" data-i="trash"></button>
   <button class="add" id="bOpen" title="Abrir fotos ou arquivos editáveis (.simtela)" data-i="images" data-s="1">Abrir</button>
   <input type="file" id="fOpen" accept="image/*,.simtela,.json" multiple hidden>
   <button class="icon" id="bModels" title="Modelos de tela e rack" data-i="gear"></button>
+  <button class="icon" id="bHelp" title="Atalhos do teclado (?)" data-i="help"></button>
   <span class="hsep"></span>
   <button class="btn ghost" id="bExportAll" title="Baixar todas as fotos simuladas (PNG + editável)">Todas</button>
   <button class="btn primary" id="bExport" title="Baixar esta foto: PNG + arquivo editável" data-i="download" data-s="1">Baixar</button>
@@ -288,7 +316,7 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
         <div id="tiltBox">
           <div class="row sl" style="margin-top:12px">Inclinação <span><input type="range" id="sTilt" min="0" max="25" step="1"> <b id="sTiltVal"></b></span></div>
         </div>
-        <h5 class="sect">Sombra</h5>
+        <details class="fold"><summary>Sombra</summary>
         <div class="dialrow">
           <canvas id="lDial" width="72" height="72" title="Arraste para girar a sombra"></canvas>
           <div>
@@ -299,8 +327,9 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
         <div class="row sl">Densidade <span><input type="range" id="sShadow" min="0" max="1" step="0.01"> <b id="sShadowVal"></b></span></div>
         <div class="row sl">Distância <span><input type="range" id="sDist" min="0" max="2.5" step="0.05"> <b id="sDistVal"></b></span></div>
         <div class="row sl">Alcance <span><input type="range" id="sSoft" min="0" max="2" step="0.05"> <b id="sSoftVal"></b></span></div>
-        <details>
-          <summary>Brilho e acabamento</summary>
+        </details>
+        <details class="fold">
+          <summary>Reflexos e acabamento</summary>
           <div class="row"><label><input type="checkbox" id="sAuto"> Brilho automático</label></div>
           <div class="row sl">Brilho <span><input type="range" id="sBright" min="0.4" max="1.2" step="0.01"></span></div>
           <div class="row sl">Reflexo no vidro <span><input type="range" id="sGloss" min="0" max="1" step="0.01"></span></div>
@@ -389,7 +418,7 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
       <div class="row sl">Contorno preto <span><input type="range" id="mOutline" min="0" max="4" step="0.1"> <b id="mOutlineVal"></b></span></div>
     </div>
   </div>
-  <div class="layers"><h5><span>Nesta foto</span><span id="layerCount"></span></h5><div id="layerList"></div></div>
+  <div class="layers"><h5><span>Nesta foto</span><span id="layerCount"></span></h5><label class="pname" title="Nome da imagem: é o nome do arquivo ao baixar"><span data-i="tag" data-s="1"></span><input id="photoName" placeholder="Nome da imagem" maxlength="80" disabled></label><div id="layerList"></div></div>
 </aside>
 
 <main id="viewport">
@@ -406,6 +435,7 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
       <button id="zoomTag" title="Ver a foto inteira (Ctrl+0)">100%</button>
       <button id="zIn" title="Aproximar (Alt + rolagem)" data-i="plus" data-s="1"></button>
       <button id="zFit" title="Ver a foto inteira (Ctrl+0)" data-i="fit" data-s="1"></button>
+      <button id="zOrig" title="Segure para ver a foto original (ou segure Espaço)" data-i="eye" data-s="1"></button>
     </div>
   </div>
 </main>
@@ -423,6 +453,38 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
   <div class="row">Base a <input type="number" class="fld" id="mBase" step="1" placeholder="livre"> cm do piso &nbsp; Inclinação <input type="number" class="fld" id="mTilt" step="1" style="width:56px"> °</div>
   <p class="small" id="mInfo"></p>
   <div class="dlgfoot"><button class="link" id="mDel">Excluir modelo</button><span class="sp"></span><button class="btn" id="mNew">+ Novo</button><button class="btn primary" id="mOk">Pronto</button></div>
+</dialog>
+
+<dialog id="dlgProj">
+  <h2>Qual é o projeto?</h2>
+  <p class="small" style="margin:-6px 0 12px;font-size:13px">O nome vira a pasta onde tudo é salvo: <b style="color:var(--text)">Imagens\Simulações\(nome do projeto)</b>.</p>
+  <input id="pjName" class="wide" style="padding:11px 12px;font-size:15px" placeholder="Ex.: Condomínio Jardim das Flores" maxlength="80">
+  <label class="chk hide" id="pjKeepRow" style="margin-top:14px"><input type="checkbox" id="pjClose"><span id="pjCloseTxt"></span></label>
+  <div class="dlgfoot"><button class="link" id="pjSkip">Agora não</button><span class="sp"></span><button class="btn primary" id="pjOk">Começar</button></div>
+</dialog>
+
+<div id="tourBlock" class="hide"></div><div id="spot" class="hide"></div>
+<div id="tour" class="hide"><div class="tstep" id="tStep"></div><h3 id="tTitle"></h3><p id="tText"></p><div class="tfoot"><button class="link" id="tSkip">Pular</button><span class="sp"></span><button class="btn" id="tPrev">Voltar</button><button class="btn primary" id="tNext">Próximo</button></div></div>
+
+<dialog id="dlgHelp">
+  <h2>Atalhos</h2>
+  <div class="keys">
+    <span><kbd>Esc</kbd></span><span>Cancela o que estiver fazendo e volta para Selecionar</span>
+    <span><kbd>Espaço</kbd> (segurar)</span><span>Mostra a foto original, para comparar antes e depois</span>
+    <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Ctrl</kbd>+<kbd>Y</kbd></span><span>Desfazer · Refazer</span>
+    <span><kbd>Ctrl</kbd>+<kbd>C</kbd> · <kbd>Ctrl</kbd>+<kbd>V</kbd></span><span>Copiar · Colar (também de uma foto para outra)</span>
+    <span><kbd>Ctrl</kbd>+<kbd>D</kbd></span><span>Duplicar o item selecionado</span>
+    <span><kbd>Del</kbd></span><span>Remover o item selecionado</span>
+    <span><kbd>Setas</kbd></span><span>Mover 1 cm · com <kbd>Shift</kbd>, 10 cm</span>
+    <span><kbd>R</kbd> · <kbd>Shift</kbd>+<kbd>R</kbd></span><span>Girar eletroduto, curva ou condulete</span>
+    <span><kbd>Shift</kbd></span><span>Linha reta ao medir; 90° ao desenhar; mover só na horizontal ou vertical</span>
+    <span><kbd>Alt</kbd></span><span>Solta as guias de alinhamento e o encaixe nas bordas</span>
+    <span><kbd>Enter</kbd> ou duplo clique</span><span>Termina a canaleta ou o eletroduto</span>
+    <span><kbd>Alt</kbd> + rolagem</span><span>Zoom · <kbd>Ctrl</kbd>+<kbd>0</kbd> mostra a foto inteira · botão do meio arrasta</span>
+    <span><kbd>V</kbd></span><span>Ferramenta Selecionar</span>
+    <span><kbd>?</kbd></span><span>Abre esta lista</span>
+  </div>
+  <div class="dlgfoot"><button class="link" id="hTour">Ver a introdução de novo</button><span class="sp"></span><button class="btn primary" id="hOk">Fechar</button></div>
 </dialog>
 
 <script>
@@ -449,6 +511,8 @@ const IC = {
   curva: '<path d="M4 3v5a11 11 0 0 0 11 11h6"/><path d="M8.5 3v5a6.5 6.5 0 0 0 6.5 6.5h6"/>',
   cond: '<rect x="7" y="5" width="10" height="14" rx="2.5"/><path d="M10 2v3M14 2v3M10 19v3M14 19v3"/><circle cx="12" cy="8.5" r=".6"/><circle cx="12" cy="15.5" r=".6"/>',
   rack: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M7 7h10M7 10.5h10M7 14h10"/><path d="M16 17v1.5"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.7 2.2c-.8.5-1.3 1-1.3 2"/><circle cx="12" cy="16.9" r=".5"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
   minus: '<path d="M5 12h14"/>', plus: '<path d="M12 5v14M5 12h14"/>'
 };
@@ -1482,8 +1546,11 @@ function drawMark(g, p, s) {
 }
 
 /* ---------------- render ---------------- */
+let showOrig = false;   // segurando Espaço (ou o botão do olho): mostra a foto original para comparar
+function setOrig(v) { if (showOrig === v || (v && !cur)) return; showOrig = v; fast = false; render(); }
 function render() {
   if (!cur) { drawOverlay(); return; }
+  if (showOrig) { ctx.filter = 'none'; ctx.drawImage(cur.img, 0, 0); drawOverlay(); return; }
   ctx.filter = 'none'; ctx.drawImage(cur.img, 0, 0);
   if (cur.calib) {
     syncCans(cur);
@@ -1546,6 +1613,12 @@ function drawOverlay() {
   octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, ov.width, ov.height);
   if (!cur) return;
   octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (showOrig) {
+    const t = 'Foto original · solte para voltar'; octx.font = '700 13px Segoe UI'; const tw = octx.measureText(t).width + 24;
+    octx.fillStyle = 'rgba(15,17,19,.88)'; octx.beginPath(); octx.roundRect(css.W / 2 - tw / 2, 14, tw, 30, 15); octx.fill();
+    octx.fillStyle = '#fff'; octx.textAlign = 'center'; octx.textBaseline = 'middle'; octx.fillText(t, css.W / 2, 30); octx.textAlign = 'start'; octx.textBaseline = 'alphabetic';
+    return;
+  }
   const [OX, OY] = ovOrigin(), P = q => [OX + q[0] * sc, OY + q[1] * sc];
   const poly = (pts, close) => { octx.beginPath(); pts.map(P).forEach((q, i) => i ? octx.lineTo(q[0], q[1]) : octx.moveTo(q[0], q[1])); if (close) octx.closePath(); };
   const tag = (x, y, txt, color) => {
@@ -1751,7 +1824,13 @@ function removePhoto(p) {
   renderList();
 }
 /* Sessão salva sozinha: fotos abertas e tudo o que foi colocado voltam ao reabrir o app (ou depois de atualizar). */
-let saveTimer = 0, restoring = false;
+let saveTimer = 0, restoring = false, listSig = null;
+// situação de cada foto, mostrada na miniatura
+function photoStatus(p) {
+  if (!p.calib) return ['Falta a medida', 'st-warn'];
+  if (!p.items.length) return ['Medida pronta', 'st-info'];
+  return p.exported ? ['Baixada ✓', 'st-ok'] : ['Não baixada', 'st-work'];
+}
 function scheduleSave() {
   if (restoring) return; clearTimeout(saveTimer);
   saveTimer = setTimeout(() => idb.set('session', {v: 1, cur: photos.indexOf(cur), photos: photos.map(p => ({id: p.id, name: p.name, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, exported: p.exported, checks: p.checks}))}), 700);
@@ -1777,6 +1856,9 @@ function closeAll() {
   if (!photos.length) return;
   const pend = photos.filter(p => p.items.length && !p.exported).length;
   if (!confirm(pend ? `Fechar todas as fotos? ${pend} ainda não ${pend > 1 ? 'foram baixadas' : 'foi baixada'} e ${pend > 1 ? 'serão perdidas' : 'será perdida'}.` : 'Fechar todas as fotos?')) return;
+  closeAllNow();
+}
+function closeAllNow() {
   for (const p of photos) idb.del('sess:b:' + p.id);
   photos.length = 0; cur = null; sel = null; pending = []; clip = null;
   ['#wrap', '#ov', '#zoomCtl'].forEach(id => $(id).classList.add('hide')); $('#drop').classList.remove('hide');
@@ -1784,17 +1866,81 @@ function closeAll() {
 }
 function renderList() {
   scheduleSave();
+  const sig = photos.map(p => p.id + p.name + photoStatus(p)[1] + (p === cur ? '*' : '')).join('|'); if (sig === listSig) return; listSig = sig;
   const box = $('#photos'); box.innerHTML = '';
   photos.forEach(p => {
-    const d = document.createElement('button'); d.className = 'thumb' + (p === cur ? ' sel' : ''); d.title = p.name;
-    d.innerHTML = `<img src="${p.thumb}" alt="">` + (p.exported ? '<span class="dot">✓</span>' : '') + '<span class="x" title="Remover foto">×</span>';
-    d.onclick = () => selectPhoto(p);
+    const st = photoStatus(p), d = document.createElement('button'); d.className = 'thumb' + (p === cur ? ' sel' : ''); d.title = p.name;
+    d.innerHTML = `<img src="${p.thumb}" alt=""><span class="tinfo"><b></b><span class="${st[1]}">${st[0]}</span></span><span class="x" title="Remover foto">×</span>`;
+    d.querySelector('b').textContent = baseName(p.name);
+    d.onclick = () => selectPhoto(p); d.title = p.name + ' · duplo clique para renomear';
+    d.ondblclick = () => { $('#photoName').focus(); $('#photoName').select(); };
     d.querySelector('.x').onclick = e => { e.stopPropagation(); removePhoto(p); };
     box.appendChild(d);
   });
 }
 $('#bOpen').onclick = () => $('#fOpen').click();
 $('#bCloseAll').onclick = closeAll;
+{ const zo = $('#zOrig'); zo.addEventListener('pointerdown', e => { e.preventDefault(); setOrig(true); }); for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) zo.addEventListener(ev, () => setOrig(false)); }
+$('#bHelp').onclick = () => $('#dlgHelp').showModal();
+$('#hOk').onclick = () => $('#dlgHelp').close();
+$('#hTour').onclick = () => { $('#dlgHelp').close(); tourShow(0); };
+const anyDlg = () => !!document.querySelector('dialog[open]');
+
+/* ---------------- projeto: pede o nome ao abrir; o nome vira a pasta dos arquivos ---------------- */
+function askProject() {
+  const d = $('#dlgProj'), inp = $('#pjName'), n = photos.length, pend = photos.filter(p => p.items.length && !p.exported).length;
+  inp.value = defaults.condo || ''; $('#pjClose').checked = false; $('#pjKeepRow').classList.toggle('hide', !n);
+  $('#pjCloseTxt').innerHTML = !n ? '' : `Fechar ${n > 1 ? `as ${n} fotos que estavam abertas` : 'a foto que estava aberta'}<br><span class="small">${pend ? `${pend} ainda não ${pend > 1 ? 'foram baixadas e serão perdidas' : 'foi baixada e será perdida'}.` : 'Tudo já foi baixado.'} Deixe desmarcado para continuar de onde parou.</span>`;
+  d.showModal(); inp.focus(); inp.select();
+  return new Promise(res => d.addEventListener('close', () => res(), {once: true}));
+}
+function projOk() {
+  const v = $('#pjName').value.replace(/[\\/:*?"<>|@]+/g, ' ').replace(/\s+/g, ' ').trim(); if (!v) { $('#pjName').focus(); return; }
+  if ($('#pjClose').checked) closeAllNow();
+  $('#condo').value = v; defaults.condo = v; saveDefaults(); $('#dlgProj').close();
+}
+$('#pjOk').onclick = projOk; $('#pjSkip').onclick = () => $('#dlgProj').close();
+$('#pjName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') projOk(); });
+
+/* ---------------- nome da imagem (vira o nome do arquivo ao baixar) ---------------- */
+$('#photoName').addEventListener('input', () => {
+  if (!cur) return; const v = $('#photoName').value.replace(/[\\/:*?"<>|@]+/g, ' ').replace(/\s+/g, ' ').trim(); if (!v) return;
+  cur.name = v + ((cur.name.match(/\.[A-Za-z0-9]{2,7}$/) || ['.png'])[0]); renderList();
+});
+$('#photoName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); });
+$('#photoName').addEventListener('blur', () => { if (cur) $('#photoName').value = baseName(cur.name); });
+
+/* ---------------- introdução (onboarding): passo a passo destacando cada parte da tela ---------------- */
+const TOUR = [
+  [null, 'Bem-vindo ao Simulador de Telas', 'Em um minuto você vê o caminho inteiro, da foto da vistoria até a imagem pronta. Dá para pular agora e rever depois no botão <b>?</b> do topo.'],
+  ['.condo', '1. Projeto', 'Ao abrir, o app pede o <b>nome do projeto</b>. Esse nome vira a pasta em <b>Imagens\\Simulações</b> onde tudo é salvo. Você pode trocar aqui a qualquer momento.'],
+  ['#bOpen', '2. Abra as fotos', 'Clique em <b>Abrir</b> ou arraste as fotos da vistoria para o app. Também abre o arquivo editável (<b>.simtela</b>) de um trabalho anterior.'],
+  ['.tabs button[data-tab="medida"]', '3. Medida', 'Marque a <b>largura</b> de algo conhecido (linha azul) e a <b>altura</b> do teto ao piso (linha vermelha), com as medidas do croqui. As pontas grudam sozinhas nas quinas.'],
+  ['.tabs button[data-tab="elem"]', '4. Telas', 'Clique em <b>Colocar tela</b> e marque o local com 2 cliques. Ela entra no tamanho real, com a base a 190 cm e a canaleta até o teto. Repita para mais telas.'],
+  ['.tabs', '5. Canaleta, Infra e Marcas', '<b>Canaleta</b>: até o teto ou trajeto livre. <b>Infra</b>: rack, eletroduto, curva e condulete, que se encaixam pelas pontas. <b>Marcas</b>: rack existente, objeto ou tela a remover.'],
+  ['.layers', '6. O que está na foto', 'Aqui aparece tudo o que você colocou: clique para selecionar, <b>×</b> para apagar. No campo de cima você muda o <b>nome da imagem</b>, que vira o nome do arquivo.'],
+  ['#bExport', '7. Baixar', 'Baixa a imagem (<b>PNG</b>) e o arquivo <b>editável</b> na pasta do projeto. Seu trabalho também é salvo sozinho: se fechar o app, tudo volta ao reabrir.']
+];
+let tourI = -1;
+function tourShow(i) {
+  tourI = i; const [q, title, text] = TOUR[i], t = $('#tour'), sp = $('#spot'), bl = $('#tourBlock');
+  t.classList.remove('hide'); bl.classList.remove('hide');
+  $('#tStep').textContent = i ? `Passo ${i} de ${TOUR.length - 1}` : 'Introdução'; $('#tTitle').textContent = title; $('#tText').innerHTML = text;
+  $('#tPrev').classList.toggle('hide', i === 0); $('#tNext').textContent = i === TOUR.length - 1 ? 'Começar' : i === 0 ? 'Ver como funciona' : 'Próximo';
+  const el = q && $(q), W = innerWidth, H = innerHeight, tw = t.offsetWidth, th = t.offsetHeight; let x, y;
+  bl.classList.toggle('dim', !el); sp.classList.toggle('hide', !el);
+  if (el) {
+    const r = el.getBoundingClientRect(), pad = 6;
+    Object.assign(sp.style, {left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px'});
+    if (r.left < 120 && r.right + 20 + tw < W) { x = r.right + 20; y = clamp(r.top, 12, H - th - 12); }                       // barra lateral e painel: cartão à direita
+    else { x = clamp(r.left + r.width / 2 - tw / 2, 12, W - tw - 12); y = r.bottom + 20 + th < H ? r.bottom + 20 : Math.max(12, r.top - th - 20); }
+  } else { x = (W - tw) / 2; y = (H - th) / 2; }
+  t.style.left = x + 'px'; t.style.top = y + 'px';
+}
+function tourNext() { if (tourI >= TOUR.length - 1) tourEnd(); else tourShow(tourI + 1); }
+function tourEnd() { tourI = -1; ['#tour', '#spot', '#tourBlock'].forEach(id => $(id).classList.add('hide')); defaults.onboarded = true; saveDefaults(); }
+$('#tNext').onclick = tourNext; $('#tPrev').onclick = () => tourShow(Math.max(0, tourI - 1)); $('#tSkip').onclick = tourEnd;
+window.addEventListener('resize', () => { if (tourI >= 0) tourShow(tourI); });
 $('#drop').onclick = () => $('#fOpen').click();
 $('#fOpen').onchange = e => { loadFiles(e.target.files); e.target.value = ''; };
 const sbox = $('#stagebox');
@@ -1803,7 +1949,7 @@ sbox.addEventListener('dragleave', () => $('#drop').classList.remove('over'));
 sbox.addEventListener('drop', e => { e.preventDefault(); $('#drop').classList.remove('over'); loadFiles(e.dataTransfer.files); });
 
 /* ---------------- desfazer ---------------- */
-function pushUndo(keepRedo) { if (!cur) return; cur.undo.push(JSON.stringify({calib: cur.calib, items: cur.items})); if (cur.undo.length > 60) cur.undo.shift(); if (!keepRedo) cur.redo = []; }
+function pushUndo(keepRedo) { if (!cur) return; cur.exported = false; cur.undo.push(JSON.stringify({calib: cur.calib, items: cur.items})); if (cur.undo.length > 60) cur.undo.shift(); if (!keepRedo) cur.redo = []; }
 function undo() {
   if (!cur || !cur.undo.length) return; endAsk(false);
   (cur.redo = cur.redo || []).push(JSON.stringify({calib: cur.calib, items: cur.items}));
@@ -2186,11 +2332,14 @@ function escapeAll() { endAsk(false); pending = []; pendLine = null; drag = null
 window.addEventListener('keydown', e => {
   window.__shift = e.shiftKey;
   if (e.key === 'Shift' && cur) drawOverlay();
+  if (tourI >= 0) { e.preventDefault(); if (e.key === 'Escape') tourEnd(); else if (e.key === 'Enter' || e.key === 'ArrowRight') tourNext(); else if (e.key === 'ArrowLeft' && tourI > 0) tourShow(tourI - 1); return; }
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (!typing) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); } return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { if (!typing) { e.preventDefault(); redo(); } return; }
-  if (e.key === 'Escape' && typing && document.activeElement !== $('#askIn') && cur && !$('#dlg').open) { document.activeElement.blur(); escapeAll(); return; }
-  if (typing || !cur || $('#dlg').open) return;
+  if (e.key === 'Escape' && typing && document.activeElement !== $('#askIn') && cur && !anyDlg()) { document.activeElement.blur(); escapeAll(); return; }
+  if (!typing && !anyDlg() && (e.key === '?' || e.key === 'F1')) { e.preventDefault(); if (!$('#dlgHelp').open) $('#dlgHelp').showModal(); return; }
+  if (typing || !cur || anyDlg()) return;
+  if (e.code === 'Space' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); setOrig(true); return; }
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); duplicateSel(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 'c') { copySel(); return; }
@@ -2211,7 +2360,8 @@ window.addEventListener('keydown', e => {
     renderSoon();   // tecla segurada: desenho rápido e limitado a um por quadro
   }
 });
-window.addEventListener('keyup', e => { window.__shift = e.shiftKey; if (e.key === 'Shift' && cur) drawOverlay(); });
+window.addEventListener('blur', () => setOrig(false));
+window.addEventListener('keyup', e => { if (e.code === 'Space') setOrig(false); window.__shift = e.shiftKey; if (e.key === 'Shift' && cur) drawOverlay(); });
 
 /* ---------------- painel ---------------- */
 const PANEL_INFO = {
@@ -2312,6 +2462,7 @@ function refreshUI() {
   $('#bPlace').classList.toggle('on', tool === 'place');
   $('#bPlaceTxt').textContent = tool === 'place' ? 'Clique o local na foto…' : cur && screensOf(cur).length ? 'Adicionar outra tela' : 'Colocar tela';
   $('#objProps').classList.toggle('hide', !so);
+  $('#modelList').classList.toggle('hide', !!so); $('#bNewModel').parentElement.classList.toggle('hide', !!so);   // com uma tela selecionada, o painel mostra só os ajustes dela
   if (so) {
     const k = kxy(cur);
     $('#objSize').textContent = `${m.name} · ${cm(so.W)} × ${cm(so.H)} cm`;
@@ -2391,7 +2542,8 @@ function refreshUI() {
     : itemName(sel) + ' · selecionado';
   $('#bDup').classList.toggle('hide', !!(sel && sel.type === 'meas'));
   $('#bExportAll').classList.toggle('hide', photos.length < 2); $('#bCloseAll').classList.toggle('hide', !photos.length);
-  renderLayers();
+  renderLayers(); renderList();
+  { const pn = $('#photoName'); pn.disabled = !cur; if (document.activeElement !== pn) pn.value = cur ? baseName(cur.name) : ''; }
 }
 // nome legível de cada item (lista "Nesta foto" e seleção)
 function itemName(it) {
@@ -2654,7 +2806,7 @@ fillColors();
   if (document.fonts) document.fonts.load('700 40px Montserrat').then(() => { if (cur) render(); });
   // ?img=a.jpg,b.jpg carrega fotos por URL (para testes)
   const qs = new URLSearchParams(location.search).get('img');
-  if (!qs) await restoreSession();
+  if (!qs) { await restoreSession(); await askProject(); if (!defaults.onboarded) tourShow(0); }
   if (qs) for (const u of qs.split(',')) { const blob = await (await fetch(u)).blob(), p = addPhoto(await loadImg(URL.createObjectURL(blob)), u.split('/').pop(), blob); if (!cur) selectPhoto(p); renderList(); }
 })();
 </script>
