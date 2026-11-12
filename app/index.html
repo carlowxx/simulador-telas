@@ -310,7 +310,7 @@ aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
         <button data-t="can" data-i="path">Trajeto livre<small>Clique os pontos</small></button>
       </div>
       <label class="chk"><input type="checkbox" id="autoCan"><span>Automática em cada tela<br><span class="small">Toda tela já entra com a canaleta saindo do centro até o teto.</span></span></label>
-      <label class="chk"><input type="checkbox" id="canGap"><span>Entrar no vão do forro<br><span class="small">Se houver uma faixa escura entre o teto e a parede, a canaleta sobe para dentro dela e some na sombra, como a real.</span></span></label>
+      <label class="chk"><input type="checkbox" id="canGap"><span>Entrar no vão do forro<br><span class="small">Se houver uma faixa escura entre o teto e a parede, a canaleta termina rente a ela, com a sombra do forro na ponta, como se entrasse no vão.</span></span></label>
       <p class="ins" id="canIns"></p>
       <h5 class="sect">Cor e largura</h5>
       <div class="sw" id="cColor"></div>
@@ -1000,7 +1000,7 @@ function syncCans(p) {
       const cy = ceilPlaneY(p); top = cy != null ? cy : toPlane(p, [toImg(p, [x, s.y])[0], 0])[1];
       if (cy != null && c.intoGap !== false) {   // entra no vão do forro, se houver
         const ci = toImg(p, [x, cy]), gp = ceilGap(p, ci[0], ci[1], c.width * pxPerCm(p) / 2);
-        if (gp) { gapInfo.set(c, gp); top = toPlane(p, [ci[0], gp.top])[1]; }
+        if (gp) { gapInfo.set(c, gp); top = cy - 0.2; }   // termina na linha do teto, como se entrasse no forro (nada aparece dentro do vão)
       }
     }
     c.pts = [[x, s.y + hPlane(p, s) * 0.15], [x, Math.min(top, s.y - 0.5)]];
