@@ -5,8 +5,8 @@ App de Windows para simular telas em fotos de vistoria e exportar PNG.
 Com ele dá para:
 
 - marcar uma **medida** do croqui (parede, botoeira ou porta) para a tela entrar no tamanho real e em perspectiva;
-- colocar a **tela** (arte e tamanho configuráveis na engrenagem ⚙);
-- adicionar a **canaleta**, até o teto ou com trajeto livre, em inox, alumínio, branca, preta ou marrom;
+- colocar uma ou mais **telas** em locais diferentes (arte e tamanho configuráveis na engrenagem ⚙), cada uma já com a canaleta até o teto;
+- montar a **infraestrutura**: canaleta (até o teto ou trajeto livre), eletroduto com condulete nas curvas e abraçadeiras, condulete avulso e rack de parede;
 - fazer **marcações**: rack existente, objeto a remover, tela a remover ou texto livre;
 - **baixar o PNG**, que vai para `Imagens\Simulações`.
 
