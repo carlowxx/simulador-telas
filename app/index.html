@@ -182,6 +182,40 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
 .btn.acc:hover{filter:brightness(1.07)}
 #pOri button{font-size:19px;line-height:1;padding:4px}
 .btn.acc.on{background:var(--accbg);color:var(--acc);outline:1px dashed var(--acc)}
+/* ambiente mais agradável (a barra lateral fica como está) */
+header{background:linear-gradient(180deg,#171a1e,#131518)}
+aside{background:linear-gradient(180deg,#16191d 0%,#131619 100%)}
+.phead{padding:20px 20px 14px;border-bottom:1px solid var(--line)}
+.phead h2{font-size:18px;letter-spacing:-.01em}
+.phead p{font-size:12.5px}
+.panels{padding:14px 20px 24px}
+.sect{display:flex;align-items:center;gap:8px;margin:22px 0 10px;font-weight:700}
+.sect::after{content:"";flex:1;height:1px;background:var(--line)}
+.ins{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5}
+.ins:empty{display:none}
+.tools{gap:10px}
+.tools button{padding:12px;border-radius:12px;transition:border-color .15s,background .15s,transform .1s}
+.tools button:active{transform:scale(.98)}
+.tools button .i{width:20px;height:20px;padding:6px;box-sizing:content-box;border-radius:9px;background:#1f2328}
+.tools button.on .i{background:rgba(247,147,30,.2)}
+.tools button.wide .i{padding:5px}
+.mlist{gap:10px}
+.mcard{border-radius:12px;padding:10px;transition:border-color .15s,background .15s}
+.mcard img{height:52px}
+.chk{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.seg{border:1px solid var(--line);border-radius:10px}
+.seg button{border-radius:7px}
+.chips button{transition:border-color .15s,color .15s}
+.sw button{transition:transform .12s}
+.sw button:hover{transform:scale(1.08)}
+#pill{margin:12px 20px 2px;border-radius:12px}
+#hint{background:linear-gradient(90deg,#15181b,#121417);color:#c3c8cd;padding:9px 18px}
+#stagebox{background:radial-gradient(ellipse at 50% 35%,#1b1e22 0%,#0d0e10 72%)}
+#cv{border-radius:4px;box-shadow:0 12px 44px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.05)}
+#zoomCtl{border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.layers{background:#111316}
+.lrow{transition:background .12s}
+#drop{border-radius:20px;background:rgba(255,255,255,.015)}
 </style>
 </head>
 <body>
@@ -190,7 +224,7 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
   <label class="condo" title="Os arquivos vão para Imagens\Simulações\(nome do condomínio)"><span data-i="folder" data-s="1"></span><input id="condo" placeholder="Nome do condomínio (pasta)"></label>
   <div class="strip" id="photos"></div>
   <button class="add" id="bOpen" title="Abrir fotos ou arquivos editáveis (.simtela)" data-i="images" data-s="1">Abrir</button>
-  <input type="file" id="fOpen" accept="image/*,.simtela" multiple hidden>
+  <input type="file" id="fOpen" accept="image/*,.simtela,.json" multiple hidden>
   <button class="icon" id="bModels" title="Modelos de tela e rack" data-i="gear"></button>
   <span class="hsep"></span>
   <button class="btn ghost" id="bExportAll" title="Baixar todas as fotos simuladas (PNG + editável)">Todas</button>
@@ -281,18 +315,25 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
         <button data-t="cond" data-i="cond">Condulete<small>Clique para colocar</small></button>
       </div>
       <p class="ins" id="infraIns"></p>
+      <div id="ipSize" class="hide">
+        <h5 class="sect">Tamanho (bitola)</h5>
+        <div class="chips" id="pDs"><button data-d="2.7">3/4"</button><button data-d="3.3">1"</button><button data-d="4.2">1 1/4"</button><button data-d="6">2"</button></div>
+        <div class="row">Diâmetro <input type="number" class="fld" id="pD" step="0.1"> cm</div>
+      </div>
+      <div id="ipRot" class="hide">
+        <h5 class="sect">Rotação</h5>
+        <div class="seg"><button id="bRotL">⟲ 90°</button><button id="bRotR">⟳ 90°</button></div>
+        <p class="small" style="margin:-4px 0 0">Atalho: <kbd>R</kbd> gira · <kbd>Shift</kbd>+<kbd>R</kbd> gira para o outro lado.</p>
+      </div>
       <div id="ipPipe" class="hide">
         <h5 class="sect">Eletroduto</h5>
         <div class="sw" id="pColor"></div>
-        <div class="chips" id="pDs"><button data-d="2.7">3/4"</button><button data-d="3.3">1"</button><button data-d="4.2">1 1/4"</button><button data-d="6">2"</button></div>
-        <div class="row">Diâmetro <input type="number" class="fld" id="pD" step="0.1"> cm</div>
         <div id="pBendBox"><h5 class="sect">Nas mudanças de direção</h5><div class="seg" id="pBend"><button data-b="curva">Curva</button><button data-b="condulete">Condulete</button><button data-b="nenhum">Nada</button></div></div>
         <div id="pOriBox"><h5 class="sect">Posição da curva</h5><div class="seg" id="pOri"><button data-o="ld">┐</button><button data-o="rd">┌</button><button data-o="lu">┘</button><button data-o="ru">└</button></div></div>
         <label class="chk" id="pClampRow"><input type="checkbox" id="pClamp"> Abraçadeiras a cada 60 cm</label>
       </div>
       <div id="ipCond" class="hide">
         <h5 class="sect">Condulete</h5>
-        <div class="seg" id="cdOri"><button data-o="v">Em pé</button><button data-o="h">Deitado</button></div>
         <div class="sw" id="cdColor"></div>
       </div>
       <div id="ipRack" class="hide">
@@ -303,6 +344,7 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
         <div class="sw" id="rColor"></div>
         <p class="small">Medidas típicas de rack de parede; ajuste conforme o croqui.</p>
       </div>
+      <label class="chk hide" id="sizeAllRow"><input type="checkbox" id="sizeAll"><span>Tamanho igual para todos<br><span class="small">Mudar o tamanho de um muda todos da foto (eletroduto, curva e condulete juntos; racks entre si). Desmarque para mudar só o selecionado.</span></span></label>
     </div>
 
     <div class="panel" data-panel="marcacao">
@@ -478,7 +520,7 @@ const RACK_COLORS = {
 };
 const MARKS = {rack: 'Rack existente', objeto: 'Objeto a ser removido', telarem: 'Tela a remover', outro: null};
 const oldDefaults = store.get('defaults') || {};
-const defaults = Object.assign({model: 'tela-elevador', color: 'inox', canCm: 8, markScale: 1, markFont: 1, markOutline: 1, markPos: 'top', condo: oldDefaults.condo || '', autoCan: true, pipeColor: 'galv', pipeD: 2.7, pipeBend: 'curva', curvaOri: 'ld', pipeFit: true, pipeClamp: true, condColor: 'galv', condOri: 'v', rackColor: 'preto', rackW: 57, rackH: 40, rackD: 35}, store.get('defaults2') || {});
+const defaults = Object.assign({model: 'tela-elevador', color: 'inox', canCm: 8, markScale: 1, markFont: 1, markOutline: 1, markPos: 'top', condo: oldDefaults.condo || '', autoCan: true, pipeColor: 'galv', pipeD: 2.7, pipeBend: 'curva', curvaOri: 'ld', pipeFit: true, pipeClamp: true, condColor: 'galv', condOri: 'v', rackColor: 'preto', rackW: 57, rackH: 40, rackD: 35, sizeAll: true}, store.get('defaults2') || {});
 const saveDefaults = () => store.set('defaults2', defaults);
 const photos = [];
 let cur = null, tool = 'select', curTab = 'medida', pending = [], sel = null, drag = null, fast = false, mouse = null;
@@ -1237,9 +1279,13 @@ function getHandles() {
     cur.calib.wl.forEach((q, i) => H.push({pt: q, kind: 'w', set: v => changeCalib(cur, c => { c.wl[i] = v; })}));
     if (cur.calib.hl) cur.calib.hl.forEach((q, i) => H.push({pt: q, kind: 'h', set: v => changeCalib(cur, c => { c.hl[i] = v; })}));
   }
-  if (sel && (sel.type === 'screen' || sel.type === 'box') && cur.calib) screenResizeHandles(sel).forEach(h => H.push(h));
+  if (sel && (sel.type === 'screen' || (sel.type === 'box' && sel.kind === 'rack')) && cur.calib) screenResizeHandles(sel).forEach(h => H.push(h));
   if (sel && sel.type === 'can' && cur.calib) canPtsImg(cur, sel).forEach((q, i) => { if (sel.link && i === 0) return; H.push({pt: q, set: v => { const x = sel.pts[i][0]; sel.pts[i] = toPlane(cur, v); if (sel.link) { sel.pts[i][0] = x; sel.toCeil = false; } }}); });
-  if (sel && sel.type === 'pipe' && cur.calib) canPtsImg(cur, sel).forEach((q, i) => H.push({pt: q, set: v => { sel.pts[i] = toPlane(cur, v); }}));
+  if (sel && sel.type === 'pipe' && cur.calib) canPtsImg(cur, sel).forEach((q, i) => H.push({pt: q, set: v => {
+    let w = toPlane(cur, v); snapHit = null; const nb = sel.pts[i - 1] || sel.pts[i + 1];
+    if (nb && window.__shift) w = Math.abs(w[0] - nb[0]) > Math.abs(w[1] - nb[1]) ? [w[0], nb[1]] : [nb[0], w[1]];   // Shift: 90°
+    if (i === 0 || i === sel.pts.length - 1) { const s = snapToConnector(w, sel); if (s) w = s; }
+    sel.pts[i] = w; }}));
   if (sel && sel.type === 'mark') {
     const r = sel.r, x0 = Math.min(r[0], r[2]), x1 = Math.max(r[0], r[2]), y0 = Math.min(r[1], r[3]), y1 = Math.max(r[1], r[3]);
     if (!drag) sel.r = [x0, y0, x1, y1];
@@ -1322,6 +1368,13 @@ function drawOverlay() {
       octx.stroke(); octx.lineCap = 'butt';
     }
   }
+  if (c && curTab === 'infra') {
+    for (const it of cur.items) if (isInfra(it)) for (const q of connectorsOf(it)) {
+      const s = P(toImg(cur, q)); octx.fillStyle = 'rgba(56,189,248,.95)'; octx.strokeStyle = '#fff'; octx.lineWidth = 1.5;
+      octx.beginPath(); octx.arc(s[0], s[1], 3.5, 0, 7); octx.fill(); octx.stroke();
+    }
+    if (snapHit && (drag || tool === 'pipe')) { const s = P(toImg(cur, snapHit)); octx.strokeStyle = '#38bdf8'; octx.lineWidth = 2.5; octx.beginPath(); octx.arc(s[0], s[1], 10, 0, 7); octx.stroke(); }
+  }
   for (const h of getHandles()) {
     const s = P(h.pt);
     if (h.kind) { octx.fillStyle = '#fff'; octx.strokeStyle = h.kind === 'w' ? '#2f80ff' : '#ef3b3b'; octx.lineWidth = 3; octx.beginPath(); octx.arc(s[0], s[1], 5.5, 0, 7); octx.fill(); octx.stroke(); continue; }
@@ -1402,8 +1455,9 @@ async function loadFiles(files) {
   for (const f of [...files]) {
     try {
       let p;
-      if (/\.simtela$/i.test(f.name)) p = await openProject(f);
+      if (/\.(simtela|json)$/i.test(f.name)) p = await openProject(f);
       else if (f.type.startsWith('image/')) p = addPhoto(await loadImg(URL.createObjectURL(f)), f.name, f);
+      else { try { p = await openProject(f); } catch (e) { p = addPhoto(await loadImg(URL.createObjectURL(f)), f.name, f); } }
       if (p && !first) first = p;
     } catch (e) { flash(`Não foi possível abrir "${f.name}".`); }
   }
@@ -1490,6 +1544,7 @@ function canSnap(pt) { // ponto no plano da parede; Shift trava em 90°
     if (window.__shift) q = toPlane(cur, Math.abs(pt[0] - l[0]) > Math.abs(pt[1] - l[1]) ? [pt[0], l[1]] : [l[0], pt[1]]);
     else if (ang < 6) q = toPlane(cur, [pt[0], l[1]]); else if (ang > 84) q = toPlane(cur, [l[0], pt[1]]);   // quase reto: trava
   }
+  if (tool === 'pipe') { snapHit = null; const s = snapToConnector(q, null); if (s) q = s; }   // encaixa numa conexão
   return q;
 }
 function finishCan() {   // termina a canaleta livre ou o eletroduto
@@ -1514,18 +1569,77 @@ function canFor(s, topY, toCeil) {
   return {type: 'can', id: newId(), pts: [[x, s.y + 1], [x, Math.min(topY ?? s.y - 30, s.y - 1)]], width: defaults.canCm, color: defaults.color, link: s.id, toCeil: !!toCeil};
 }
 function makeCanUp(s, topY, toCeil) { pushUndo(); const it = canFor(s, topY, toCeil); cur.items.push(it); sel = it; tool = 'select'; render(); refreshUI(); }
+// tamanho padrão do condulete pela bitola do eletroduto (3/4" ≈ 6,5 × 12 cm)
+function condDims(d, ori) { const a = +Math.max(4.5, d * 2.4).toFixed(1), b = +Math.max(8, d * 4.4).toFixed(1); return ori === 'h' ? {W: b, H: a} : {W: a, H: b}; }
+function applyCondSize(b, d) { const cx = b.x + b.W / 2, cy = b.y + b.H / 2, s = condDims(d, b.ori || 'v'); b.d = d; b.W = s.W; b.H = s.H; b.D = Math.max(4, d * 1.6); b.x = +(cx - s.W / 2).toFixed(2); b.y = +(cy - s.H / 2).toFixed(2); }
 function newBox(kind, q) {
   const k = kxy(cur), h = defaults.condOri === 'h';
   const b = kind === 'rack' ? {type: 'box', id: newId(), kind, color: defaults.rackColor, W: defaults.rackW, H: defaults.rackH, D: defaults.rackD}
-    : {type: 'box', id: newId(), kind: 'condulete', color: defaults.condColor, ori: defaults.condOri, W: h ? 12 : 6.5, H: h ? 6.5 : 12, D: 4.5};
+    : Object.assign({type: 'box', id: newId(), kind: 'condulete', color: defaults.condColor, ori: defaults.condOri, d: defaults.pipeD, D: Math.max(4, defaults.pipeD * 1.6)}, condDims(defaults.pipeD, defaults.condOri));
   b.x = +(q[0] - b.W / 2).toFixed(1); b.y = +(q[1] - b.H * k / 2).toFixed(1);
   return b;
 }
+/* Conexões: cada peça de infra tem pontos nas pontas (eletroduto e curva: as duas pontas; condulete: os dois
+   bocais; rack: meio de cada lado). Ao desenhar, arrastar ou colocar, a ponta encaixa na conexão mais próxima. */
+const isInfra = it => !!it && (it.type === 'pipe' || it.type === 'box');
+let snapHit = null;
+function connectorsOf(it) {
+  if (it.type === 'pipe') return it.pts.length >= 2 ? [it.pts[0], it.pts[it.pts.length - 1]] : [];
+  if (it.type === 'box') {
+    const cx = it.x + it.W / 2, cy = it.y + it.H / 2;
+    if (it.kind === 'rack') return [[cx, it.y], [cx, it.y + it.H], [it.x, cy], [it.x + it.W, cy]];
+    return (it.ori || 'v') === 'h' ? [[it.x, cy], [it.x + it.W, cy]] : [[cx, it.y], [cx, it.y + it.H]];
+  }
+  return [];
+}
+function otherConnectors(ex) { const out = []; if (!cur) return out; for (const it of cur.items) if (it !== ex && isInfra(it)) for (const q of connectorsOf(it)) out.push(q); return out; }
+const snapTol = () => 14 / css.sc / pxPerCm(cur);
+function snapToConnector(q, ex) {
+  let best = null, bd = snapTol();
+  for (const c of otherConnectors(ex)) { const d = dist(q, c); if (d < bd) { bd = d; best = c; } }
+  if (best) snapHit = best;
+  return best ? [best[0], best[1]] : null;
+}
+function translateItem(it, dx, dy) {
+  if (it.pts) it.pts = it.pts.map(v => [v[0] + dx, v[1] + dy]);
+  else { it.x = +(it.x + dx).toFixed(2); it.y = +(it.y + dy).toFixed(2); }
+}
+function snapItem(it) {   // desloca a peça para a ponta mais próxima encaixar numa conexão
+  let best = null, bd = snapTol(); const others = otherConnectors(it);
+  for (const a of connectorsOf(it)) for (const c of others) { const d = dist(a, c); if (d < bd) { bd = d; best = [c[0] - a[0], c[1] - a[1], c]; } }
+  if (best) { translateItem(it, best[0], best[1]); snapHit = best[2]; }
+  return !!best;
+}
+const isSized = it => it.type === 'pipe' || (it.type === 'box' && it.kind === 'condulete');
+function setItemD(it, v) {
+  if (it.type === 'pipe') { it.d = v; if (it.kind === 'curva') it.pts = curvaPts(it.pts[1], v, it.ori || 'ld'); }
+  else applyCondSize(it, v);
+}
+const CURVA_CW = {ld: 'lu', lu: 'ru', ru: 'rd', rd: 'ld'}, CURVA_CCW = {lu: 'ld', ru: 'lu', rd: 'ru', ld: 'rd'};
+function rotateSel(ccw) {
+  if (!cur) return;
+  if (!sel) {   // sem seleção: gira a peça que a ferramenta vai colocar
+    if (tool === 'curva') defaults.curvaOri = (ccw ? CURVA_CCW : CURVA_CW)[defaults.curvaOri] || 'ld';
+    else if (tool === 'cond') defaults.condOri = defaults.condOri === 'h' ? 'v' : 'h';
+    else return;
+    saveDefaults(); refreshUI(); return;
+  }
+  if (sel.type === 'pipe' && sel.kind === 'curva') {
+    pushUndo(); const leg = Math.max(dist(sel.pts[0], sel.pts[1]), dist(sel.pts[1], sel.pts[2]));
+    sel.ori = (ccw ? CURVA_CCW : CURVA_CW)[sel.ori || 'ld']; sel.pts = curvaPts(sel.pts[1], sel.d, sel.ori, leg); defaults.curvaOri = sel.ori;
+  } else if (sel.type === 'pipe') {
+    pushUndo(); const cx = sel.pts.reduce((s, q) => s + q[0], 0) / sel.pts.length, cy = sel.pts.reduce((s, q) => s + q[1], 0) / sel.pts.length;
+    sel.pts = sel.pts.map(([x, y]) => ccw ? [cx + (y - cy), cy - (x - cx)] : [cx - (y - cy), cy + (x - cx)]);
+  } else if (sel.type === 'box' && sel.kind === 'condulete') {
+    pushUndo(); sel.ori = (sel.ori || 'v') === 'v' ? 'h' : 'v'; applyCondSize(sel, sel.d || defaults.pipeD); defaults.condOri = sel.ori;
+  } else { flash('Este item não gira.'); return; }
+  saveDefaults(); render(); refreshUI();
+}
 function placeCurva(q) {
   pushUndo(); const it = {type: 'pipe', kind: 'curva', id: newId(), d: defaults.pipeD, color: defaults.pipeColor, bend: 'curva', clamp: false, ori: defaults.curvaOri, pts: curvaPts(q, defaults.pipeD, defaults.curvaOri)};
-  cur.items.push(it); sel = it; render(); refreshUI();
+  cur.items.push(it); snapItem(it); sel = it; render(); refreshUI();
 }
-function placeBox(kind, q) { pushUndo(); const b = newBox(kind, q); cur.items.push(b); sel = b; if (kind === 'rack') tool = 'select'; render(); refreshUI(); }
+function placeBox(kind, q) { pushUndo(); const b = newBox(kind, q); cur.items.push(b); snapItem(b); sel = b; if (kind === 'rack') tool = 'select'; render(); refreshUI(); }
 const evPt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cur.w, (e.clientY - r.top) / r.height * cur.h]; };
 function hitMeas(pt) {
   if (!cur.calib || curTab !== 'medida') return null;
@@ -1635,9 +1749,11 @@ window.addEventListener('mousemove', e => {
       dx = clamp(dx, -Math.min(o.r[0], o.r[2]), cur.w - Math.max(o.r[0], o.r[2])); dy = clamp(dy, -Math.min(o.r[1], o.r[3]), cur.h - Math.max(o.r[1], o.r[3]));
       it.r = [o.r[0] + dx, o.r[1] + dy, o.r[2] + dx, o.r[3] + dy];
     } else {
-      const q = toPlane(cur, pt), dx = q[0] - drag.startPl[0], dy = q[1] - drag.startPl[1];
-      if (it.type === 'screen' || it.type === 'box') { it.x = +(o.x + dx).toFixed(1); it.y = +(o.y + dy).toFixed(1); it.auto = false; }
+      const q = toPlane(cur, pt); let dx = q[0] - drag.startPl[0], dy = q[1] - drag.startPl[1];
+      if (window.__shift) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }   // Shift: só na horizontal ou na vertical
+      if (it.type === 'screen' || it.type === 'box') { it.x = +(o.x + dx).toFixed(2); it.y = +(o.y + dy).toFixed(2); it.auto = false; }
       if ((it.type === 'can' && !it.link) || it.type === 'pipe') it.pts = o.pts.map(v => [v[0] + dx, v[1] + dy]);
+      if (isInfra(it)) { snapHit = null; snapItem(it); }
     }
     fast = true; requestRender();
   }
@@ -1653,6 +1769,9 @@ function endDrag() {
     pending = [];
   }
   if (drag.kind === 'move' && !drag.moved) cur.undo.pop();
+  if (drag.kind === 'handle' && sel && sel.type === 'box' && sel.kind === 'rack' && defaults.sizeAll !== false)   // racks com o mesmo tamanho
+    for (const r of cur.items) if (r !== sel && r.type === 'box' && r.kind === 'rack') { const cx = r.x + r.W / 2; r.W = sel.W; r.H = sel.H; r.x = +(cx - r.W / 2).toFixed(2); }
+  snapHit = null;
   drag = null; fast = false; render(); refreshUI();
 }
 window.addEventListener('mouseup', endDrag);
@@ -1700,6 +1819,7 @@ window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); duplicateSel(); return; }
   if ((e.ctrlKey || e.metaKey) && k === '0') { e.preventDefault(); setZoom(1); return; }
   if (k === 'v' && !e.ctrlKey && !e.metaKey) { setTool('select'); return; }
+  if (k === 'r' && !e.ctrlKey && !e.metaKey) { rotateSel(e.shiftKey); return; }
   if (k === 'escape') { escapeAll(); return; }
   if (k === 'enter' && (tool === 'can' || tool === 'pipe')) { finishCan(); return; }
   if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); deleteSel(); return; }
@@ -1736,7 +1856,7 @@ function hintHtml() {
     case 'place': return !cur.calib ? 'Marque a <b>medida</b> da parede primeiro' : pending.length ? 'Clique no <b>fim</b> do local (ou no mesmo ponto para centralizar ali)' : `<b>${models.length ? getModel(defaults.model).name : ''}</b>: clique no início do local onde vai ficar (ex.: um lado da parede)`;
     case 'canup': return 'Clique na altura onde a <b>canaleta</b> termina (teto)';
     case 'can': return 'Clique os pontos da <b>canaleta</b> · duplo clique termina · trava sozinho na horizontal/vertical';
-    case 'pipe': return 'Clique os pontos do <b>eletroduto</b> · duplo clique termina · trava sozinho na horizontal/vertical';
+    case 'pipe': return 'Clique os pontos do <b>eletroduto</b> · encaixa nos pontos azuis de conexão · <kbd>Shift</kbd> 90° · duplo clique termina';
     case 'curva': return 'Clique onde fica o <b>canto da curva</b> · escolha a posição (┐ ┌ ┘ └) no painel · <kbd>Esc</kbd> sai';
     case 'cond': return 'Clique onde vai cada <b>condulete</b> · <kbd>Esc</kbd> sai';
     case 'rack': return 'Clique onde fica o centro do <b>rack</b>';
@@ -1838,6 +1958,8 @@ function refreshUI() {
   const infraT = pipe ? 'pipe' : cond ? 'cond' : rack ? 'rack' : (tool === 'pipe' || tool === 'curva') ? 'pipe' : ['cond', 'rack'].includes(tool) ? tool : null;
   $$('#infraTools button, #canTools button').forEach(b => b.classList.toggle('on', b.dataset.t === tool));
   for (const [id, t] of [['#ipPipe', 'pipe'], ['#ipCond', 'cond'], ['#ipRack', 'rack']]) $(id).classList.toggle('hide', infraT !== t);
+  $('#ipSize').classList.toggle('hide', !(infraT === 'pipe' || infraT === 'cond')); $('#ipRot').classList.toggle('hide', !(infraT === 'pipe' || infraT === 'cond'));
+  $('#sizeAllRow').classList.toggle('hide', !infraT); $('#sizeAll').checked = defaults.sizeAll !== false;
   $('#pBendBox').classList.toggle('hide', isCurva); $('#pOriBox').classList.toggle('hide', !isCurva); $('#pClampRow').classList.toggle('hide', isCurva);
   $$('#pBend button').forEach(b => b.classList.toggle('on', b.dataset.b === (pipe ? pipeBend(pipe) : defaults.pipeBend)));
   $$('#pOri button').forEach(b => b.classList.toggle('on', b.dataset.o === (pipe && pipe.kind === 'curva' ? pipe.ori : defaults.curvaOri)));
@@ -1848,15 +1970,15 @@ function refreshUI() {
     : can ? (can.link ? 'Canaleta da tela: arraste a bolinha de cima para ajustar o fim.' : 'Canaleta: arraste os pontos para ajustar.')
     : '<b>Até o teto</b> sobe reta do centro da tela. <b>Trajeto livre</b> segue os pontos que você clicar.';
   $('#infraIns').innerHTML = !cur ? '' : !cb ? 'Marque a medida da parede primeiro (aba <b>Medida</b>).'
-    : tool === 'pipe' ? 'Clique os pontos do eletroduto e dê <b>duplo clique</b> para terminar.'
+    : tool === 'pipe' ? 'Clique os pontos do eletroduto e dê <b>duplo clique</b> para terminar. As pontas encaixam nos <b style="color:#38bdf8">pontos azuis</b> das outras peças; <kbd>Shift</kbd> deixa em 90°.'
     : tool === 'curva' ? 'Escolha a posição abaixo e clique onde fica o canto da curva.'
     : tool === 'cond' ? 'Clique onde vai cada condulete. <kbd>Esc</kbd> para sair.' : tool === 'rack' ? 'Clique onde fica o centro do rack.'
-    : pipe ? 'Arraste os pontos para ajustar o trajeto.' : (cond || rack) ? 'Arraste para mover; os quadradinhos ajustam o tamanho.'
+    : pipe ? 'Arraste para mover (encaixa nas conexões) ou arraste as pontas. <kbd>Shift</kbd> trava em 90°.' : cond ? 'Arraste para mover; encaixa nas conexões. <kbd>R</kbd> gira.' : rack ? 'Arraste para mover; os quadradinhos ajustam o tamanho.'
     : 'Escolha uma peça acima. Tudo entra no tamanho real, com sombra e luz da foto.';
   $$('#cColor button').forEach(b => b.classList.toggle('on', b.dataset.c === (can ? can.color : defaults.color)));
   if (document.activeElement !== $('#cW')) $('#cW').value = can ? +can.width.toFixed(1) : defaults.canCm;
   $('#bCanCeil').classList.toggle('hide', !(can && can.link && !can.toCeil));
-  const pd = pipe ? pipe.d : defaults.pipeD;
+  const pd = pipe ? pipe.d : cond && cond.d ? cond.d : defaults.pipeD;
   $$('#pColor button').forEach(b => b.classList.toggle('on', b.dataset.c === (pipe ? pipe.color : defaults.pipeColor)));
   $$('#pDs button').forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.d - pd) < 0.05));
   if (document.activeElement !== $('#pD')) $('#pD').value = +(+pd).toFixed(1);
@@ -1976,7 +2098,15 @@ $$('#infraTools button, #canTools button').forEach(b => b.onclick = () => {
   sel = null; setTool(tool === t ? 'select' : t); render();
 });
 $('#bCanCeil').onclick = () => { if (sel && sel.type === 'can' && sel.link) { pushUndo(); sel.toCeil = true; render(); refreshUI(); } };
-function setPipeD(v) { v = clamp(v, 0.8, 15); if (sel && sel.type === 'pipe') { pushUndo(); sel.d = v; } defaults.pipeD = v; saveDefaults(); render(); refreshUI(); }
+function setPipeD(v) {
+  v = clamp(v, 0.8, 15); const s = sel && isSized(sel) ? sel : null;
+  const targets = !cur ? [] : defaults.sizeAll !== false ? cur.items.filter(isSized) : s ? [s] : [];
+  if (targets.length) pushUndo();
+  for (const it of targets) setItemD(it, v);
+  defaults.pipeD = v; saveDefaults(); render(); refreshUI();
+}
+$('#sizeAll').onchange = () => { defaults.sizeAll = $('#sizeAll').checked; saveDefaults(); };
+$('#bRotL').onclick = () => rotateSel(true); $('#bRotR').onclick = () => rotateSel(false);
 $$('#pDs button').forEach(b => b.onclick = () => setPipeD(+b.dataset.d));
 $('#pD').addEventListener('change', () => { const v = +$('#pD').value; if (v > 0) setPipeD(v); });
 $$('#pBend button').forEach(b => b.onclick = () => { const v = b.dataset.b; if (sel && sel.type === 'pipe') { pushUndo(); sel.bend = v; delete sel.fit; } defaults.pipeBend = v; saveDefaults(); render(); refreshUI(); });
@@ -1993,7 +2123,9 @@ $$('#cdOri button').forEach(b => b.onclick = () => {
 });
 function setRack(w, h, d) {
   const s = selBox('rack');
-  if (s) { pushUndo(); const cx = s.x + s.W / 2; if (w) { s.W = w; s.x = +(cx - w / 2).toFixed(1); } if (h) s.H = h; if (d) s.D = d; }
+  const rs = s ? (defaults.sizeAll !== false ? cur.items.filter(i => i.type === 'box' && i.kind === 'rack') : [s]) : [];
+  if (rs.length) pushUndo();
+  for (const r of rs) { const cx = r.x + r.W / 2; if (w) { r.W = w; r.x = +(cx - w / 2).toFixed(2); } if (h) r.H = h; if (d) r.D = d; }
   if (w) defaults.rackW = w; if (h) defaults.rackH = h; if (d) defaults.rackD = d; saveDefaults(); render(); refreshUI();
 }
 $('#rW').addEventListener('change', () => { const v = +$('#rW').value; if (v > 0) setRack(v, 0, 0); });
@@ -2082,7 +2214,7 @@ async function projectBlob(p) {
   const ms = {};
   for (const id of new Set(screensOf(p).map(i => i.model))) { const m = getModel(id); ms[id] = {name: m.name, kind: m.kind, W: m.W, H: m.H, base: m.base, tilt: m.tilt, data: m.blob ? await blobToDataURL(m.blob) : null}; }
   const photo = p.blob ? await blobToDataURL(p.blob) : (() => { const c = document.createElement('canvas'); c.width = p.w; c.height = p.h; c.getContext('2d').drawImage(p.img, 0, 0); return c.toDataURL('image/jpeg', 0.95); })();
-  return new Blob([JSON.stringify({app: 'simulador-telas', v: 2, name: p.name, photo, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, models: ms})], {type: 'application/json'});
+  return new Blob([JSON.stringify({app: 'simulador-telas', v: 2, name: p.name, photo, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, models: ms})], {type: 'application/octet-stream'});   // octet-stream: o navegador não troca a extensão .simtela
 }
 async function exportCurrent() {
   if (!cur) return;
