@@ -65,6 +65,8 @@ header{display:flex;align-items:center;gap:10px;height:58px;padding:0 12px 0 14p
 .rbtn,.rail .tabs button{position:relative;width:60px;height:54px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:10.5px;font-weight:600}
 .rbtn:hover,.rail .tabs button:hover{background:var(--card);color:var(--text)}
 .rbtn.on,.rail .tabs button.on{background:var(--accbg);color:var(--acc)}
+#bSelect.on{background:var(--acc);color:#1a1000;box-shadow:0 0 0 2px rgba(247,147,30,.35)}
+#bSelect.on .i{stroke-width:2.2}
 .rail .tabs button.on::before{content:"";position:absolute;left:-4px;top:14px;bottom:14px;width:3px;border-radius:3px;background:var(--acc)}
 .rsep{width:34px;height:1px;background:var(--line);margin:6px 0}
 .rspacer{flex:1}
@@ -1465,7 +1467,7 @@ function toolForTab(n) {
 function goTab(n) { curTab = n; pending = []; drag = null; tool = toolForTab(n); refreshUI(); drawOverlay(); }
 function setTool(t) { tool = t; pending = []; drag = null; refreshUI(); drawOverlay(); }
 $$('.tabs button').forEach(b => b.onclick = () => { endAsk(false); sel = null; goTab(b.dataset.tab); render(); });
-$('#bSelect').onclick = () => { if (!cur) return; endAsk(false); setTool('select'); };
+$('#bSelect').onclick = () => { if (!cur) return; endAsk(false); pendLine = null; setTool('select'); render(); };
 let flashTimer = 0;
 function flash(msg) { const h = $('#hint'); h.textContent = msg; h.classList.add('flash'); clearTimeout(flashTimer); flashTimer = setTimeout(() => { h.classList.remove('flash'); refreshChrome(); }, 2800); }
 
@@ -1685,17 +1687,20 @@ function duplicateSel() {
 }
 $('#bDel').onclick = deleteSel; $('#bDup').onclick = duplicateSel;
 
+// Esc: cancela qualquer ação em andamento, tira a seleção e volta para a ferramenta Selecionar
+function escapeAll() { endAsk(false); pending = []; pendLine = null; drag = null; sel = null; canupTarget = null; tool = 'select'; fast = false; render(); refreshUI(); }
 window.addEventListener('keydown', e => {
   window.__shift = e.shiftKey;
   if (e.key === 'Shift' && cur) drawOverlay();
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (!typing) { e.preventDefault(); undo(); } return; }
+  if (e.key === 'Escape' && typing && document.activeElement !== $('#askIn') && cur && !$('#dlg').open) { document.activeElement.blur(); escapeAll(); return; }
   if (typing || !cur || $('#dlg').open) return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); duplicateSel(); return; }
   if ((e.ctrlKey || e.metaKey) && k === '0') { e.preventDefault(); setZoom(1); return; }
   if (k === 'v' && !e.ctrlKey && !e.metaKey) { setTool('select'); return; }
-  if (k === 'escape') { pending = []; sel = null; if (tool !== 'mark') tool = 'select'; render(); refreshUI(); return; }
+  if (k === 'escape') { escapeAll(); return; }
   if (k === 'enter' && (tool === 'can' || tool === 'pipe')) { finishCan(); return; }
   if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); deleteSel(); return; }
   const arrows = {arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1]};
@@ -1736,7 +1741,7 @@ function hintHtml() {
     case 'cond': return 'Clique onde vai cada <b>condulete</b> · <kbd>Esc</kbd> sai';
     case 'rack': return 'Clique onde fica o centro do <b>rack</b>';
     case 'mark': return `Arraste sobre o item para marcar <b>${labelText() || 'texto livre'}</b>`;
-    default: return sel ? 'Arraste para mover · quadradinhos ajustam · <kbd>Del</kbd> remove · <kbd>Ctrl</kbd>+<kbd>D</kbd> duplica' : 'Clique em um elemento para selecionar · <kbd>Alt</kbd> + rolagem: zoom';
+    default: return sel ? '<b>Selecionar</b> · arraste para mover · quadradinhos ajustam · <kbd>Del</kbd> remove · <kbd>Ctrl</kbd>+<kbd>D</kbd> duplica' : '<b>Selecionar</b> · clique em um elemento para selecionar · <kbd>Esc</kbd> cancela qualquer ação · <kbd>Alt</kbd> + rolagem: zoom';
   }
 }
 function refreshChrome() {
