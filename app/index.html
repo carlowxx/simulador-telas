@@ -241,6 +241,8 @@ details.fold[open]{padding-bottom:10px}
 .keys{display:grid;grid-template-columns:max-content 1fr;gap:9px 16px;font-size:13px;color:#cfd3d7;align-items:center}
 .keys span:nth-child(odd){white-space:nowrap;color:var(--muted)}
 #zoomCtl #zOrig{margin-left:4px;border-left:1px solid var(--line);border-radius:0 8px 8px 0}
+.pjdir{margin-top:14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.02);display:flex;flex-direction:column;gap:2px}
+.pjdir b{font-size:13px;font-weight:600;word-break:break-all}
 .pname{display:flex;align-items:center;gap:8px;margin:0 12px 8px;padding:0 10px;height:34px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--muted)}
 .pname input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--text);font-size:12.5px;font-weight:600}
 .pname:focus-within{border-color:var(--acc);color:var(--acc)}
@@ -468,6 +470,12 @@ details.fold[open]{padding-bottom:10px}
   <h2>Qual é o projeto?</h2>
   <p class="small" style="margin:-6px 0 12px;font-size:13px">O nome vira a pasta onde tudo é salvo: <b style="color:var(--text)">Imagens\Simulações\(nome do projeto)</b>.</p>
   <input id="pjName" class="wide" style="padding:11px 12px;font-size:15px" placeholder="Ex.: Condomínio Jardim das Flores" maxlength="80">
+  <div class="pjdir">
+    <span class="small">Salvar em</span>
+    <b id="pjDir" title=""></b>
+    <div class="links" style="margin-top:6px"><button class="link" id="pjDirPick">Alterar pasta…</button><button class="link" id="pjDirOpen">Abrir pasta</button><button class="link hide" id="pjDirReset">Voltar ao padrão</button></div>
+    <p class="small hide" id="pjDirOld" style="margin:6px 0 0">Para trocar a pasta, reinstale o app uma vez (a troca de pasta precisa da versão nova do programa).</p>
+  </div>
   <label class="chk hide" id="pjKeepRow" style="margin-top:14px"><input type="checkbox" id="pjClose"><span id="pjCloseTxt"></span></label>
   <div class="dlgfoot"><button class="link" id="pjSkip">Agora não</button><span class="sp"></span><button class="btn primary" id="pjOk">Começar</button></div>
 </dialog>
@@ -1953,6 +1961,7 @@ function askProject() {
   const d = $('#dlgProj'), inp = $('#pjName'), n = photos.length, pend = photos.filter(p => p.items.length && !p.exported).length;
   inp.value = defaults.condo || ''; $('#pjClose').checked = false; $('#pjKeepRow').classList.toggle('hide', !n);
   $('#pjCloseTxt').innerHTML = !n ? '' : `Fechar ${n > 1 ? `as ${n} fotos que estavam abertas` : 'a foto que estava aberta'}<br><span class="small">${pend ? `${pend} ainda não ${pend > 1 ? 'foram baixadas e serão perdidas' : 'foi baixada e será perdida'}.` : 'Tudo já foi baixado.'} Deixe desmarcado para continuar de onde parou.</span>`;
+  refreshFolder(); if (d.open) return Promise.resolve();
   d.showModal(); inp.focus(); inp.select();
   return new Promise(res => d.addEventListener('close', () => res(), {once: true}));
 }
@@ -1962,6 +1971,23 @@ function projOk() {
   $('#condo').value = v; defaults.condo = v; saveDefaults(); $('#dlgProj').close();
 }
 $('#pjOk').onclick = projOk; $('#pjSkip').onclick = () => $('#dlgProj').close();
+// pasta onde as simulações são salvas (pode ser trocada; precisa do app instalado na versão com essa função)
+const bridge = window.simulador || null;
+function showFolder(info) {
+  const has = !!info;
+  $('#pjDir').textContent = has ? info.path : 'Imagens\\Simulações'; $('#pjDir').title = has ? info.path : '';
+  $('#pjDirReset').classList.toggle('hide', !has || info.isDefault);
+  for (const id of ['#pjDirPick', '#pjDirOpen']) $(id).classList.toggle('hide', !bridge);
+  $('#pjDirOld').classList.toggle('hide', !!bridge);
+  $('.condo').title = `Projeto: os arquivos vão para ${has ? info.path : 'Imagens\\Simulações'}\\(nome do projeto). Clique na pasta para trocar o local.`;
+}
+async function refreshFolder() { try { showFolder(bridge ? await bridge.getFolder() : null); } catch (e) { showFolder(null); } }
+$('#pjDirPick').onclick = async () => { if (bridge) showFolder(await bridge.chooseFolder()); };
+$('#pjDirReset').onclick = async () => { if (bridge) showFolder(await bridge.resetFolder()); };
+$('#pjDirOpen').onclick = () => { if (bridge) bridge.openFolder(''); };
+$('.condo > span').style.cursor = 'pointer';
+$('.condo > span').addEventListener('click', e => { e.preventDefault(); askProject(); });
+refreshFolder();
 $('#pjName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') projOk(); });
 
 /* ---------------- nome da imagem (vira o nome do arquivo ao baixar) ---------------- */

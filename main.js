@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, shell, net } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, net, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -61,11 +61,29 @@ async function checkUpdates() {
 }
 
 /* ---------- downloads (Baixar PNG) ---------- */
+// A pasta de destino pode ser trocada pelo usuário (fica guardada em config.json, na pasta de dados do app).
+const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
+const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgFile(), 'utf8')) || {}; } catch (e) { return {}; } };
+const writeCfg = c => { try { fs.writeFileSync(cfgFile(), JSON.stringify(c), 'utf8'); } catch (e) { /* sem permissão: mantém o padrão */ } };
+const defaultDir = () => path.join(app.getPath('pictures'), 'Simulações');
 function exportDir() {
-  const dir = path.join(app.getPath('pictures'), 'Simulações');
-  fs.mkdirSync(dir, {recursive: true});
+  let dir = readCfg().exportDir || defaultDir();
+  try { fs.mkdirSync(dir, {recursive: true}); } catch (e) { dir = defaultDir(); fs.mkdirSync(dir, {recursive: true}); }   // pasta escolhida sumiu (HD externo, rede): volta ao padrão
   return dir;
 }
+const folderInfo = () => ({path: exportDir(), isDefault: !readCfg().exportDir});
+ipcMain.handle('folder:get', () => folderInfo());
+ipcMain.handle('folder:choose', async () => {
+  const r = await dialog.showOpenDialog(win, {title: 'Onde salvar as simulações', defaultPath: exportDir(), properties: ['openDirectory', 'createDirectory']});
+  if (!r.canceled && r.filePaths[0]) writeCfg(Object.assign(readCfg(), {exportDir: r.filePaths[0]}));
+  return folderInfo();
+});
+ipcMain.handle('folder:reset', () => { const c = readCfg(); delete c.exportDir; writeCfg(c); return folderInfo(); });
+ipcMain.handle('folder:open', (_e, sub) => {
+  let dir = exportDir(); const s = String(sub || '').replace(/[\\/:*?"<>|]+/g, ' ').trim();
+  if (s && fs.existsSync(path.join(dir, s))) dir = path.join(dir, s);
+  shell.openPath(dir); return true;
+});
 function uniquePath(dir, name) {
   const ext = path.extname(name), base = path.basename(name, ext);
   let p = path.join(dir, name), i = 2;
@@ -80,7 +98,7 @@ function createWindow() {
     title: 'Simulador de Telas',
     icon: path.join(__dirname, 'build', 'icon.png'),
     autoHideMenuBar: true,
-    webPreferences: {contextIsolation: true, nodeIntegration: false, sandbox: true}
+    webPreferences: {contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, 'preload.js')}
   });
   Menu.setApplicationMenu(null);
   win.maximize();

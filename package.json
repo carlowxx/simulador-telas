@@ -26,6 +26,7 @@
     "productName": "Simulador de Telas",
     "files": [
       "main.js",
+      "preload.js",
       "app/**/*",
       "build/icon.png",
       "package.json"
