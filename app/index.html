@@ -355,11 +355,11 @@ details.fold[open]{padding-bottom:10px}
         <button data-t="can" data-i="path">Trajeto livre<small>Clique os pontos</small></button>
       </div>
       <label class="chk"><input type="checkbox" id="autoCan"><span>Automática em cada tela<br><span class="small">Toda tela já entra com a canaleta saindo do centro até o teto.</span></span></label>
-      <label class="chk"><input type="checkbox" id="canGap"><span>Entrar no vão do forro<br><span class="small">Se houver uma faixa escura entre o teto e a parede, a canaleta termina rente a ela, com a sombra do forro na ponta, como se entrasse no vão.</span></span></label>
       <p class="ins" id="canIns"></p>
       <h5 class="sect">Cor e largura</h5>
       <div class="sw" id="cColor"></div>
       <div class="row">Largura <input type="number" class="fld" id="cW" step="0.5"> cm</div>
+      <div class="row sl" id="cShineRow">Brilho do metal <span><input type="range" id="cShine" min="0" max="1.6" step="0.05"> <b id="cShineVal"></b></span></div>
       <div class="links"><button class="link" id="bCanCeil">Voltar a ir até o teto</button></div>
       <h5 class="sect">Foto real da canaleta</h5>
       <div class="parts" id="partsCan"></div>
@@ -999,6 +999,17 @@ function drawScreen(g, p, s, quick) {
 }
 
 /* ---------------- desenho: canaleta ---------------- */
+// cor das luzes da foto (média dos pontos mais claros), para tingir o brilho do metal
+function lightColor(p) {
+  if (!p._lc) {
+    const d = smallPx(p), n = d.length / 4, L = new Float32Array(n); for (let i = 0; i < n; i++) L[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2];
+    const thr = Array.from(L).sort((a, b) => b - a)[Math.floor(n * 0.03)] || 255; let r = 0, g = 0, b = 0, c = 0;
+    for (let i = 0; i < n; i++) if (L[i] >= thr) { r += d[i * 4]; g += d[i * 4 + 1]; b += d[i * 4 + 2]; c++; }
+    let mr = 0, mg = 0, mb = 0; for (let i = 0; i < n; i++) { mr += d[i * 4]; mg += d[i * 4 + 1]; mb += d[i * 4 + 2]; }   // mistura com o tom geral da foto (ambiente quente ou frio)
+    const mx = Math.max(r, g, b, 1), mm = Math.max(mr, mg, mb, 1); p._lc = [[r, mr], [g, mg], [b, mb]].map(([v, m]) => 1 - 0.35 * (1 - v / mx) - 0.45 * (1 - m / mm));
+  }
+  return p._lc;
+}
 function photoMeanL(p) {
   if (p._pm == null) { const s = p.small, d = s.getContext('2d').getImageData(0, 0, s.width, s.height).data; let L = 0; for (let i = 0; i < d.length; i += 4) L += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; p._pm = L / (d.length / 4); }
   return p._pm;
@@ -1026,7 +1037,7 @@ function canQuads(p, s) {
 /* Canaleta desenhada ponto a ponto a partir da própria foto: a face recebe a luz da parede naquela altura,
    com escovado, quinas suaves (uma pega luz, a outra escurece), lateral com volume voltada ao centro da
    foto e granulado igual ao da foto. No encontro com o teto, escurece como uma peça que entra no forro. */
-function drawCanQuad(g, p, q, col, od, topShade, gap) {
+function drawCanQuad(g, p, q, col, od, topShade, opt) {
   /* Canaleta realista, ponto a ponto, a partir da própria foto:
      - inox reflete o AMBIENTE: pega a cor da parede dos lados (borrada), então num mármore laranja fica quente;
      - faixa de brilho (reflexo da luz) e faixa mais escura ao longo da peça, como metal polido;
@@ -1067,6 +1078,12 @@ function drawCanQuad(g, p, q, col, od, topShade, gap) {
   const y0 = clamp(Math.floor(Math.min(...ys)) - pad, 0, p.h), y1 = clamp(Math.ceil(Math.max(...ys)) + pad, 0, p.h);
   const bw = x1 - x0, bh = y1 - y0; if (bw <= 0 || bh <= 0) return;
   const layer = new ImageData(bw, bh), d = layer.data, SS = [0.25, 0.75];
+  // inox escovado: variação suave ao longo da peça, riscos finos na horizontal e a cor da luz da foto no brilho
+  const lf = new Float32Array(N), rowN = new Float32Array(bh), vert = uy * uy, lc = lightColor(p);
+  for (let i = 0; i < N; i++) lf[i] = rnd() * 2 - 1;
+  { const R = Math.max(2, Math.round(W * 0.3)); for (let k = 0; k < 3; k++) { const src = lf.slice(); for (let i = 0; i < N; i++) { let s = 0, n = 0; for (let j = Math.max(0, i - R); j <= Math.min(N - 1, i + R); j++) { s += src[j]; n++; } lf[i] = s / n; } } let mx = 1e-6; for (let i = 0; i < N; i++) mx = Math.max(mx, Math.abs(lf[i])); for (let i = 0; i < N; i++) lf[i] /= mx; }
+  for (let i = 0; i < bh; i++) rowN[i] = rnd() * 2 - 1;
+  for (let i = 1; i < bh - 1; i++) rowN[i] = (rowN[i - 1] + rowN[i] * 2 + rowN[i + 1]) / 4;
   for (let jy = 0; jy < bh; jy++) for (let ix = 0; ix < bw; ix++) {
     let r = 0, gg = 0, b = 0, n = 0;
     for (const oy of SS) for (const ox of SS) {
@@ -1076,20 +1093,30 @@ function drawCanQuad(g, p, q, col, od, topShade, gap) {
       const t = dv / W, tt = nearIsD ? t : 1 - t, k3 = Math.min(N - 1, du | 0) * 3;
       const wl = 0.2126 * sm[k3] + 0.7152 * sm[k3 + 1] + 0.0722 * sm[k3 + 2];
       const el = 0.2126 * ev[k3] + 0.7152 * ev[k3 + 1] + 0.0722 * ev[k3 + 2];
-      // Perfil calibrado pela canaleta real da foto de referência: face fosca e uniforme, quina escura do lado de
-      // fora, filete claro na dobra voltada para o centro da foto e quina escura logo depois. Brilho pela exposição da foto.
-      const expo = clamp(0.58 + 0.75 * pm / 255, 0.72, 1.1), along = du / L, mixE = metal ? 0.14 * metal : 0.06, rl = (wl - meanL) * 0.12;
+      const expo = clamp(0.58 + 0.75 * pm / 255, 0.72, 1.1), along = du / L, mixE = metal ? 0.18 * metal : 0.06, rl = (wl - meanL) * 0.12;
       let cr = col.base[0] * expo * (1 - mixE) + ev[k3] * 1.1 * mixE + rl;
       let cg = col.base[1] * expo * (1 - mixE) + ev[k3 + 1] * 1.1 * mixE + rl;
       let cb = col.base[2] * expo * (1 - mixE) + ev[k3 + 2] * 1.1 * mixE + rl;
-      let f = 0.97 + 0.05 * tt + 0.03 * (1 - along), add = streak[Math.min(NC - 1, (t * NC) | 0)] * 2.5 * metal;
-      f *= 0.7 + 0.3 * smooth(tt / 0.05);
-      f *= 1 + (metal ? 0.33 : 0.12) * bump((tt - 0.9) / 0.045);
-      f *= 0.62 + 0.38 * smooth((1 - tt) / 0.045);
-      if (topShade) { const e = (L - du) / (W * 1.6); if (e < 1) f *= 0.3 + 0.7 * Math.pow(Math.max(0, e), 0.65); }
-      if (gap) { const Y = y0 + jy + oy; if (Y < gap.y + gap.m) { const amb = Math.pow(clamp(gap.rows[clamp(Math.round(Y) - gap.y0, 0, gap.rows.length - 1)] / gap.ref, 0.02, 1), 1.7); f *= 1 + (amb - 1) * smooth((gap.y + gap.m - Y) / (2 * gap.m)); } }
+      let f, add = 0, ar = 0, ag = 0, ab = 0;
+      if (metal) {
+        /* Inox escovado, calibrado pelas simulações de referência feitas no Photoshop: face acetinada com leve
+           variação, filete claro nas duas bordas, uma faixa de brilho (reflexo das luzes do teto) logo abaixo do
+           topo e riscos finos na horizontal. */
+        const Y = y0 + jy + oy;
+        f = (0.86 + 0.05 * tt + 0.07 * lf[Math.min(N - 1, du | 0)]) * (1 + 0.12 * bump(tt / 0.04) + 0.26 * bump((1 - tt) / 0.07));
+        const bnd = vert * (Math.exp(-Math.pow((Y - opt.yb) / (0.2 * W), 2)) + 0.22 * Math.exp(-Math.pow((Y - opt.yb - 0.95 * W) / (0.4 * W), 2)));
+        const hi = 118 * metal * opt.shine * bnd; ar = hi * lc[0]; ag = hi * lc[1]; ab = hi * lc[2];
+        add = rowN[clamp((Y | 0) - y0, 0, bh - 1)] * 4 * metal;
+      } else {
+        f = 0.97 + 0.05 * tt + 0.03 * (1 - along); add = 0;
+        f *= 0.7 + 0.3 * smooth(tt / 0.05);
+        f *= 1 + 0.12 * bump((tt - 0.9) / 0.045);
+        f *= 0.62 + 0.38 * smooth((1 - tt) / 0.045);
+      }
+      // no encontro com o teto, a peça escurece até quase sumir e é cortada rente: parece entrar no forro
+      if (topShade) { const e = (L - du) / (W * 0.9); if (e < 1) { const k = 0.26 + 0.74 * e * e; f *= k; ar *= k; ag *= k; ab *= k; } }
       const gn = ((((x0 + ix) * 73856093) ^ ((y0 + jy) * 19349663)) >>> 0) % 1000 / 1000 - 0.5;
-      r += clamp(cr * f + add + gn * 5, 0, 255); gg += clamp(cg * f + add + gn * 5, 0, 255); b += clamp(cb * f + add + gn * 5, 0, 255);
+      r += clamp(cr * f + add + ar + gn * 5, 0, 255); gg += clamp(cg * f + add + ag + gn * 5, 0, 255); b += clamp(cb * f + add + ab + gn * 5, 0, 255);
     }
     if (!n) continue;
     const k = (jy * bw + ix) * 4;
@@ -1111,8 +1138,9 @@ function drawCan(g, p, s, quick) {
   for (const q of quads) { const cx = (q[0][0] + q[2][0]) / 2, cy = (q[0][1] + q[2][1]) / 2; g.beginPath(); q.forEach((v, i) => { const X = cx + (v[0] - cx) * 1.06, Y = cy + (v[1] - cy) * 1.0; i ? g.lineTo(X, Y) : g.moveTo(X, Y); }); g.closePath(); g.fill(); }
   g.restore();
   const od = origPixels(p), cy = ceilPlaneY(p), last = s.pts[s.pts.length - 1];
-  const gap = gapInfo.get(s) || null, touchesCeil = !gap && cy != null && Math.abs(last[1] - cy) < 2;
-  quads.forEach((q, i) => partArt.can ? drawStripQuad(g, p, q, 'can', autoBright(p, q) / 0.9, touchesCeil && i === quads.length - 1, gap) : drawCanQuad(g, p, q, col, od, touchesCeil && i === quads.length - 1, gap));
+  const touchesCeil = cy != null && Math.abs(last[1] - cy) < 4;
+  const allY = quads.flat().map(v => v[1]), topY = Math.min(...allY), opt = {yb: topY + Math.min(1.0 * wpx, 0.45 * (Math.max(...allY) - topY)), shine: s.shine ?? 1};
+  quads.forEach((q, i) => partArt.can ? drawStripQuad(g, p, q, 'can', autoBright(p, q) / 0.9, touchesCeil && i === quads.length - 1, null) : drawCanQuad(g, p, q, col, od, touchesCeil && i === quads.length - 1, opt));
 }
 /* Vão entre o forro e a parede: faixa escura logo acima da linha do teto. A canaleta real entra nela e some
    no escuro. Sobe pela foto (dos lados da canaleta) enquanto estiver bem mais escuro que a parede logo abaixo. */
@@ -1131,6 +1159,19 @@ function ceilGap(p, xi, cyi, halfW) {
   if (start - top < 1.5 * sy) return null;
   return {y: cyi, top, ref, rows, y0, m};
 }
+// borda real entre a parede e o teto, perto da linha do teto (até 2,5 cm): a canaleta termina exatamente ali
+function ceilEdgeY(p, xi, cyi, halfW) {
+  const od = origPixels(p), c = p.calib, sy = (c.pts[3][1] - c.pts[0][1]) / c.h, R = Math.max(2, Math.round(2.5 * sy)), wn = Math.max(2, Math.round(1.2 * sy));
+  const offs = [-3.2, -2.4, -1.8, 1.8, 2.4, 3.2].map(o => Math.round(xi + o * Math.max(2, halfW)));
+  const row = y => { let s = 0; for (const x of offs) { const k = (clamp(y, 0, p.h - 1) * p.w + clamp(x, 0, p.w - 1)) * 4; s += 0.2126 * od[k] + 0.7152 * od[k + 1] + 0.0722 * od[k + 2]; } return s / offs.length; };
+  let best = 0, by = null; const y0 = Math.round(cyi);
+  for (let y = y0 - R; y <= y0 + R; y++) {
+    let below = 0, above = 0; for (let j = 0; j < wn; j++) { below += row(y + j); above += row(y - 1 - j); }
+    const sc = (below - above) / wn * (1 - 0.4 * Math.abs(y - y0) / R);   // parede clara embaixo, teto escuro em cima
+    if (sc > best) { best = sc; by = y; }
+  }
+  return by != null && best >= 14 ? by : cyi;
+}
 // canaleta ligada à tela: sempre sai do centro do topo; só a ponta de cima é livre
 function syncCans(p) {
   for (const c of p.items) {
@@ -1142,10 +1183,7 @@ function syncCans(p) {
     gapInfo.delete(c);
     if (c.toCeil) {
       const cy = ceilPlaneY(p); top = cy != null ? cy : toPlane(p, [toImg(p, [x, s.y])[0], 0])[1];
-      if (cy != null && c.intoGap !== false) {   // entra no vão do forro, se houver
-        const ci = toImg(p, [x, cy]), gp = ceilGap(p, ci[0], ci[1], c.width * pxPerCm(p) / 2);
-        if (gp) { gapInfo.set(c, gp); top = cy - 0.2; }   // termina na linha do teto, como se entrasse no forro (nada aparece dentro do vão)
-      }
+      if (cy != null) { const ci = toImg(p, [x, cy]); top = toPlane(p, [ci[0], ceilEdgeY(p, ci[0], ci[1], c.width * pxPerCm(p) / 2)])[1]; }
     }
     c.pts = [[x, s.y + hPlane(p, s) * 0.15], [x, Math.min(top, s.y - 0.5)]];
   }
@@ -2055,7 +2093,7 @@ function finishCan() {   // termina a canaleta livre ou o eletroduto
   if (pts.length >= 2) {
     pushUndo();
     const it = tool === 'pipe' ? {type: 'pipe', id: newId(), pts, d: defaults.pipeD, color: defaults.pipeColor, bend: defaults.pipeBend, clamp: defaults.pipeClamp}
-      : {type: 'can', id: newId(), pts, width: defaults.canCm, color: defaults.color};
+      : {type: 'can', id: newId(), pts, width: defaults.canCm, color: defaults.color, shine: defaults.canShine ?? 1};
     cur.items.push(it); sel = it;
   }
   tool = 'select'; render(); refreshUI();
@@ -2068,7 +2106,7 @@ function canUpTarget() {
 }
 function canFor(s, topY, toCeil) {
   const x = s.x + s.W / 2;
-  return {type: 'can', id: newId(), pts: [[x, s.y + 1], [x, Math.min(topY ?? s.y - 30, s.y - 1)]], width: defaults.canCm, color: defaults.color, link: s.id, toCeil: !!toCeil, intoGap: defaults.canGap};
+  return {type: 'can', id: newId(), pts: [[x, s.y + 1], [x, Math.min(topY ?? s.y - 30, s.y - 1)]], width: defaults.canCm, color: defaults.color, shine: defaults.canShine ?? 1, link: s.id, toCeil: !!toCeil};
 }
 function makeCanUp(s, topY, toCeil) { pushUndo(); const it = canFor(s, topY, toCeil); cur.items.push(it); sel = it; tool = 'select'; render(); refreshUI(); }
 // tamanho padrão do condulete pela bitola do eletroduto (3/4" ≈ 6,5 × 12 cm)
@@ -2543,7 +2581,6 @@ function refreshUI() {
   $$('#pBend button').forEach(b => b.classList.toggle('on', b.dataset.b === (pipe ? pipeBend(pipe) : defaults.pipeBend)));
   $$('#pOri button').forEach(b => b.classList.toggle('on', b.dataset.o === (pipe && pipe.kind === 'curva' ? pipe.ori : defaults.curvaOri)));
   $('#autoCan').checked = !!defaults.autoCan;
-  $('#canGap').checked = can ? can.intoGap !== false : defaults.canGap !== false;
   $('#canIns').innerHTML = !cur ? '' : !cb ? 'Marque a medida da parede primeiro (aba <b>Medida</b>).'
     : tool === 'canup' ? 'Sem teto marcado: clique na foto, na altura onde a canaleta termina.'
     : tool === 'can' ? 'Clique os pontos do trajeto e dê <b>duplo clique</b> para terminar.'
@@ -2557,6 +2594,7 @@ function refreshUI() {
     : 'Escolha uma peça acima. Tudo entra no tamanho real, com sombra e luz da foto.';
   $$('#cColor button').forEach(b => b.classList.toggle('on', b.dataset.c === (can ? can.color : defaults.color)));
   if (document.activeElement !== $('#cW')) $('#cW').value = can ? +can.width.toFixed(1) : defaults.canCm;
+  { const sh = can ? can.shine ?? 1 : defaults.canShine ?? 1, cc = CAN_COLORS[can ? can.color : defaults.color] || CAN_COLORS.inox; $('#cShine').value = sh; $('#cShineVal').textContent = Math.round(sh * 100) + '%'; $('#cShineRow').classList.toggle('hide', !cc.metal); }
   $('#bCanCeil').classList.toggle('hide', !(can && can.link && !can.toCeil));
   const pd = pipe ? pipe.d : cond && cond.d ? cond.d : defaults.pipeD;
   $$('#pColor button').forEach(b => b.classList.toggle('on', b.dataset.c === (pipe ? pipe.color : defaults.pipeColor)));
@@ -2630,7 +2668,6 @@ const selScreen = () => (cur && cur.calib && sel && sel.type === 'screen' ? sel 
 $('#bNewModel').onclick = () => openModels(null, true);
 $('#bPlace').onclick = () => { if (!cur) return; if (!cur.calib) { flash('Marque a medida da parede primeiro.'); goTab('medida'); return; } endAsk(false); sel = null; setTool('place'); render(); };
 $('#autoCan').onchange = () => { defaults.autoCan = $('#autoCan').checked; saveDefaults(); };
-$('#canGap').onchange = () => { const v = $('#canGap').checked; defaults.canGap = v; saveDefaults(); if (cur) { const cs = sel && sel.type === 'can' ? [sel] : cur.items.filter(i => i.type === 'can' && i.link); if (cs.length) pushUndo(); cs.forEach(c => { c.intoGap = v; if (c.link) c.toCeil = true; }); } render(); refreshUI(); };
 $('#bResetSize').onclick = () => { const s = selScreen(); if (!s) return; pushUndo(); const m = getModel(s.model), cx = s.x + s.W / 2; s.W = m.W; s.H = modelH(m); s.x = +(cx - s.W / 2).toFixed(1); s.custom = false; render(); refreshUI(); };
 const reAuto = s => { s.auto = true; if (!s.region) s.region = [s.x + s.W / 2, s.x + s.W / 2]; if (s.regionY == null) s.regionY = s.y + hPlane(cur, s) / 2; autoPlace(cur, s); };
 $('#objBase').addEventListener('change', () => { const s = selScreen(); if (!s) return; pushUndo(); const v = $('#objBase').value; s.base = v === '' ? null : +v; reAuto(s); render(); refreshUI(); });
@@ -2683,6 +2720,8 @@ $$('#infraTools button, #canTools button').forEach(b => b.onclick = () => {
   }
   sel = null; setTool(tool === t ? 'select' : t); render();
 });
+$('#cShine').addEventListener('pointerdown', () => { if (sel && sel.type === 'can') pushUndo(); });
+$('#cShine').addEventListener('input', () => { const v = +$('#cShine').value; defaults.canShine = v; saveDefaults(); $('#cShineVal').textContent = Math.round(v * 100) + '%'; if (cur && sel && sel.type === 'can') { sel.shine = v; clearTimeout(sliderTimer.cs); sliderTimer.cs = setTimeout(render, 30); } });
 $('#bCanCeil').onclick = () => { if (sel && sel.type === 'can' && sel.link) { pushUndo(); sel.toCeil = true; render(); refreshUI(); } };
 function setPipeD(v) {
   v = clamp(v, 0.8, 15); const s = sel && isSized(sel) ? sel : null;
