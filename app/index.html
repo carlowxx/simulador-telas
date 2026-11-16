@@ -305,6 +305,7 @@ details.fold[open]{padding-bottom:10px}
       <div class="mrow"><span class="mdot" style="background:#ef3b3b"></span><b>Altura</b><input type="number" id="calH" step="0.5" placeholder="—"><span class="small">cm</span><button class="btn sm" id="bMeasH">Marcar</button></div>
       <div class="mrow"><span class="mdot" style="background:#22b14c"></span><b>Piso</b><span class="small" id="floorTxt"></span><button class="btn sm" id="bFloor">Marcar</button></div>
       <div class="mrow"><span class="mdot" style="background:#b06cff"></span><b>Teto</b><span class="small" id="ceilTxt"></span><button class="btn sm" id="bCeil">Marcar</button></div>
+      <label class="chk"><input type="checkbox" class="autoSnap"><span>Ajuste automático<br><span class="small">Grudar nas quinas ao medir e travar sozinho quando o traço está quase reto. Desligue se estiver atrapalhando (o <kbd>Shift</kbd> continua funcionando).</span></span></label>
       <p class="ins" id="calProg" style="margin-top:12px"></p>
       <div class="links"><button class="link" id="bDelH">Remover altura</button></div>
       <h5 class="sect">Conferir</h5>
@@ -359,6 +360,7 @@ details.fold[open]{padding-bottom:10px}
         <button data-t="canline" data-i="canaleta" class="wide">Canaleta reta<small>sem tela: 1 clique até o teto (ou 2 sem teto)</small></button>
       </div>
       <label class="chk"><input type="checkbox" id="autoCan"><span>Automática em cada tela<br><span class="small">Toda tela já entra com a canaleta saindo do centro até o teto.</span></span></label>
+      <label class="chk"><input type="checkbox" class="autoSnap"><span>Ajuste automático<br><span class="small">Grudar nas quinas ao medir e travar sozinho quando o traço está quase reto. Desligue se estiver atrapalhando (o <kbd>Shift</kbd> continua funcionando).</span></span></label>
       <p class="ins" id="canIns"></p>
       <h5 class="sect">Cor e largura</h5>
       <div class="sw" id="cColor"></div>
@@ -378,6 +380,7 @@ details.fold[open]{padding-bottom:10px}
         <button data-t="cond" data-i="cond">Condulete<small>Clique para colocar</small></button>
       </div>
       <p class="ins" id="infraIns"></p>
+      <label class="chk"><input type="checkbox" class="autoSnap"><span>Ajuste automático<br><span class="small">Grudar nas quinas ao medir e travar sozinho quando o traço está quase reto. Desligue se estiver atrapalhando (o <kbd>Shift</kbd> continua funcionando).</span></span></label>
       <div id="ipSize" class="hide">
         <h5 class="sect">Tamanho (bitola)</h5>
         <div class="chips" id="pDs"><button data-d="2.7">3/4"</button><button data-d="3.3">1"</button><button data-d="4.2">1 1/4"</button><button data-d="6">2"</button></div>
@@ -499,7 +502,7 @@ details.fold[open]{padding-bottom:10px}
     <span><kbd>Shift</kbd></span><span>Linha reta ao medir; 90° ao desenhar; mover só na horizontal ou vertical</span>
     <span><kbd>Alt</kbd></span><span>Solta as guias de alinhamento e o encaixe nas bordas</span>
     <span><kbd>Enter</kbd> ou duplo clique</span><span>Termina a canaleta ou o eletroduto</span>
-    <span><kbd>Alt</kbd> + rolagem</span><span>Zoom · <kbd>Ctrl</kbd>+<kbd>0</kbd> mostra a foto inteira · botão do meio arrasta</span>
+    <span><kbd>Alt</kbd> + rolagem</span><span>Zoom · <kbd>Ctrl</kbd>+<kbd>0</kbd> mostra a foto inteira · com zoom, arraste um lugar vazio para navegar</span>
     <span><kbd>V</kbd></span><span>Ferramenta Selecionar</span>
     <span><kbd>?</kbd></span><span>Abre esta lista</span>
   </div>
@@ -1828,7 +1831,7 @@ function setZoom(z, clientX, clientY) {
   const st = $('#stage'), sr = st.getBoundingClientRect(), r0 = cv.getBoundingClientRect();
   const cx = clientX ?? (sr.left + st.clientWidth / 2), cy = clientY ?? (sr.top + st.clientHeight / 2);
   const ix = (cx - r0.left) / r0.width, iy = (cy - r0.top) / r0.height;
-  zoom = clamp(z, 1, 8); fit();
+  zoom = clamp(z, 1, 8); fit(); if (tool === 'select') ov.style.cursor = zoom > 1.01 ? 'grab' : 'default';
   const r1 = cv.getBoundingClientRect();
   st.scrollLeft += (r1.left + ix * r1.width) - cx; st.scrollTop += (r1.top + iy * r1.height) - cy;
   drawOverlay();
@@ -1962,6 +1965,7 @@ function renderList() {
 }
 $('#bOpen').onclick = () => $('#fOpen').click();
 $('#bCloseAll').onclick = closeAll;
+$$('.autoSnap').forEach(c => c.onchange = () => { defaults.autoSnap = c.checked; saveDefaults(); refreshUI(); drawOverlay(); });
 { const zo = $('#zOrig'); zo.addEventListener('pointerdown', e => { e.preventDefault(); setOrig(true); }); for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) zo.addEventListener(ev, () => setOrig(false)); }
 $('#bHelp').onclick = () => $('#dlgHelp').showModal();
 $('#hOk').onclick = () => $('#dlgHelp').close();
@@ -2013,15 +2017,16 @@ $('#photoName').addEventListener('blur', () => { if (cur) $('#photoName').value 
 /* ---------------- introdução (onboarding): passo a passo destacando cada parte da tela ---------------- */
 const TOUR = [
   [null, 'Bem-vindo ao Simulador de Telas', 'Em um minuto você vê o caminho inteiro, da foto da vistoria até a imagem pronta. Dá para pular agora e rever depois no botão <b>?</b> do topo.'],
-  ['.condo', '1. Projeto', 'Ao abrir, o app pede o <b>nome do projeto</b>. Esse nome vira a pasta em <b>Imagens\\Simulações</b> onde tudo é salvo. Você pode trocar aqui a qualquer momento.'],
+  ['.condo', '1. Projeto', 'Ao abrir, o app pede o <b>nome do projeto</b>, que vira a pasta onde tudo é salvo. Clique na <b>pastinha</b> para trocar o nome ou o <b>local de armazenamento</b>.'],
   ['#bOpen', '2. Abra as fotos', 'Clique em <b>Abrir</b> ou arraste as fotos da vistoria para o app. Também abre o arquivo editável (<b>.simtela</b>) de um trabalho anterior.'],
-  ['.tabs button[data-tab="medida"]', '3. Medida', 'Marque a <b>largura</b> de algo conhecido (linha azul) e a <b>altura</b> do teto ao piso (linha vermelha), com as medidas do croqui. As pontas grudam sozinhas nas quinas.'],
-  ['.tabs button[data-tab="elem"]', '4. Telas', 'Clique em <b>Colocar tela</b> e marque o local com 2 cliques. Ela entra no tamanho real, com a base a 190 cm e a canaleta até o teto. Repita para mais telas.'],
-  ['.tabs button[data-tab="canaleta"]', '5. Canaleta', 'Cada tela já entra com a canaleta saindo do centro <b>até o teto</b>. Aqui você muda a cor e a largura, ou desenha um <b>trajeto livre</b> clicando os pontos.'],
+  ['.tabs button[data-tab="medida"]', '3. Medida', 'Marque a <b>largura</b> (linha azul) e sempre a <b>altura</b> do teto ao piso (linha vermelha), com as medidas do croqui. Sem a altura, as medidas verticais são só estimadas. A <b>régua</b> confere qualquer medida. Se o ajuste automático atrapalhar, desligue na própria aba.'],
+  ['.tabs button[data-tab="elem"]', '4. Telas', 'Clique em <b>Colocar tela</b> e marque o local com 2 cliques. Ela entra no tamanho real, com a base a 190 cm e a canaleta até o teto. Selecione a tela para ajustar sombra, brilho e reflexos.'],
+  ['.tabs button[data-tab="canaleta"]', '5. Canaleta', 'Cada tela já entra com a canaleta <b>até o teto</b>. Para pôr uma sem tela, use <b>Canaleta reta</b>: 1 clique e ela sobe até o teto. A largura ajusta nos botões <b>−</b> e <b>+</b>, e o <kbd>Shift</kbd> deixa reta seguindo a parede.'],
   ['.tabs button[data-tab="infra"]', '6. Infra', '<b>Rack</b>, <b>eletroduto</b>, <b>curva</b> e <b>condulete</b>, no tamanho real. As peças se encaixam pelas pontas (pontos azuis), <kbd>R</kbd> gira e <kbd>Shift</kbd> deixa em 90°. Você pode enviar a foto real de cada peça.'],
-  ['.tabs button[data-tab="marcacao"]', '7. Marcas', 'Arraste um retângulo tracejado sobre o que precisa ser indicado: <b>Rack existente</b>, <b>Objeto a remover</b>, <b>Tela a remover</b> ou um texto seu. Dá para escolher de que lado o texto fica.'],
-  ['.layers', '8. O que está na foto', 'Aqui aparece tudo o que você colocou: clique para selecionar, <b>×</b> para apagar. No campo de cima você muda o <b>nome da imagem</b>, que vira o nome do arquivo.'],
-  ['#bExport', '9. Baixar', 'Baixa a imagem (<b>PNG</b>) e o arquivo <b>editável</b> na pasta do projeto. Seu trabalho também é salvo sozinho: se fechar o app, tudo volta ao reabrir.']
+  ['.tabs button[data-tab="marcacao"]', '7. Marcas', 'Arraste um retângulo sobre o que precisa ser indicado: <b>Rack existente</b>, <b>Objeto a remover</b>, <b>Tela a remover</b> ou um texto seu. O texto vai para um lado pronto ou você <b>arrasta</b> para onde quiser, com guias de alinhamento.'],
+  ['#zoomCtl', '8. Zoom', 'Use <kbd>Alt</kbd> + rolagem ou os botões para aproximar. Com zoom, <b>clique e arraste</b> um lugar vazio da foto para navegar. Segure <kbd>Espaço</kbd> (ou o olho) para ver a foto original.'],
+  ['.layers', '9. O que está na foto', 'Aqui aparece tudo o que você colocou: clique para selecionar, <b>×</b> para apagar. No campo de cima você muda o <b>nome da imagem</b>, que vira o nome do arquivo.'],
+  ['#bExport', '10. Baixar', 'Baixa a imagem (<b>PNG</b>) e o arquivo <b>editável</b> na pasta do projeto. Seu trabalho é salvo sozinho, e o botão <b>?</b> lista todos os atalhos.']
 ];
 let tourI = -1;
 function tourShow(i) {
@@ -2029,7 +2034,7 @@ function tourShow(i) {
   t.classList.remove('hide'); bl.classList.remove('hide');
   $('#tStep').textContent = i ? `Passo ${i} de ${TOUR.length - 1}` : 'Introdução'; $('#tTitle').textContent = title; $('#tText').innerHTML = text;
   $('#tPrev').classList.toggle('hide', i === 0); $('#tNext').textContent = i === TOUR.length - 1 ? 'Começar' : i === 0 ? 'Ver como funciona' : 'Próximo';
-  const el = q && $(q), W = innerWidth, H = innerHeight, tw = t.offsetWidth, th = t.offsetHeight; let x, y;
+  const el0 = q && $(q), el = el0 && el0.offsetParent !== null ? el0 : null, W = innerWidth, H = innerHeight, tw = t.offsetWidth, th = t.offsetHeight; let x, y;
   bl.classList.toggle('dim', !el); sp.classList.toggle('hide', !el);
   if (el) {
     const r = el.getBoundingClientRect(), pad = 6;
@@ -2094,7 +2099,7 @@ $('#askIn').addEventListener('blur', () => setTimeout(() => endAsk(true), 0));
 
 // Encaixe nas bordas: perto de uma quina (parede, teto, piso), o ponto gruda na borda mais forte. Alt desliga.
 function edgeSnap(pt, axis) {
-  if (!cur || window.__alt) return pt;
+  if (!cur || window.__alt || defaults.autoSnap === false) return pt;
   const od = origPixels(cur), W = cur.w, H = cur.h, zs = Math.max(css.sc, 25 / W), tol = Math.max(3, Math.round(10 / zs)), w = Math.max(2, Math.round(1.5 / zs)), band = Math.max(2, Math.round(4 / zs)), st = Math.max(1, band >> 1);
   const Lm = (x, y) => { const k = (clamp(y, 0, H - 1) * W + clamp(x, 0, W - 1)) * 4; return 0.2126 * od[k] + 0.7152 * od[k + 1] + 0.0722 * od[k + 2]; };
   const bx = Math.round(pt[0]), by = Math.round(pt[1]); let best = 0, bi = null;
@@ -2128,7 +2133,7 @@ function photoAxes() {
 function axisSnap(from, pt, force, tol = 6) {
   const {v, h} = photoAxes(), dx = pt[0] - from[0], dy = pt[1] - from[1], L = Math.hypot(dx, dy); if (L < 1e-6) return pt;
   const angTo = d => Math.acos(clamp(Math.abs(dx * d[0] + dy * d[1]) / L, 0, 1)) * 180 / Math.PI, av = angTo(v), ah = angTo(h);
-  const d = av <= ah ? v : h; if (!force && Math.min(av, ah) > tol) return pt;
+  const d = av <= ah ? v : h; if (!force && (defaults.autoSnap === false || Math.min(av, ah) > tol)) return pt;
   const t = dx * d[0] + dy * d[1]; return [from[0] + d[0] * t, from[1] + d[1] * t];
 }
 function canSnap(pt) { // ponto no plano da parede; Shift trava em 90° (pelos eixos da foto); quase reto trava sozinho
@@ -2352,12 +2357,14 @@ ov.addEventListener('mousedown', e => {
     const c = clampPt(pt); pending = [c, c]; drag = {kind: 'mark'}; return;
   }
   const it = hitTest(pt); sel = it;
-  if (it) startMove(it, pt); else { const m = hitMeas(pt); if (m) sel = {type: 'meas', which: m}; }
+  if (it) startMove(it, pt); else { const m = hitMeas(pt); if (m) sel = {type: 'meas', which: m};
+    else if (zoom > 1.01) { const st = $('#stage'); drag = {kind: 'pan', x: e.clientX, y: e.clientY, sl: st.scrollLeft, st: st.scrollTop}; ov.style.cursor = 'grabbing'; } }   // com zoom, arrastar o fundo navega pela foto
   render(); refreshUI();
 });
 window.addEventListener('mousemove', e => {
   window.__shift = e.shiftKey; window.__alt = e.altKey;
   if (!cur) return;
+  if (drag && drag.kind === 'pan') { const st = $('#stage'); st.scrollLeft = drag.sl - (e.clientX - drag.x); st.scrollTop = drag.st - (e.clientY - drag.y); return; }
   const r = ov.getBoundingClientRect(), inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom, pt = evPt(e);
   mouse = inside || drag ? pt : null;
   if (!drag) { drawOverlay(); return; }
@@ -2586,7 +2593,7 @@ function refreshUI() {
   $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === curTab));
   $$('.panel').forEach(pn => pn.classList.toggle('on', pn.dataset.panel === curTab));
   $('#bSelect').classList.toggle('on', !!cur && tool === 'select');
-  ov.style.cursor = tool === 'select' ? 'default' : 'crosshair';
+  ov.style.cursor = tool === 'select' ? (zoom > 1.01 ? 'grab' : 'default') : 'crosshair';
   fillModels(); refreshChrome();
   const cb = cur && cur.calib, fl = cb && floorImg(cur), ce = cb && ceilImg(cur);
   // medida
@@ -2700,6 +2707,7 @@ function refreshUI() {
   $('#bDup').classList.toggle('hide', !!(sel && sel.type === 'meas'));
   $('#bExportAll').classList.toggle('hide', photos.length < 2); $('#bCloseAll').classList.toggle('hide', !photos.length);
   renderLayers(); renderList();
+  $$('.autoSnap').forEach(c => { c.checked = defaults.autoSnap !== false; });
   { const pn = $('#photoName'); pn.disabled = !cur; if (document.activeElement !== pn) pn.value = cur ? baseName(cur.name) : ''; }
 }
 // nome legível de cada item (lista "Nesta foto" e seleção)
