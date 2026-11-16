@@ -1737,8 +1737,10 @@ function drawOverlay() {
     if (sp[0] !== mouse[0] || sp[1] !== mouse[1]) { const s0 = P(sp); octx.strokeStyle = '#38bdf8'; octx.lineWidth = 2.5; octx.beginPath(); if (ax === 'x') { octx.moveTo(s0[0], s0[1] - 16); octx.lineTo(s0[0], s0[1] + 16); } else { octx.moveTo(s0[0] - 16, s0[1]); octx.lineTo(s0[0] + 16, s0[1]); } octx.stroke(); }
   }
   if (c && (curTab === 'medida' || tool === 'check')) {
-    for (const k of cur.checks || []) ruler(k.a, k.b, '#0ea5a4', cm(checkCm(k.a, k.b)) + ' cm');
-    if (tool === 'check' && pending.length && mouse) { const b = checkSnap(mouse); ruler(pending[0], b, '#0ea5a4', cm(checkCm(pending[0], b)) + ' cm'); }
+    // sem altura marcada, a vertical é estimada pela largura: a régua mostra "≈" para lembrar que pode errar
+    const lbl = (a, b) => { const v = Math.abs(b[1] - a[1]) > Math.abs(b[0] - a[0]) * 0.6 && !c.hl; return (v ? '≈ ' : '') + cm(checkCm(a, b)) + ' cm' + (v ? ' (sem altura)' : ''); };
+    for (const k of cur.checks || []) ruler(k.a, k.b, '#0ea5a4', lbl(k.a, k.b));
+    if (tool === 'check' && pending.length && mouse) { const b = checkSnap(mouse); ruler(pending[0], b, '#0ea5a4', lbl(pending[0], b)); }
   }
   for (const gd of guides) {   // guias de alinhamento ao arrastar
     const vert = gd.x != null || gd.ix != null, gv = vert ? (gd.ix ?? toImg(cur, [gd.x, 0])[0]) : (gd.iy ?? toImg(cur, [0, gd.y])[1]), A = vert ? P([gv, 0]) : P([0, gv]), B = vert ? P([gv, cur.h]) : P([cur.w, gv]);
@@ -2602,6 +2604,7 @@ function refreshUI() {
   { const nR = cur && cur.checks ? cur.checks.length : 0, br = $('#bRuler'); br.disabled = !cb; br.style.opacity = cb ? '' : '.45'; br.classList.toggle('on', tool === 'check'); br.textContent = tool === 'check' ? 'Medindo…' : 'Medir';
     $('#rulerTxt').textContent = nR ? `${nR} medida${nR > 1 ? 's' : ''}` : '—'; $('#bRulerClr').classList.toggle('hide', !nR); }
   $('#calProg').innerHTML = !cur ? '' : !cb ? 'Marque a <b>largura</b> de algo conhecido na parede. O app pergunta a medida na hora.'
+    : !cb.hl ? 'Falta a <b>altura</b> (do teto ao piso). Sem ela, a vertical é estimada pela largura e pode errar alguns por cento, ainda mais com uma linha azul curta. Marque a altura para medidas verticais exatas.'
     : !fl ? 'Falta o <b>piso</b>: marque a altura (do teto ao piso) ou clique em Piso → Marcar.' : 'Pronto. Use a aba <b>Elementos</b> para colocar a tela.';
   if (cb && cb.hl) {
     const sx = pxPerCm(cur), sy = (cb.pts[3][1] - cb.pts[0][1]) / cb.h, rr = sx / sy;
