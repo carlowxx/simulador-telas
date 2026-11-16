@@ -263,6 +263,7 @@ details.fold[open]{padding-bottom:10px}
 ::-webkit-scrollbar-thumb:active{background:var(--acc);border:2px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-button{display:none}
 ::-webkit-scrollbar-corner{background:transparent}
+.btn.stp{width:30px;height:30px;padding:0;display:grid;place-items:center;font-size:16px;font-weight:700}
 </style>
 </head>
 <body>
@@ -355,12 +356,13 @@ details.fold[open]{padding-bottom:10px}
       <div class="tools" id="canTools">
         <button data-t="canup" data-i="canaleta">Até o teto<small>Sai do centro da tela</small></button>
         <button data-t="can" data-i="path">Trajeto livre<small>Clique os pontos</small></button>
+        <button data-t="canline" data-i="canaleta" class="wide">Canaleta reta<small>sem tela: 1 clique até o teto (ou 2 sem teto)</small></button>
       </div>
       <label class="chk"><input type="checkbox" id="autoCan"><span>Automática em cada tela<br><span class="small">Toda tela já entra com a canaleta saindo do centro até o teto.</span></span></label>
       <p class="ins" id="canIns"></p>
       <h5 class="sect">Cor e largura</h5>
       <div class="sw" id="cColor"></div>
-      <div class="row">Largura <input type="number" class="fld" id="cW" step="0.5"> cm</div>
+      <div class="row">Largura <button class="btn stp" id="cWm" title="Mais fina">−</button><input type="number" class="fld" id="cW" step="0.5"><button class="btn stp" id="cWp" title="Mais larga">+</button> cm</div>
       <div class="row sl" id="cShineRow">Brilho do metal <span><input type="range" id="cShine" min="0" max="1.6" step="0.05"> <b id="cShineVal"></b></span></div>
       <div class="links"><button class="link" id="bCanCeil">Voltar a ir até o teto</button></div>
       <h5 class="sect">Foto real da canaleta</h5>
@@ -1663,10 +1665,13 @@ function getHandles() {
     if (cur.calib.hl) cur.calib.hl.forEach((q, i) => H.push({pt: q, kind: 'h', set: v => changeCalib(cur, c => { c.hl[i] = edgeSnap(v, 'y'); })}));
   }
   if (sel && (sel.type === 'screen' || (sel.type === 'box' && sel.kind === 'rack')) && cur.calib) screenResizeHandles(sel).forEach(h => H.push(h));
-  if (sel && sel.type === 'can' && cur.calib) canPtsImg(cur, sel).forEach((q, i) => { if (sel.link && i === 0) return; H.push({pt: q, set: v => { const x = sel.pts[i][0]; sel.pts[i] = toPlane(cur, v); if (sel.link) { sel.pts[i][0] = x; sel.toCeil = false; } }}); });
+  if (sel && sel.type === 'can' && cur.calib) canPtsImg(cur, sel).forEach((q, i) => { if (sel.link && i === 0) return; H.push({pt: q, set: v => {
+    const x = sel.pts[i][0], nb = sel.pts[i - 1] || sel.pts[i + 1];
+    if (nb && !sel.link) v = axisSnap(toImg(cur, nb), v, window.__shift);   // Shift: reta pela parede
+    sel.pts[i] = toPlane(cur, v); if (sel.link) { sel.pts[i][0] = x; sel.toCeil = false; } }}); });
   if (sel && sel.type === 'pipe' && cur.calib) canPtsImg(cur, sel).forEach((q, i) => H.push({pt: q, set: v => {
-    let w = toPlane(cur, v); snapHit = null; const nb = sel.pts[i - 1] || sel.pts[i + 1];
-    if (nb && window.__shift) w = Math.abs(w[0] - nb[0]) > Math.abs(w[1] - nb[1]) ? [w[0], nb[1]] : [nb[0], w[1]];   // Shift: 90°
+    snapHit = null; const nb = sel.pts[i - 1] || sel.pts[i + 1];
+    let w = toPlane(cur, nb ? axisSnap(toImg(cur, nb), v, window.__shift) : v);   // Shift: 90° pelos eixos da foto
     if (i === 0 || i === sel.pts.length - 1) { const s = snapToConnector(w, sel); if (s) w = s; }
     sel.pts[i] = w; }}));
   if (sel && sel.type === 'mark') {
@@ -1754,6 +1759,11 @@ function drawOverlay() {
     }
     if (cy != null) ruler(toImg(cur, [cx + sel.W * 0.38, cy]), toImg(cur, [cx + sel.W * 0.38, sel.y]), '#b06cff', cm(sel.y - cy) + ' cm');
   }
+  if (c && tool === 'canline' && mouse) {
+    const a = pending.length ? pending[0] : mouse, b = pending.length ? axisSnap(a, mouse, true) : canLineTop(mouse);
+    if (b) { const hw = defaults.canCm * pxPerCm(cur) / 2, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * hw, ny = dx / l * hw;
+      poly([[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny], [b[0] - nx, b[1] - ny], [a[0] - nx, a[1] - ny]], true); octx.fillStyle = 'rgba(255,210,63,.25)'; octx.fill(); octx.strokeStyle = '#ffd23f'; octx.lineWidth = 1.5; octx.stroke(); }
+  }
   if (pending.length && (tool === 'can' || tool === 'pipe' || tool === 'mark')) {
     octx.strokeStyle = '#ffd23f'; octx.lineWidth = 1.5;
     if (tool === 'mark') { const [a, b] = pending; poly([a, [b[0], a[1]], b, [a[0], b[1]]], true); }
@@ -1788,7 +1798,7 @@ function drawOverlay() {
     octx.fillStyle = '#ffd23f'; octx.strokeStyle = '#000'; octx.lineWidth = 1; octx.beginPath(); octx.rect(s[0] - 4.5, s[1] - 4.5, 9, 9); octx.fill(); octx.stroke();
   }
   // lupa nos cliques de precisão
-  if (mouse && !asking && (tool.startsWith('meas') || ['place', 'can', 'canup', 'pipe', 'curva', 'cond', 'rack', 'check'].includes(tool) || (drag && drag.kind === 'handle'))) {
+  if (mouse && !asking && (tool.startsWith('meas') || ['place', 'can', 'canup', 'canline', 'pipe', 'curva', 'cond', 'rack', 'check'].includes(tool) || (drag && drag.kind === 'handle'))) {
     const R = 58, Z = 4, m = P(mouse); let lx = m[0] + 22, ly = m[1] + 22;
     if (lx + 2 * R > css.W) lx = m[0] - 22 - 2 * R; if (ly + 2 * R > css.H) ly = m[1] - 22 - 2 * R;
     const sw = (2 * R / Z) / sc;
@@ -2103,15 +2113,39 @@ const measAxis = t => (t === 'measW' ? 'x' : 'y');
 const checkCm = (a, b) => dist(toPlane(cur, a), toPlane(cur, b));
 function checkSnap(pt) { if (!window.__shift || !pending.length) return pt; const a = pending[0]; return Math.abs(pt[0] - a[0]) > Math.abs(pt[1] - a[1]) ? [pt[0], a[1]] : [a[0], pt[1]]; }
 function measSnap(pt) { if (!window.__shift || !pending.length) return pt; const a = pending[0]; return tool === 'measH' ? [a[0], pt[1]] : [pt[0], a[1]]; }
-function canSnap(pt) { // ponto no plano da parede; Shift trava em 90°
+/* "Reto" segue a foto: a vertical é a inclinação da linha vermelha (altura), que acompanha a parede; a horizontal,
+   a da linha azul. Em foto de lente grande-angular as paredes não ficam em pé na imagem, e a vertical da tela do
+   computador deixava a peça torta. */
+function photoAxes() {
+  const c = cur && cur.calib, nrm = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; };
+  let v = c && c.hl ? nrm(c.hl[0], c.hl[1]) : [0, 1]; if (v[1] < 0) v = [-v[0], -v[1]];
+  let h = c && c.wl ? nrm(c.wl[0], c.wl[1]) : [1, 0]; if (h[0] < 0) h = [-h[0], -h[1]];
+  return {v, h};
+}
+// leva o ponto para a reta que passa por "from" na direção do eixo mais próximo (force: Shift; senão só se estiver a menos de tol°)
+function axisSnap(from, pt, force, tol = 6) {
+  const {v, h} = photoAxes(), dx = pt[0] - from[0], dy = pt[1] - from[1], L = Math.hypot(dx, dy); if (L < 1e-6) return pt;
+  const angTo = d => Math.acos(clamp(Math.abs(dx * d[0] + dy * d[1]) / L, 0, 1)) * 180 / Math.PI, av = angTo(v), ah = angTo(h);
+  const d = av <= ah ? v : h; if (!force && Math.min(av, ah) > tol) return pt;
+  const t = dx * d[0] + dy * d[1]; return [from[0] + d[0] * t, from[1] + d[1] * t];
+}
+function canSnap(pt) { // ponto no plano da parede; Shift trava em 90° (pelos eixos da foto); quase reto trava sozinho
   let q = toPlane(cur, pt);
-  if (pending.length) {
-    const l = toImg(cur, pending[pending.length - 1]), ang = Math.atan2(Math.abs(pt[1] - l[1]), Math.abs(pt[0] - l[0])) * 180 / Math.PI;
-    if (window.__shift) q = toPlane(cur, Math.abs(pt[0] - l[0]) > Math.abs(pt[1] - l[1]) ? [pt[0], l[1]] : [l[0], pt[1]]);
-    else if (ang < 6) q = toPlane(cur, [pt[0], l[1]]); else if (ang > 84) q = toPlane(cur, [l[0], pt[1]]);   // quase reto: trava
-  }
+  if (pending.length) q = toPlane(cur, axisSnap(toImg(cur, pending[pending.length - 1]), pt, window.__shift));
   if (tool === 'pipe') { snapHit = null; const s = snapToConnector(q, null); if (s) q = s; }   // encaixa numa conexão
   return q;
+}
+// canaleta reta: sobe pela parede (na inclinação da linha vermelha). Com teto marcado, termina rente a ele.
+function canLineTop(a) {
+  const ceil = ceilImg(cur); if (!ceil) return null; const {v} = photoAxes(); if (v[1] > -1e-3 && v[1] < 1e-3) return null;
+  const xi = a[0] + v[0] * (ceil[1] - a[1]) / v[1], ey = ceilEdgeY(cur, xi, ceil[1], defaults.canCm * pxPerCm(cur) / 2), t = (ey - a[1]) / v[1];
+  return t < 0 ? [a[0] + v[0] * t, a[1] + v[1] * t] : null;
+}
+function addCanLine(a, b) {
+  if (dist(a, b) * css.sc < 6) return;
+  pushUndo(); const lo = a[1] > b[1] ? a : b, hi = a[1] > b[1] ? b : a;
+  const it = {type: 'can', id: newId(), pts: [toPlane(cur, lo), toPlane(cur, hi)], width: defaults.canCm, color: defaults.color, shine: defaults.canShine ?? 1};
+  cur.items.push(it); sel = it; pending = []; render(); refreshUI();
 }
 function finishCan() {   // termina a canaleta livre ou o eletroduto
   const pts = []; for (const q of pending) if (!pts.length || dist(q, pts[pts.length - 1]) > 0.3) pts.push(q);
@@ -2243,7 +2277,7 @@ ov.addEventListener('mousedown', e => {
   if (asking) { endAsk(true); return; }
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const pt = evPt(e); mouse = pt;
-  const precise = tool === 'check' || tool.startsWith('meas') || tool === 'can' || tool === 'pipe' || tool === 'canup' || (tool === 'place' && pending.length);
+  const precise = tool === 'check' || tool === 'canline' || tool.startsWith('meas') || tool === 'can' || tool === 'pipe' || tool === 'canup' || (tool === 'place' && pending.length);
   if (!precise) {
     let h = null, best = 9 / css.sc;
     for (const c of getHandles()) { const dd = dist(c.pt, pt); if (dd < best) { best = dd; h = c; } }
@@ -2297,6 +2331,14 @@ ov.addEventListener('mousedown', e => {
     autoPlace(cur, s); cur.items.push(s);
     if (defaults.autoCan && getModel(s.model).kind === 'tela') cur.items.push(canFor(s, null, true));   // canaleta até o teto, já junto
     sel = s; tool = 'select'; render(); refreshUI(); return;
+  }
+  if (tool === 'canline') {
+    if (!pending.length) {
+      const top = canLineTop(pt);
+      if (top) { addCanLine(pt, top); return; }   // teto marcado: 1 clique e ela sobe até ele
+      pending = [pt]; drawOverlay(); refreshUI(); return;
+    }
+    addCanLine(pending[0], axisSnap(pending[0], pt, true)); return;
   }
   if (tool === 'canup' && canupTarget) { makeCanUp(canupTarget, toPlane(cur, pt)[1], false); return; }
   if (tool === 'can' || tool === 'pipe') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; } pending.push(canSnap(pt)); drawOverlay(); return; }
@@ -2493,6 +2535,7 @@ function hintHtml() {
     case 'measCeil': return 'Clique no <b>teto</b>, rente à parede';
     case 'place': return !cur.calib ? 'Marque a <b>medida</b> da parede primeiro' : pending.length ? 'Clique no <b>fim</b> do local (ou no mesmo ponto para centralizar ali)' : `<b>${models.length ? getModel(defaults.model).name : ''}</b>: clique no início do local onde vai ficar (ex.: um lado da parede)`;
     case 'canup': return 'Clique na altura onde a <b>canaleta</b> termina (teto)';
+    case 'canline': return ceilImg(cur) ? 'Clique na <b>base</b> da canaleta: ela sobe reta até o teto · continua ativo para a próxima · <kbd>Esc</kbd> sai' : pending.length ? 'Clique no <b>topo</b> da canaleta (ela fica reta pela parede)' : 'Clique na <b>base</b> da canaleta e depois no topo · marque o teto para ser 1 clique só';
     case 'can': return 'Clique os pontos da <b>canaleta</b> · duplo clique termina · trava sozinho na horizontal/vertical';
     case 'pipe': return 'Clique os pontos do <b>eletroduto</b> · encaixa nos pontos azuis de conexão · <kbd>Shift</kbd> 90° · duplo clique termina';
     case 'curva': return 'Clique onde fica o <b>canto da curva</b> · escolha a posição (┐ ┌ ┘ └) no painel · <kbd>Esc</kbd> sai';
@@ -2608,6 +2651,7 @@ function refreshUI() {
   $$('#pOri button').forEach(b => b.classList.toggle('on', b.dataset.o === (pipe && pipe.kind === 'curva' ? pipe.ori : defaults.curvaOri)));
   $('#autoCan').checked = !!defaults.autoCan;
   $('#canIns').innerHTML = !cur ? '' : !cb ? 'Marque a medida da parede primeiro (aba <b>Medida</b>).'
+    : tool === 'canline' ? (ceilImg(cur) ? 'Clique na base: a canaleta sobe reta até o teto, com a largura abaixo.' : 'Sem teto marcado: clique na base e depois no topo. Ela fica reta pela parede.')
     : tool === 'canup' ? 'Sem teto marcado: clique na foto, na altura onde a canaleta termina.'
     : tool === 'can' ? 'Clique os pontos do trajeto e dê <b>duplo clique</b> para terminar.'
     : can ? (can.link ? 'Canaleta da tela: arraste a bolinha de cima para ajustar o fim.' : 'Canaleta: arraste os pontos para ajustar.')
@@ -2803,6 +2847,9 @@ $('#rW').addEventListener('change', () => { const v = +$('#rW').value; if (v > 0
 $('#rH').addEventListener('change', () => { const v = +$('#rH').value; if (v > 0) setRack(0, v, 0); });
 $('#rD').addEventListener('change', () => { const v = +$('#rD').value; if (v >= 0) setRack(0, 0, v || 0.1); });
 $$('#rSizes button').forEach(b => b.onclick = () => { const [w, h, d] = b.dataset.s.split('x').map(Number); setRack(w, h, d); });
+function setCanW(v) { v = +clamp(v, 1, 40).toFixed(1); if (sel && sel.type === 'can') { pushUndo(); sel.width = v; } defaults.canCm = v; saveDefaults(); render(); refreshUI(); }
+$('#cWm').onclick = () => setCanW((sel && sel.type === 'can' ? sel.width : defaults.canCm) - 0.5);
+$('#cWp').onclick = () => setCanW((sel && sel.type === 'can' ? sel.width : defaults.canCm) + 0.5);
 $('#cW').addEventListener('change', () => { const v = +$('#cW').value; if (!(v > 0)) return; if (sel && sel.type === 'can') { pushUndo(); sel.width = v; } defaults.canCm = v; saveDefaults(); render(); refreshUI(); });
 // marcações
 $$('#mChips button').forEach(b => b.onclick = () => {
