@@ -66,16 +66,30 @@ const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 const readCfg = () => { try { return JSON.parse(fs.readFileSync(cfgFile(), 'utf8')) || {}; } catch (e) { return {}; } };
 const writeCfg = c => { try { fs.writeFileSync(cfgFile(), JSON.stringify(c), 'utf8'); } catch (e) { /* sem permissão: mantém o padrão */ } };
 const defaultDir = () => path.join(app.getPath('pictures'), 'Simulações');
-function exportDir() {
-  let dir = readCfg().exportDir || defaultDir();
-  try { fs.mkdirSync(dir, {recursive: true}); } catch (e) { dir = defaultDir(); fs.mkdirSync(dir, {recursive: true}); }   // pasta escolhida sumiu (HD externo, rede): volta ao padrão
-  return dir;
+// testa de verdade se dá para criar pastas e arquivos ali (alguns discos só deixam administrador gravar)
+function canWrite(dir) {
+  try {
+    fs.mkdirSync(dir, {recursive: true});
+    const t = path.join(dir, `.simtelas-teste-${process.pid}`);
+    fs.mkdirSync(t); fs.writeFileSync(path.join(t, 'x'), '1'); fs.rmSync(t, {recursive: true, force: true});
+    return true;
+  } catch (e) { return false; }
 }
+function exportDir() {
+  const dir = readCfg().exportDir || defaultDir();
+  try { fs.mkdirSync(dir, {recursive: true}); return dir; } catch (e) { fs.mkdirSync(defaultDir(), {recursive: true}); return defaultDir(); }   // pasta escolhida sumiu (HD externo, rede): volta ao padrão
+}
+const noWriteMsg = dir => ({type: 'warning', title: 'Sem permissão nessa pasta', buttons: ['OK'],
+  message: `O Windows não deixa o app gravar em:\n${dir}`,
+  detail: 'Nessa pasta só um administrador pode criar arquivos. Escolha outra pasta (por exemplo, uma dentro de Documentos ou Imagens) ou peça para liberar a gravação nela.'});
 const folderInfo = () => ({path: exportDir(), isDefault: !readCfg().exportDir});
 ipcMain.handle('folder:get', () => folderInfo());
 ipcMain.handle('folder:choose', async () => {
   const r = await dialog.showOpenDialog(win, {title: 'Onde salvar as simulações', defaultPath: exportDir(), properties: ['openDirectory', 'createDirectory']});
-  if (!r.canceled && r.filePaths[0]) writeCfg(Object.assign(readCfg(), {exportDir: r.filePaths[0]}));
+  if (!r.canceled && r.filePaths[0]) {
+    if (canWrite(r.filePaths[0])) writeCfg(Object.assign(readCfg(), {exportDir: r.filePaths[0]}));
+    else await dialog.showMessageBox(win, noWriteMsg(r.filePaths[0]));
+  }
   return folderInfo();
 });
 ipcMain.handle('folder:reset', () => { const c = readCfg(); delete c.exportDir; writeCfg(c); return folderInfo(); });
@@ -107,15 +121,16 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({url}) => { if (/^https?:/.test(url)) shell.openExternal(url); return {action: 'deny'}; });
   win.webContents.on('will-navigate', e => e.preventDefault());
 
-  let lastShown = 0;
+  let lastShown = 0, warnedNoWrite = false;
   win.webContents.session.on('will-download', (_e, item) => {
     // "Condomínio@@foto.png" -> Imagens\Simulações\Condomínio\foto.png
-    let dir = exportDir(), name = item.getFilename();
+    let base = exportDir(), name = item.getFilename(), folder = '';
     const at = name.indexOf('@@');
-    if (at > 0) {
-      const folder = name.slice(0, at).replace(/[\\/:*?"<>|]+/g, ' ').trim();
-      name = name.slice(at + 2);
-      if (folder) { dir = path.join(dir, folder); fs.mkdirSync(dir, {recursive: true}); }
+    if (at > 0) { folder = name.slice(0, at).replace(/[\\/:*?"<>|]+/g, ' ').trim(); name = name.slice(at + 2); }
+    let dir = folder ? path.join(base, folder) : base;
+    if (!canWrite(dir)) {   // sem permissão na pasta escolhida: salva na pasta padrão e avisa (uma vez por sessão)
+      const bad = dir; base = defaultDir(); dir = folder ? path.join(base, folder) : base; fs.mkdirSync(dir, {recursive: true});
+      if (!warnedNoWrite) { warnedNoWrite = true; const m = noWriteMsg(bad); m.detail = `Os arquivos foram salvos em ${dir}.\n\n` + m.detail; dialog.showMessageBox(win, m); }
     }
     const target = uniquePath(dir, name);
     item.setSavePath(target);
