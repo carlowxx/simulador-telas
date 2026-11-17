@@ -171,8 +171,9 @@ dialog select,dialog .wide{width:100%;padding:7px;border-radius:7px;border:1px s
 .lrow .i{color:var(--muted)}
 .lrow.on .i{color:var(--acc)}
 .lrow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lrow .lx{width:22px;height:22px;border-radius:6px;color:var(--muted);display:none;place-items:center;font-size:15px}
-.lrow:hover .lx{display:grid}
+.lrow{min-height:32px}
+.lrow .lx{width:22px;height:22px;border-radius:6px;color:var(--muted);display:grid;place-items:center;font-size:15px;flex:none;opacity:0;pointer-events:none}
+.lrow:hover .lx{opacity:1;pointer-events:auto}
 .lrow .lx:hover{background:rgba(192,57,43,.25);color:#ffb4ab}
 .lempty{padding:2px 8px 6px;color:var(--muted);font-size:12px}
 .chk{display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px;color:#cfd3d7;cursor:pointer}
@@ -267,10 +268,20 @@ details.fold[open]{padding-bottom:10px}
 .pnbtn{width:24px;height:24px;border-radius:6px;color:var(--muted);font-size:12px;flex:none}
 .pnbtn:hover{background:var(--card);color:var(--text)}
 .layers{position:relative}
-#nameMenu{position:absolute;left:12px;right:12px;bottom:calc(100% - 46px);transform:translateY(-100%);background:var(--panel);border:1px solid #3a4047;border-radius:10px;padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.55);z-index:20;max-height:60vh;overflow-y:auto}
+#nameMenu{position:absolute;left:12px;right:12px;background:var(--panel);border:1px solid #3a4047;border-radius:10px;padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.55);z-index:20;max-height:60vh;overflow-y:auto}
 #nameMenu .nmg{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 8px 3px}
 #nameMenu button{display:block;width:100%;text-align:left;padding:6px 10px;border-radius:7px;font-size:13px;color:#d6dade}
 #nameMenu button:hover{background:var(--accbg);color:var(--text)}
+.layers{min-height:96px}
+#layerList{flex:1;min-height:0}
+.lgrip{height:10px;margin-top:-1px;cursor:ns-resize;display:grid;place-items:center;flex:none}
+.lgrip i{width:38px;height:4px;border-radius:4px;background:#30363d;transition:background .15s,width .15s}
+.lgrip:hover i,.layers.resizing .lgrip i{background:var(--acc);width:54px}
+.layers h5{padding-top:2px}
+.lrow .nmw{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.lrow .nd{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .nd:empty{display:none}
+.lrow{min-height:38px}
 </style>
 </head>
 <body>
@@ -444,7 +455,7 @@ details.fold[open]{padding-bottom:10px}
       <div class="row sl">Contorno preto <span><input type="range" id="mOutline" min="0" max="4" step="0.1"> <b id="mOutlineVal"></b></span></div>
     </div>
   </div>
-  <div class="layers"><h5><span>Nesta foto</span><span id="layerCount"></span></h5><label class="pname" title="Nome da imagem: é o nome do arquivo ao baixar"><span data-i="tag" data-s="1"></span><input id="photoName" placeholder="Nome da imagem" maxlength="80" disabled><button class="pnbtn" id="bNames" title="Nomes prontos">▾</button></label><div id="nameMenu" class="hide"></div><div id="layerList"></div></div>
+  <div class="layers"><div class="lgrip" id="lGrip" title="Arraste para cima ou para baixo para ver mais itens (duplo clique: tamanho padrão)"><i></i></div><h5><span>Nesta foto</span><span id="layerCount"></span></h5><label class="pname" title="Nome da imagem: é o nome do arquivo ao baixar"><span data-i="tag" data-s="1"></span><input id="photoName" placeholder="Nome da imagem" maxlength="80" disabled><button class="pnbtn" id="bNames" title="Nomes prontos">▴</button></label><div id="nameMenu" class="hide"></div><div id="layerList"></div></div>
 </aside>
 
 <main id="viewport">
@@ -1978,6 +1989,15 @@ function renderList() {
 }
 $('#bOpen').onclick = () => $('#fOpen').click();
 $('#bCloseAll').onclick = closeAll;
+// alça da lista "Nesta foto": puxe para cima para ver mais itens; a altura fica guardada
+{ const L = $('.layers'), g = $('#lGrip'), setH = h => { const v = clamp(h, 96, innerHeight * 0.75); L.style.height = v + 'px'; L.style.maxHeight = 'none'; return v; };
+  if (defaults.layersH) setH(defaults.layersH);
+  let st = null;
+  g.addEventListener('pointerdown', e => { e.preventDefault(); g.setPointerCapture(e.pointerId); st = {y: e.clientY, h: L.getBoundingClientRect().height}; L.classList.add('resizing'); });
+  g.addEventListener('pointermove', e => { if (st) setH(st.h + (st.y - e.clientY)); });
+  const stop = () => { if (!st) return; st = null; L.classList.remove('resizing'); defaults.layersH = Math.round(L.getBoundingClientRect().height); saveDefaults(); };
+  g.addEventListener('pointerup', stop); g.addEventListener('pointercancel', stop);
+  g.addEventListener('dblclick', () => { delete defaults.layersH; saveDefaults(); L.style.height = ''; L.style.maxHeight = ''; }); }
 $$('.autoSnap').forEach(c => c.onchange = () => { defaults.autoSnap = c.checked; saveDefaults(); refreshUI(); drawOverlay(); });
 { const zo = $('#zOrig'); zo.addEventListener('pointerdown', e => { e.preventDefault(); setOrig(true); }); for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) zo.addEventListener(ev, () => setOrig(false)); }
 $('#bHelp').onclick = () => $('#dlgHelp').showModal();
@@ -2030,7 +2050,9 @@ const NAME_PRESETS = [['Tela elevador', ['Tela elevador social', 'Tela elevador 
 function setPhotoName(v) { if (!cur) return; cur.name = v + ((cur.name.match(/\.[A-Za-z0-9]{2,7}$/) || ['.png'])[0]); $('#photoName').value = v; listSig = null; renderList(); refreshUI(); scheduleSave(); }
 { const m = $('#nameMenu'); m.innerHTML = NAME_PRESETS.map(([g, ns]) => `<div class="nmg">${g}</div>` + ns.map(n => `<button data-n="${n}">${n}</button>`).join('')).join('');
   m.querySelectorAll('button').forEach(b => b.onclick = () => { setPhotoName(b.dataset.n); m.classList.add('hide'); });
-  $('#bNames').onclick = e => { e.preventDefault(); e.stopPropagation(); if (!cur) return; m.classList.toggle('hide'); };
+  // abre logo acima do campo do nome (a lista fica no fim do painel, então só cabe para cima)
+  const place = () => { const L = $('.layers'), pn = $('.pname'); m.style.bottom = (L.clientHeight - pn.offsetTop + 6) + 'px'; m.style.maxHeight = Math.max(160, pn.getBoundingClientRect().top - 70) + 'px'; };
+  $('#bNames').onclick = e => { e.preventDefault(); e.stopPropagation(); if (!cur) return; m.classList.toggle('hide'); if (!m.classList.contains('hide')) place(); };
   document.addEventListener('mousedown', e => { if (!m.contains(e.target) && e.target !== $('#bNames')) m.classList.add('hide'); }); }
 $('#photoName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); });
 $('#photoName').addEventListener('blur', () => { if (cur) $('#photoName').value = baseName(cur.name); });
@@ -2754,15 +2776,26 @@ function itemName(it) {
   if (it.type === 'box') return it.kind === 'rack' ? `Rack ${cm(it.W)} × ${cm(it.H)} cm` : 'Condulete';
   return it.textOnly ? `Texto: ${it.label || 'vazio'}` : `Marcação: ${it.label || 'sem texto'}`;
 }
+// detalhes de cada item na lista: medidas reais, cor, comprimento, posição do texto
+const pathCm = pts => { let s = 0; for (let i = 1; i < pts.length; i++) s += dist(pts[i - 1], pts[i]); return s; };
+function itemDetail(it) {
+  const c = cur && cur.calib, fy = c ? floorPlaneY(cur) : null;
+  if (it.type === 'screen') { const parts = [`${cm(it.W)} × ${cm(it.H)} cm`]; if (fy != null) parts.push(`base ${cm(fy - it.y - it.H)} cm`); if (it.tilt) parts.push(`${it.tilt}°`); if (it.glued) parts.push('no teto'); return parts.join(' · '); }
+  if (it.type === 'can') return [`${cm(it.width)} cm`, (CAN_COLORS[it.color] || CAN_COLORS.inox).name.toLowerCase(), c ? `${cm(pathCm(it.pts))} cm de comprimento` : '', it.link ? (it.toCeil ? 'até o teto' : 'fim ajustado') : ''].filter(Boolean).join(' · ');
+  if (it.type === 'pipe') return [it.kind === 'curva' ? `posição ${({ld: '┐', rd: '┌', lu: '┘', ru: '└'})[it.ori || 'ld']}` : `${cm(pathCm(it.pts))} cm`, (PIPE_COLORS[it.color] || PIPE_COLORS.galv).name.split(' ')[0].toLowerCase(), it.kind !== 'curva' && it.pts.length > 2 ? `${it.pts.length - 2} curva${it.pts.length > 3 ? 's' : ''} (${({curva: 'curva', condulete: 'condulete', nenhum: 'reta'})[pipeBend(it)]})` : ''].filter(Boolean).join(' · ');
+  if (it.type === 'box') return it.kind === 'rack' ? [`prof. ${cm(it.D || 0)} cm`, (RACK_COLORS[it.color] || RACK_COLORS.preto).name.toLowerCase(), fy != null ? `base ${cm(fy - it.y - it.H)} cm` : ''].filter(Boolean).join(' · ') : `${(it.ori || 'v') === 'h' ? 'deitado' : 'em pé'} · Ø ${cm(it.d || defaults.pipeD)} cm`;
+  if (it.type === 'mark') return it.textOnly ? `texto avulso · ${cm(it.fontScale ?? 1)}×` : `texto ${it.lo ? 'em posição livre' : ({top: 'em cima', bottom: 'embaixo', left: 'à esquerda', right: 'à direita'})[it.pos || 'top']}`;
+  return '';
+}
 function renderLayers() {
   const box = $('#layerList'), its = cur ? cur.items : []; box.innerHTML = '';
-  $('#layerCount').textContent = its.length || '';
+  $('#layerCount').textContent = its.length ? `${its.length} ${its.length > 1 ? 'itens' : 'item'}` : '';
   if (!its.length) { box.innerHTML = `<div class="lempty">${cur ? 'Nada colocado ainda.' : 'Abra uma foto para começar.'}</div>`; return; }
   for (const it of its) {
     const r = document.createElement('button'); r.className = 'lrow' + (it === sel ? ' on' : '');
     const ic = {screen: 'tela', can: 'canaleta', pipe: it.kind === 'curva' ? 'curva' : 'pipe', box: it.kind === 'rack' ? 'rack' : 'cond', mark: 'tag'}[it.type] || 'tag';
-    r.innerHTML = `<svg class="i s" viewBox="0 0 24 24">${IC[ic]}</svg><span class="nm"></span><span class="lx" title="Remover">×</span>`;
-    r.querySelector('.nm').textContent = itemName(it);
+    r.innerHTML = `<svg class="i s" viewBox="0 0 24 24">${IC[ic]}</svg><span class="nmw"><span class="nm"></span><span class="nd"></span></span><span class="lx" title="Remover">×</span>`;
+    r.querySelector('.nm').textContent = itemName(it); r.querySelector('.nd').textContent = itemDetail(it); r.title = itemName(it) + (itemDetail(it) ? ' · ' + itemDetail(it) : '');
     r.onclick = () => { if (!cur.calib && it.type !== 'mark') return; endAsk(false); sel = it; pending = []; tool = 'select'; curTab = it.type === 'mark' ? 'marcacao' : it.type === 'screen' ? 'elem' : it.type === 'can' ? 'canaleta' : 'infra'; render(); refreshUI(); };
     r.querySelector('.lx').onclick = e => { e.stopPropagation(); sel = it; deleteSel(); };
     box.appendChild(r);
