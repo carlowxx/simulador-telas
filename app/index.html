@@ -264,6 +264,13 @@ details.fold[open]{padding-bottom:10px}
 ::-webkit-scrollbar-button{display:none}
 ::-webkit-scrollbar-corner{background:transparent}
 .btn.stp{width:30px;height:30px;padding:0;display:grid;place-items:center;font-size:16px;font-weight:700}
+.pnbtn{width:24px;height:24px;border-radius:6px;color:var(--muted);font-size:12px;flex:none}
+.pnbtn:hover{background:var(--card);color:var(--text)}
+.layers{position:relative}
+#nameMenu{position:absolute;left:12px;right:12px;bottom:calc(100% - 46px);transform:translateY(-100%);background:var(--panel);border:1px solid #3a4047;border-radius:10px;padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.55);z-index:20;max-height:60vh;overflow-y:auto}
+#nameMenu .nmg{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 8px 3px}
+#nameMenu button{display:block;width:100%;text-align:left;padding:6px 10px;border-radius:7px;font-size:13px;color:#d6dade}
+#nameMenu button:hover{background:var(--accbg);color:var(--text)}
 </style>
 </head>
 <body>
@@ -423,18 +430,21 @@ details.fold[open]{padding-bottom:10px}
         <button data-mk="telarem">Tela a remover</button>
         <button data-mk="outro">Outro…</button>
       </div>
+      <div class="seg" id="mMode"><button data-mm="rect">Retângulo + texto</button><button data-mm="text">Só texto</button></div>
       <input id="mText" class="txt" placeholder="Texto da marcação">
       <p class="ins" id="mIns"></p>
+      <div id="mPosBox">
       <h5 class="sect">Posição do texto</h5>
       <div class="seg" id="mPos" style="margin-bottom:8px"><button data-pos="top">Em cima</button><button data-pos="bottom">Embaixo</button><button data-pos="left">Esquerda</button><button data-pos="right">Direita</button></div>
       <p class="small" style="margin:0 0 4px">Ou <b style="color:var(--text)">arraste o texto na foto</b> para onde quiser: linhas rosa mostram quando ele está alinhado com o retângulo. <span id="mPosFree" class="hide" style="color:var(--acc);font-weight:600">Posição livre em uso; os botões acima voltam às prontas.</span></p>
+      </div>
       <h5 class="sect">Aparência</h5>
       <div class="row sl">Tamanho do texto <span><input type="range" id="mFont" min="0.5" max="2.5" step="0.05"> <b id="mFontVal"></b></span></div>
       <div class="row sl">Tracejado <span><input type="range" id="mScale" min="0.5" max="3" step="0.1"> <b id="mScaleVal"></b></span></div>
       <div class="row sl">Contorno preto <span><input type="range" id="mOutline" min="0" max="4" step="0.1"> <b id="mOutlineVal"></b></span></div>
     </div>
   </div>
-  <div class="layers"><h5><span>Nesta foto</span><span id="layerCount"></span></h5><label class="pname" title="Nome da imagem: é o nome do arquivo ao baixar"><span data-i="tag" data-s="1"></span><input id="photoName" placeholder="Nome da imagem" maxlength="80" disabled></label><div id="layerList"></div></div>
+  <div class="layers"><h5><span>Nesta foto</span><span id="layerCount"></span></h5><label class="pname" title="Nome da imagem: é o nome do arquivo ao baixar"><span data-i="tag" data-s="1"></span><input id="photoName" placeholder="Nome da imagem" maxlength="80" disabled><button class="pnbtn" id="bNames" title="Nomes prontos">▾</button></label><div id="nameMenu" class="hide"></div><div id="layerList"></div></div>
 </aside>
 
 <main id="viewport">
@@ -1597,8 +1607,10 @@ function drawMark(g, p, s) {
   };
   const all = () => { g.beginPath(); sidePath([x0, y0], [x1, y0]); sidePath([x1, y0], [x1, y1]); sidePath([x1, y1], [x0, y1]); sidePath([x0, y1], [x0, y0]); };
   g.save(); g.lineCap = 'square'; g.lineJoin = 'miter';
-  if (ol > 0.05) { all(); g.strokeStyle = '#000'; g.lineWidth = lw + ol * 2; g.stroke(); }
-  all(); g.strokeStyle = MARK_COLOR; g.lineWidth = lw; g.stroke();
+  if (!s.textOnly) {   // texto avulso: sem retângulo
+    if (ol > 0.05) { all(); g.strokeStyle = '#000'; g.lineWidth = lw + ol * 2; g.stroke(); }
+    all(); g.strokeStyle = MARK_COLOR; g.lineWidth = lw; g.stroke();
+  }
   if (s.label) {
     const fs = Math.max(14, p.w * 0.034) * (s.fontScale ?? 1);
     g.font = `700 ${fs}px Montserrat, "Segoe UI", sans-serif`;
@@ -1677,7 +1689,7 @@ function getHandles() {
     let w = toPlane(cur, nb ? axisSnap(toImg(cur, nb), v, window.__shift) : v);   // Shift: 90° pelos eixos da foto
     if (i === 0 || i === sel.pts.length - 1) { const s = snapToConnector(w, sel); if (s) w = s; }
     sel.pts[i] = w; }}));
-  if (sel && sel.type === 'mark') {
+  if (sel && sel.type === 'mark' && !sel.textOnly) {
     const r = sel.r, x0 = Math.min(r[0], r[2]), x1 = Math.max(r[0], r[2]), y0 = Math.min(r[1], r[3]), y1 = Math.max(r[1], r[3]);
     if (!drag) sel.r = [x0, y0, x1, y1];
     const set = (ix, iy) => v => { v = clampPt(v); sel.r[ix] = v[0]; sel.r[iy] = v[1]; };
@@ -1895,10 +1907,10 @@ function selectPhoto(p) {
   cv.width = p.w; cv.height = p.h;
   $('#drop').classList.add('hide'); ['#wrap', '#ov', '#zoomCtl'].forEach(id => $(id).classList.remove('hide'));
   zoom = 1; $('#stage').scrollLeft = 0; $('#stage').scrollTop = 0;
-  fit(); goTab(p.calib ? (screensOf(p).length ? curTab : 'elem') : 'medida'); render(); renderList();
+  fit(); goTab(p.calib ? (screensOf(p).length ? curTab : 'elem') : (p.items.length && p.items.every(i => i.type === 'mark') ? 'marcacao' : 'medida')); render(); renderList();
 }
 function removePhoto(p) {
-  if (p.items.length && !confirm(`Remover "${p.name}"? A simulação dessa foto será perdida (a menos que você já tenha baixado o arquivo editável).`)) return;
+  if (p.items.length && !p.exported && !confirm(`Remover "${baseName(p.name)}"? Ela tem mudanças que ainda não foram baixadas e serão perdidas.`)) return;
   const i = photos.indexOf(p); if (i < 0) return;
   photos.splice(i, 1); idb.del('sess:b:' + p.id);
   if (cur === p) {
@@ -1912,9 +1924,10 @@ function removePhoto(p) {
 let saveTimer = 0, restoring = false, listSig = null;
 // situação de cada foto, mostrada na miniatura
 function photoStatus(p) {
-  if (!p.calib) return ['Falta a medida', 'st-warn'];
-  if (!p.items.length) return ['Medida pronta', 'st-info'];
-  return p.exported ? ['Baixada ✓', 'st-ok'] : ['Não baixada', 'st-work'];
+  const its = p.items;
+  if (!its.length) return p.calib ? ['Medida pronta', 'st-info'] : ['Falta a medida', 'st-warn'];
+  const kind = its.some(i => i.type === 'screen') ? 'Tela' : its.some(i => ['can', 'pipe', 'box'].includes(i.type)) ? 'Infra' : 'Marcação';   // foto só com marcação não precisa de medida
+  return p.exported ? [kind + ' · baixada ✓', 'st-ok'] : [kind + ' · não baixada', 'st-work'];
 }
 function scheduleSave() {
   if (restoring) return; clearTimeout(saveTimer);
@@ -2011,6 +2024,14 @@ $('#photoName').addEventListener('input', () => {
   if (!cur) return; const v = $('#photoName').value.replace(/[\\/:*?"<>|@]+/g, ' ').replace(/\s+/g, ' ').trim(); if (!v) return;
   cur.name = v + ((cur.name.match(/\.[A-Za-z0-9]{2,7}$/) || ['.png'])[0]); renderList();
 });
+const NAME_PRESETS = [['Tela elevador', ['Tela elevador social', 'Tela elevador serviço', 'Tela elevador transferência']],
+  ['Tela hall', ['Tela hall térreo', 'Tela hall 1º subsolo', 'Tela hall 2º subsolo', 'Tela hall 3º subsolo']],
+  ['Outros', ['Tela recepção', 'Rack existente', 'Tela a remover', 'Objetos a remover']]];
+function setPhotoName(v) { if (!cur) return; cur.name = v + ((cur.name.match(/\.[A-Za-z0-9]{2,7}$/) || ['.png'])[0]); $('#photoName').value = v; listSig = null; renderList(); refreshUI(); scheduleSave(); }
+{ const m = $('#nameMenu'); m.innerHTML = NAME_PRESETS.map(([g, ns]) => `<div class="nmg">${g}</div>` + ns.map(n => `<button data-n="${n}">${n}</button>`).join('')).join('');
+  m.querySelectorAll('button').forEach(b => b.onclick = () => { setPhotoName(b.dataset.n); m.classList.add('hide'); });
+  $('#bNames').onclick = e => { e.preventDefault(); e.stopPropagation(); if (!cur) return; m.classList.toggle('hide'); };
+  document.addEventListener('mousedown', e => { if (!m.contains(e.target) && e.target !== $('#bNames')) m.classList.add('hide'); }); }
 $('#photoName').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); });
 $('#photoName').addEventListener('blur', () => { if (cur) $('#photoName').value = baseName(cur.name); });
 
@@ -2354,6 +2375,11 @@ ov.addEventListener('mousedown', e => {
   if (tool === 'mark') {
     const hit = hitTest(pt, 'mark');
     if (hit) { startMove(hit, pt); render(); refreshUI(); return; }
+    if (defaults.markMode === 'text') {   // só texto: um clique e o texto entra ali
+      const lb = labelText(); if (!lb) { flash('Digite o texto antes de clicar na foto.'); $('#mText').focus(); return; }
+      pushUndo(); const c = clampPt(pt), it = {type: 'mark', textOnly: true, r: [c[0], c[1], c[0], c[1]], lo: [0, 0], label: lb, pos: 'top', scale: defaults.markScale, fontScale: defaults.markFont, outline: defaults.markOutline};
+      cur.items.push(it); sel = it; render(); refreshUI(); return;
+    }
     const c = clampPt(pt); pending = [c, c]; drag = {kind: 'mark'}; return;
   }
   const it = hitTest(pt); sel = it;
@@ -2378,6 +2404,12 @@ window.addEventListener('mousemove', e => {
       const tol = 7 / css.sc, hw = b.w / 2, hh = b.h / 2;
       const xs = [[rcx - cx, rcx], [rx0 - (cx - hw), rx0], [rx1 - (cx + hw), rx1], [rx0 - b.gap - (cx + hw), null], [rx1 + b.gap - (cx - hw), null]];
       const ys = [[rcy - cy, rcy], [ry0 - (cy - hh), ry0], [ry1 - (cy + hh), ry1], [ry0 - b.gap - (cy + hh), null], [ry1 + b.gap - (cy - hh), null]];
+      xs.push([cur.w / 2 - cx, cur.w / 2]); ys.push([cur.h / 2 - cy, cur.h / 2]);
+      for (const o of cur.items) {
+        if (o === it || o.type !== 'mark') continue; const ob = labelBox.get(o);
+        if (ob) { xs.push([ob.cx - cx, ob.cx], [ob.cx - ob.w / 2 - (cx - hw), ob.cx - ob.w / 2], [ob.cx + ob.w / 2 - (cx + hw), ob.cx + ob.w / 2]); ys.push([ob.cy - cy, ob.cy]); }
+        if (!o.textOnly) { const ox = (o.r[0] + o.r[2]) / 2, oy = (o.r[1] + o.r[3]) / 2; xs.push([ox - cx, ox]); ys.push([oy - cy, oy]); }
+      }
       const pick = a => a.reduce((m, c) => (Math.abs(c[0]) < tol && (!m || Math.abs(c[0]) < Math.abs(m[0])) ? c : m), null), bx = pick(xs), by = pick(ys);
       if (bx) { cx += bx[0]; if (bx[1] != null) guides.push({ix: bx[1]}); }
       if (by) { cy += by[0]; if (by[1] != null) guides.push({iy: by[1]}); }
@@ -2697,6 +2729,9 @@ function refreshUI() {
   const pos = mk ? (mk.pos || 'top') : defaults.markPos;
   $$('#mPos button').forEach(b => b.classList.toggle('on', !(mk && mk.lo) && b.dataset.pos === pos));
   $('#mPosFree').classList.toggle('hide', !(mk && mk.lo));
+  { const mm = mk ? (mk.textOnly ? 'text' : 'rect') : (defaults.markMode || 'rect'); $$('#mMode button').forEach(b => b.classList.toggle('on', b.dataset.mm === mm)); $('#mPosBox').classList.toggle('hide', mm === 'text'); }
+  if (!mk && defaults.markMode === 'text') $('#mIns').textContent = 'Escolha ou digite o texto e clique na foto onde ele vai ficar. Depois, arraste o texto: linhas rosa mostram o alinhamento com o centro da foto e com as outras marcações.';
+  if (mk && mk.textOnly) $('#mIns').textContent = 'Texto selecionado: edite acima ou arraste na foto. Linhas rosa mostram o alinhamento com o centro da foto e com as outras marcações.';
   const ms = mk ? (mk.scale ?? 1) : defaults.markScale, mf = mk ? (mk.fontScale ?? 1) : defaults.markFont, mo = mk ? (mk.outline ?? 1) : defaults.markOutline;
   $('#mScale').value = ms; $('#mScaleVal').textContent = fx(ms); $('#mFont').value = mf; $('#mFontVal').textContent = fx(mf);
   $('#mOutline').value = mo; $('#mOutlineVal').textContent = mo < 0.05 ? 'sem' : fx(mo);
@@ -2717,7 +2752,7 @@ function itemName(it) {
   if (it.type === 'can') { const s = it.link && ss.find(x => x.id === it.link); return s ? `Canaleta da tela ${n(s)}` : 'Canaleta'; }
   if (it.type === 'pipe') return it.kind === 'curva' ? `Curva 90° Ø ${cm(it.d)} cm` : `Eletroduto Ø ${cm(it.d)} cm`;
   if (it.type === 'box') return it.kind === 'rack' ? `Rack ${cm(it.W)} × ${cm(it.H)} cm` : 'Condulete';
-  return `Marcação: ${it.label || 'sem texto'}`;
+  return it.textOnly ? `Texto: ${it.label || 'vazio'}` : `Marcação: ${it.label || 'sem texto'}`;
 }
 function renderLayers() {
   const box = $('#layerList'), its = cur ? cur.items : []; box.innerHTML = '';
@@ -2869,6 +2904,7 @@ $$('#mChips button').forEach(b => b.onclick = () => {
   if (markKind === 'outro' && !(sel && sel.type === 'mark')) $('#mText').value = '';
   refreshUI(); if (markKind === 'outro') $('#mText').focus();
 });
+$$('#mMode button').forEach(b => b.onclick = () => { defaults.markMode = b.dataset.mm; saveDefaults(); sel = null; if (cur) setTool('mark'); render(); refreshUI(); });
 $('#mText').addEventListener('focus', () => { if (sel && sel.type === 'mark') pushUndo(); });
 $('#mText').addEventListener('input', () => { if (cur && sel && sel.type === 'mark') { sel.label = $('#mText').value; render(); } refreshChrome(); });
 $$('#mPos button').forEach(b => b.onclick = () => { defaults.markPos = b.dataset.pos; saveDefaults(); if (sel && sel.type === 'mark') { pushUndo(); sel.pos = b.dataset.pos; delete sel.lo; render(); } refreshUI(); });
