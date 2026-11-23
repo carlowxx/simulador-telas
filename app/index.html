@@ -751,6 +751,17 @@ function carveSeams(src, addRows) {
     }
     en.push(e); idx.push(ix);
   }
+  // protege uma margem em volta de logo e textos: borda forte vira "proibida" num raio, para nenhuma costura passar por dentro deles
+  { const R = Math.max(3, Math.round(H0 * 0.04)), RX = Math.max(2, Math.round(W * 0.01)), strong = new Uint8Array(W * H0);
+    for (let x = 0; x < W; x++) for (let y = 0; y < H0; y++) if (en[x][y] > 40 && en[x][y] < 1e6) strong[y * W + x] = 1;
+    for (let x = 0; x < W; x++) {
+      const e = en[x];
+      for (let y = 0; y < H0; y++) {
+        let hit = false;
+        for (let dx = -RX; dx <= RX && !hit; dx += RX) { const xx = x + dx; if (xx < 0 || xx >= W) continue; for (let dy = -R; dy <= R; dy += 2) { const yy = y + dy; if (yy >= 0 && yy < H0 && strong[yy * W + xx]) { hit = true; break; } } }
+        if (hit) e[y] += 5000;
+      }
+    } }
   const dup = Array.from({length: W}, () => []), M = new Float32Array(W * H0), back = new Int8Array(W * H0);
   let H = H0;
   for (let s = 0; s < addRows && H > 2; s++) {
@@ -807,7 +818,8 @@ function carve(a, ratio) {
 // imagem a desenhar para um elemento: sempre no tamanho real; telas com formato diferente são ajustadas sem distorcer
 function artFor(s) {
   const m = getModel(s.model), a = m._art, ar = a.width / a.height, r = s.W / s.H;
-  if (m.kind !== 'tela' || Math.abs(r - ar) / ar < 0.012) return a;
+  // diferença pequena de formato (até 20%): só redimensiona a arte por igual, sem costuras (nada quebra; a diferença quase não se nota)
+  if (m.kind !== 'tela' || Math.abs(r - ar) / ar < 0.2) return a;
   const key = r.toFixed(2);
   if (!m._fit[key]) { m._fit = {}; m._fit[key] = carve(a, r); }
   return m._fit[key];
