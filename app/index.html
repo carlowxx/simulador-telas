@@ -282,6 +282,9 @@ details.fold[open]{padding-bottom:10px}
 .lrow .nd{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow .nd:empty{display:none}
 .lrow{min-height:38px}
+.fixbox{margin-top:12px;padding:10px 12px;border-radius:10px;border:1px solid rgba(60,207,110,.35);background:rgba(60,207,110,.07);display:flex;flex-direction:column;gap:4px;font-size:12.5px}
+.fixbox b{color:#bff0cf}
+.fixbox .btn.sm{margin-left:0;background:var(--go);color:#fff;font-weight:700}
 </style>
 </head>
 <body>
@@ -330,6 +333,11 @@ details.fold[open]{padding-bottom:10px}
         <p class="small" id="scaleTxt" style="margin:-2px 0 8px"></p>
         <div class="seg" id="scaleSeg"><button data-sm="xy">Pelas duas</button><button data-sm="h">Pela altura</button><button data-sm="w">Pela largura</button></div>
         <p class="small" id="scaleHelp" style="margin:0"></p>
+        <div class="fixbox" id="fixBox">
+          <b>Melhor: corrigir a foto</b>
+          <span class="small" id="fixTxt"></span>
+          <div class="mwbtn"><button class="btn sm" id="bFixPhoto">Corrigir a foto</button><button class="link hide" id="bOrigPhoto">Voltar à foto original</button></div>
+        </div>
       </div>
       <div class="links"><button class="link" id="bDelH">Remover altura</button></div>
       <h5 class="sect">Conferir</h5>
@@ -1952,7 +1960,7 @@ function selectPhoto(p) {
 function removePhoto(p) {
   if (p.items.length && !p.exported && !confirm(`Remover "${baseName(p.name)}"? Ela tem mudanças que ainda não foram baixadas e serão perdidas.`)) return;
   const i = photos.indexOf(p); if (i < 0) return;
-  photos.splice(i, 1); idb.del('sess:b:' + p.id);
+  photos.splice(i, 1); idb.del('sess:b:' + p.id); idb.del('sess:o:' + p.id);
   if (cur === p) {
     const next = photos[i] || photos[i - 1];
     if (next) selectPhoto(next);
@@ -1971,7 +1979,7 @@ function photoStatus(p) {
 }
 function scheduleSave() {
   if (restoring) return; clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => idb.set('session', {v: 1, cur: photos.indexOf(cur), photos: photos.map(p => ({id: p.id, name: p.name, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, exported: p.exported, checks: p.checks}))}), 700);
+  saveTimer = setTimeout(() => idb.set('session', {v: 1, cur: photos.indexOf(cur), photos: photos.map(p => ({id: p.id, name: p.name, calib: p.calib, items: p.items, lightAuto: p.lightAuto, lightAngle: p.lightAngle, exported: p.exported, checks: p.checks, fixed: !!p.origBlob}))}), 700);
 }
 async function restoreSession() {
   const s = await idb.get('session'); if (!s || !Array.isArray(s.photos) || !s.photos.length) return false;
@@ -1981,6 +1989,7 @@ async function restoreSession() {
       const blob = await idb.get('sess:b:' + m.id); if (!blob) continue;
       const p = addPhoto(await loadImg(URL.createObjectURL(blob)), m.name, blob, m.id);
       p.calib = m.calib || null; p.items = m.items || []; p.lightAuto = m.lightAuto; p.lightAngle = m.lightAngle; p.exported = !!m.exported; p.checks = m.checks || [];
+      if (m.fixed) { const ob = await idb.get('sess:o:' + m.id); if (ob) p.origBlob = ob; }
       if (p.calib && p.calib.wl) { if (p.calib.pts) changeCalib(p, () => {}); else rebuildCalib(p); }
     } catch (e) {}
   }
@@ -1997,7 +2006,7 @@ function closeAll() {
   closeAllNow();
 }
 function closeAllNow() {
-  for (const p of photos) idb.del('sess:b:' + p.id);
+  for (const p of photos) { idb.del('sess:b:' + p.id); idb.del('sess:o:' + p.id); }
   photos.length = 0; cur = null; sel = null; pending = []; clip = null;
   ['#wrap', '#ov', '#zoomCtl'].forEach(id => $(id).classList.add('hide')); $('#drop').classList.remove('hide');
   drawOverlay(); refreshUI(); renderList();
@@ -2691,9 +2700,12 @@ function refreshUI() {
   for (const [el, has, key] of [['#floorTxt', fl, 'floor'], ['#ceilTxt', ce, 'ceil']])
     $(el).innerHTML = !has ? '—' : `<span style="color:#3ccf6e;font-weight:600">✓ marcado</span>${cb[key] ? '' : ' (pela altura)'}`;
   $('#bDelH').classList.toggle('hide', !(cb && cb.hl));
-  { const raw = cb && cb.hl ? (dist(cb.wl[0], cb.wl[1]) / cb.wcm) / (Math.abs(cb.hl[1][1] - cb.hl[0][1]) / cb.hcm) : 1, show = Math.abs(raw - 1) > 0.04, mode = (cb && cb.scaleMode) || 'xy';
+  { const raw = rawRatio(cur), off = Math.abs(raw - 1) > 0.04, show = off || !!(cur && cur.origBlob), mode = (cb && cb.scaleMode) || 'xy';
     $('#scaleBox').classList.toggle('hide', !show);
-    if (show) {
+    $('#scaleSeg').classList.toggle('hide', !off); $('#scaleHelp').classList.toggle('hide', !off); $('#bFixPhoto').classList.toggle('hide', !off); $('#bOrigPhoto').classList.toggle('hide', !(cur && cur.origBlob));
+    $('#fixTxt').textContent = off ? `Desfaz o esticamento da própria foto: ela ${raw > 1 ? 'encolhe na largura' : 'encolhe na altura'} até as duas escalas ficarem iguais. Parede, objetos e tela ficam com a proporção real; o que já foi colocado acompanha e a imagem baixada sai corrigida.` : 'Foto corrigida: largura e altura agora têm a mesma escala.';
+    if (!off) $('#scaleTxt').innerHTML = '';
+    if (off) {
       $$('#scaleSeg button').forEach(b => b.classList.toggle('on', b.dataset.sm === mode));
       $('#scaleTxt').innerHTML = `Nesta foto a parede aparece <b style="color:var(--text)">${Math.round(Math.abs(raw - 1) * 100)}% ${raw > 1 ? 'mais larga' : 'mais alta'}</b> do que é (comum em lente grande-angular). Escolha como a tela acompanha:`;
       $('#scaleHelp').textContent = mode === 'xy' ? 'Largura pela linha azul e altura pela vermelha: a tela ocupa na parede o espaço real, esticada igual à foto.'
@@ -2846,6 +2858,43 @@ $('#bFloor').onclick = () => { if (!cur || !cur.calib) return; sel = null; setTo
 $('#bCeil').onclick = () => { if (!cur || !cur.calib) return; sel = null; setTool('measCeil'); render(); };
 $('#bRuler').onclick = () => { if (!cur || !cur.calib) return; endAsk(false); sel = null; setTool(tool === 'check' ? 'select' : 'check'); render(); };
 $('#bRulerClr').onclick = () => { if (!cur) return; cur.checks = []; scheduleSave(); refreshUI(); drawOverlay(); };
+/* Corrigir a foto: numa foto esticada (comum em lente grande-angular), encolhe a direção esticada para as duas escalas
+   ficarem iguais. Linhas de medida, marcações e réguas acompanham; telas, canaletas e infra ficam em cm e seguem sozinhas. */
+function rawRatio(p) { const c = p && p.calib; return c && c.hl ? (dist(c.wl[0], c.wl[1]) / c.wcm) / (Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : 1; }
+async function setPhotoImage(p, img, blob) {
+  const W = img.naturalWidth, H = img.naturalHeight, kx = W / p.w, ky = H / p.h, S = q => q && [q[0] * kx, q[1] * ky], c = p.calib;
+  if (c) { c.wl = c.wl.map(S); if (c.hl) c.hl = c.hl.map(S); if (c.floor) c.floor = S(c.floor); if (c.ceil) c.ceil = S(c.ceil); }
+  for (const it of p.items) if (it.type === 'mark') { it.r = [it.r[0] * kx, it.r[1] * ky, it.r[2] * kx, it.r[3] * ky]; if (it.lo) it.lo = [it.lo[0] * kx, it.lo[1] * ky]; }
+  p.checks = (p.checks || []).map(k => ({a: S(k.a), b: S(k.b)}));
+  p.img = img; p.blob = blob; p.w = W; p.h = H;
+  const sm = document.createElement('canvas'), k = 256 / W; sm.width = 256; sm.height = Math.max(1, Math.round(H * k)); sm.getContext('2d', {willReadFrequently: true}).drawImage(img, 0, 0, sm.width, sm.height);
+  p.small = sm; p.thumb = sm.toDataURL('image/jpeg', 0.7);
+  for (const key of ['_od', '_env', '_pm', '_sd', '_lc', '_autoLight']) delete p[key];
+  if (c) rebuildCalib(p);
+  p.undo = []; p.redo = []; p.exported = false;
+  idb.set('sess:b:' + p.id, blob);
+}
+async function fixPhoto() {
+  const p = cur; if (!p || !p.calib || !p.calib.hl) return;
+  const raw = rawRatio(p); if (Math.abs(raw - 1) < 0.02) return;
+  if (!p.origBlob) { p.origBlob = p.blob || await new Promise(r => { const c = document.createElement('canvas'); c.width = p.w; c.height = p.h; c.getContext('2d').drawImage(p.img, 0, 0); c.toBlob(r, 'image/jpeg', 0.95); }); idb.set('sess:o:' + p.id, p.origBlob); }
+  const W = raw > 1 ? Math.round(p.w / raw) : p.w, H = raw > 1 ? p.h : Math.round(p.h * raw);
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(p.img, 0, 0, W, H);
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.95)), img = await loadImg(URL.createObjectURL(blob));
+  p.calib.scaleMode = 'xy';
+  await setPhotoImage(p, img, blob);
+  selectPhoto(p); goTab('medida'); render(); refreshUI(); listSig = null; renderList(); scheduleSave();
+  flash(`Foto corrigida: ${raw > 1 ? 'largura' : 'altura'} ajustada em ${Math.round(Math.abs(1 - (raw > 1 ? 1 / raw : raw)) * 100)}%. Tudo ficou na proporção real.`);
+}
+async function origPhoto() {
+  const p = cur; if (!p || !p.origBlob) return;
+  const blob = p.origBlob, img = await loadImg(URL.createObjectURL(blob));
+  delete p.origBlob; idb.del('sess:o:' + p.id);
+  await setPhotoImage(p, img, blob);
+  selectPhoto(p); goTab('medida'); render(); refreshUI(); listSig = null; renderList(); scheduleSave();
+  flash('Voltou à foto original.');
+}
+$('#bFixPhoto').onclick = fixPhoto; $('#bOrigPhoto').onclick = origPhoto;
 $$('#scaleSeg button').forEach(b => b.onclick = () => { if (!cur || !cur.calib) return; pushUndo(); changeCalib(cur, c => { c.scaleMode = b.dataset.sm; }); render(); refreshUI(); });
 $('#bDelH').onclick = () => { if (!cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hl = null; }); render(); refreshUI(); };
 $('#calW').addEventListener('change', () => { const v = +$('#calW').value; if (!(v > 0) || !cur || !cur.calib) return; pushUndo(); changeCalib(cur, c => { c.wcm = v; }); render(); refreshUI(); });
