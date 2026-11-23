@@ -325,6 +325,12 @@ details.fold[open]{padding-bottom:10px}
       <div class="mrow"><span class="mdot" style="background:#b06cff"></span><b>Teto</b><span class="small" id="ceilTxt"></span><button class="btn sm" id="bCeil">Marcar</button></div>
       <label class="chk"><input type="checkbox" class="autoSnap"><span>Ajuste automático<br><span class="small">Grudar nas quinas ao medir e travar sozinho quando o traço está quase reto. Desligue se estiver atrapalhando (o <kbd>Shift</kbd> continua funcionando).</span></span></label>
       <p class="ins" id="calProg" style="margin-top:12px"></p>
+      <div id="scaleBox" class="hide">
+        <h5 class="sect">Proporção da foto</h5>
+        <p class="small" id="scaleTxt" style="margin:-2px 0 8px"></p>
+        <div class="seg" id="scaleSeg"><button data-sm="xy">Pelas duas</button><button data-sm="h">Pela altura</button><button data-sm="w">Pela largura</button></div>
+        <p class="small" id="scaleHelp" style="margin:0"></p>
+      </div>
       <div class="links"><button class="link" id="bDelH">Remover altura</button></div>
       <h5 class="sect">Conferir</h5>
       <div class="mrow"><span class="mdot" style="background:#0ea5a4"></span><b>Régua</b><span class="small" id="rulerTxt"></span><button class="btn sm" id="bRuler">Medir</button></div>
@@ -821,8 +827,10 @@ function rebuildCalib(p) {
   // Assim a tela fica com a largura e a altura reais mesmo quando a foto tem escalas diferentes nas duas
   // direções (lente, recorte ou foto esticada), e base/topo batem com o croqui (190 + 38 = 228).
   // Sem altura marcada, a vertical usa a mesma escala da largura.
-  const sx = dist(A, B) / c.wcm;
-  const sy = c.hl ? Math.max(0.01, Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : sx;
+  let sx = dist(A, B) / c.wcm;
+  let sy = c.hl ? Math.max(0.01, Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : sx;
+  // proporção escolhida para a foto: 'xy' cada direção pela sua medida (padrão); 'h' tudo pela altura; 'w' tudo pela largura
+  if (c.hl && c.scaleMode === 'h') sx = sy; else if (c.hl && c.scaleMode === 'w') sy = sx;
   const w = c.wcm, h = c.hl ? c.hcm : 100;
   c.pts = [A, [A[0] + sx * w, A[1]], [A[0] + sx * w, A[1] + sy * h], [A[0], A[1] + sy * h]];
   c.w = w; c.h = h;
@@ -1678,8 +1686,17 @@ function screenResizeHandles(s) {
     const W = Math.max(MIN_W, Math.abs(q[0] - ax)), Hc = W * ratio;
     s.x = +(fx ? ax : ax - W).toFixed(1); s.y = +(fy ? ay : ay - Hc * k).toFixed(1); s.W = +W.toFixed(1); s.H = +Hc.toFixed(1); done();
   };
-  const edgeX = right => v => { const q = toPlane(cur, v), x1 = s.x + s.W; if (right) s.W = +Math.max(MIN_W, q[0] - s.x).toFixed(1); else { const nx = Math.min(q[0], x1 - MIN_W); s.W = +(x1 - nx).toFixed(1); s.x = +nx.toFixed(1); } done(); };
-  const edgeY = bottom => v => { const q = toPlane(cur, v), y1 = s.y + s.H * k; if (bottom) s.H = +Math.max(MIN_H, (q[1] - s.y) / k).toFixed(1); else { const ny = Math.min(q[1], y1 - MIN_H * k); s.H = +((y1 - ny) / k).toFixed(1); s.y = +ny.toFixed(1); } done(); };
+  // bordas: mantêm a proporção (a tela cresce por igual, centrada no outro eixo). Shift: estica livre.
+  const edgeX = right => v => {
+    const q = toPlane(cur, v), x1 = s.x + s.W, nw = Math.max(MIN_W, right ? q[0] - s.x : x1 - Math.min(q[0], x1 - MIN_W));
+    if (!window.__shift) { const cy = s.y + s.H * k / 2, nh = nw * s.H / s.W; s.H = +nh.toFixed(1); s.y = +(cy - nh * k / 2).toFixed(1); }
+    if (!right) s.x = +(x1 - nw).toFixed(1); s.W = +nw.toFixed(1); done();
+  };
+  const edgeY = bottom => v => {
+    const q = toPlane(cur, v), y1 = s.y + s.H * k, nh = Math.max(MIN_H, bottom ? (q[1] - s.y) / k : (y1 - Math.min(q[1], y1 - MIN_H * k)) / k);
+    if (!window.__shift) { const cx = s.x + s.W / 2, nw = nh * s.W / s.H; s.W = +nw.toFixed(1); s.x = +(cx - nw / 2).toFixed(1); }
+    if (!bottom) s.y = +(y1 - nh * k).toFixed(1); s.H = +nh.toFixed(1); done();
+  };
   return [{pt: c[0], set: corner(0, 0)}, {pt: c[1], set: corner(1, 0)}, {pt: c[2], set: corner(1, 1)}, {pt: c[3], set: corner(0, 1)},
     {pt: M(1, 2), set: edgeX(true)}, {pt: M(3, 0), set: edgeX(false)}, {pt: M(0, 1), set: edgeY(false)}, {pt: M(3, 2), set: edgeY(true)}];
 }
@@ -2662,14 +2679,22 @@ function refreshUI() {
   for (const [el, has, key] of [['#floorTxt', fl, 'floor'], ['#ceilTxt', ce, 'ceil']])
     $(el).innerHTML = !has ? '—' : `<span style="color:#3ccf6e;font-weight:600">✓ marcado</span>${cb[key] ? '' : ' (pela altura)'}`;
   $('#bDelH').classList.toggle('hide', !(cb && cb.hl));
+  { const raw = cb && cb.hl ? (dist(cb.wl[0], cb.wl[1]) / cb.wcm) / (Math.abs(cb.hl[1][1] - cb.hl[0][1]) / cb.hcm) : 1, show = Math.abs(raw - 1) > 0.04, mode = (cb && cb.scaleMode) || 'xy';
+    $('#scaleBox').classList.toggle('hide', !show);
+    if (show) {
+      $$('#scaleSeg button').forEach(b => b.classList.toggle('on', b.dataset.sm === mode));
+      $('#scaleTxt').innerHTML = `Nesta foto a parede aparece <b style="color:var(--text)">${Math.round(Math.abs(raw - 1) * 100)}% ${raw > 1 ? 'mais larga' : 'mais alta'}</b> do que é (comum em lente grande-angular). Escolha como a tela acompanha:`;
+      $('#scaleHelp').textContent = mode === 'xy' ? 'Largura pela linha azul e altura pela vermelha: a tela ocupa na parede o espaço real, esticada igual à foto.'
+        : mode === 'h' ? 'Tudo pela altura: a tela mantém o formato real e a base/topo batem com a linha vermelha; a largura fica proporcional à altura.'
+        : 'Tudo pela largura: a tela mantém o formato real e a largura bate com a linha azul; as alturas ficam proporcionais à largura.';
+    } }
   { const nR = cur && cur.checks ? cur.checks.length : 0, br = $('#bRuler'); br.disabled = !cb; br.style.opacity = cb ? '' : '.45'; br.classList.toggle('on', tool === 'check'); br.textContent = tool === 'check' ? 'Medindo…' : 'Medir';
     $('#rulerTxt').textContent = nR ? `${nR} medida${nR > 1 ? 's' : ''}` : '—'; $('#bRulerClr').classList.toggle('hide', !nR); }
   $('#calProg').innerHTML = !cur ? '' : !cb ? 'Marque a <b>largura</b> de algo conhecido na parede. O app pergunta a medida na hora.'
     : !cb.hl ? 'Falta a <b>altura</b> (do teto ao piso). Sem ela, a vertical é estimada pela largura e pode errar alguns por cento, ainda mais com uma linha azul curta. Marque a altura para medidas verticais exatas.'
     : !fl ? 'Falta o <b>piso</b>: marque a altura (do teto ao piso) ou clique em Piso → Marcar.' : 'Pronto. Use a aba <b>Elementos</b> para colocar a tela.';
   if (cb && cb.hl) {
-    const sx = pxPerCm(cur), sy = (cb.pts[3][1] - cb.pts[0][1]) / cb.h, rr = sx / sy;
-    if (Math.abs(rr - 1) > 0.08) $('#calProg').innerHTML += `<br><span class="small">Nesta foto 1 cm na horizontal vale ${cm(rr)}× o da vertical. Cada direção usa a sua medida, então a tela sai com largura e altura reais.</span>`;
+    void 0;   // a diferença de escala agora aparece em "Proporção da foto", com a escolha
   }
   // elementos
   const so = cb && sel && sel.type === 'screen' ? sel : null, m = so && getModel(so.model);
@@ -2809,6 +2834,7 @@ $('#bFloor').onclick = () => { if (!cur || !cur.calib) return; sel = null; setTo
 $('#bCeil').onclick = () => { if (!cur || !cur.calib) return; sel = null; setTool('measCeil'); render(); };
 $('#bRuler').onclick = () => { if (!cur || !cur.calib) return; endAsk(false); sel = null; setTool(tool === 'check' ? 'select' : 'check'); render(); };
 $('#bRulerClr').onclick = () => { if (!cur) return; cur.checks = []; scheduleSave(); refreshUI(); drawOverlay(); };
+$$('#scaleSeg button').forEach(b => b.onclick = () => { if (!cur || !cur.calib) return; pushUndo(); changeCalib(cur, c => { c.scaleMode = b.dataset.sm; }); render(); refreshUI(); });
 $('#bDelH').onclick = () => { if (!cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hl = null; }); render(); refreshUI(); };
 $('#calW').addEventListener('change', () => { const v = +$('#calW').value; if (!(v > 0) || !cur || !cur.calib) return; pushUndo(); changeCalib(cur, c => { c.wcm = v; }); render(); refreshUI(); });
 $('#calH').addEventListener('change', () => { const v = +$('#calH').value; if (!(v > 0) || !cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hcm = v; }); render(); refreshUI(); });
