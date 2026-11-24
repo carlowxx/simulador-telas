@@ -337,6 +337,7 @@ details.fold[open]{padding-bottom:10px}
           <b>Melhor: corrigir a foto</b>
           <span class="small" id="fixTxt"></span>
           <div class="mwbtn"><button class="btn sm" id="bFixPhoto">Corrigir a foto</button><button class="link hide" id="bOrigPhoto">Voltar à foto original</button></div>
+          <label class="chk" style="margin:6px 0 0;background:none;border:0;padding:0"><input type="checkbox" id="autoFix"><span>Corrigir sozinho ao marcar as medidas</span></label>
         </div>
       </div>
       <div class="links"><button class="link" id="bDelH">Remover altura</button></div>
@@ -824,12 +825,50 @@ function carve(a, ratio) {
   return c;
 }
 // imagem a desenhar para um elemento: sempre no tamanho real; telas com formato diferente são ajustadas sem distorcer
+/* Arte com formato diferente da tela (ex.: arte 2,54:1 numa tela 84 × 38 = 2,21:1): em vez de esticar tudo (o logo
+   deforma) ou costurar (o logo quebra), estica só FAIXAS LISAS INTEIRAS (linhas, ou colunas, sem nenhum detalhe: o verde
+   acima e abaixo do logo, os vãos entre os textos). Logo, textos e moldura ficam exatamente com a forma original. */
+function stretchFlat(a, ratio) {
+  const k = Math.min(1, 1800 / Math.max(a.width, a.height)), w = Math.max(8, Math.round(a.width * k)), h = Math.max(8, Math.round(a.height * k)), vert = ratio < w / h;
+  const add = vert ? Math.round(w / ratio) - h : Math.round(h * ratio) - w; if (add <= 0) return a;
+  const src = document.createElement('canvas'); src.width = w; src.height = h; const sg = src.getContext('2d', {willReadFrequently: true}); sg.imageSmoothingQuality = 'high'; sg.drawImage(a, 0, 0, w, h);
+  const d = sg.getImageData(0, 0, w, h).data, L = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) L[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2] + (d[i * 4 + 3] < 128 ? 300 : 0);
+  const N = vert ? h : w, M = vert ? w : h, at = (i, j) => vert ? L[i * w + j] : L[j * w + i];   // i: faixa que pode crescer; j: posição ao longo dela
+  // moldura: faixas do começo e do fim com a cor da borda não crescem (a moldura fica fina como na arte)
+  const fr = at(N >> 1, Math.min(4, M - 1)); let top = 0, bot = N - 1;
+  while (top < N / 3 && Math.abs(at(top, M >> 1) - fr) < 25) top++; while (bot > N * 2 / 3 && Math.abs(at(bot, M >> 1) - fr) < 25) bot--;
+  const guard = Math.max(2, Math.round(N * 0.015)), lo = top + guard, hi = bot - guard;
+  // energia de cada faixa (detalhe ao longo dela) com uma margem de segurança em volta de qualquer detalhe
+  const E = new Float32Array(N).fill(1e9);
+  // conta os pontos com borda forte: uma faixa só é "lisa" se nenhum ponto dela cruza logo, texto ou moldura
+  // bordas que atravessam a arte inteira (moldura, divisa do verde com a barra lateral) não mudam ao esticar faixas: ignora
+  const strongAt = (i, j) => Math.abs(at(i, j + 1) - at(i, j - 1)) > 22 || Math.abs(at(i + 1, j) - at(i - 1, j)) > 22;
+  const colHits = new Uint32Array(M), span = Math.max(1, Math.min(N - 2, hi) - Math.max(1, lo) + 1);
+  for (let i = Math.max(1, lo); i <= Math.min(N - 2, hi); i++) for (let j = 1; j < M - 1; j++) if (Math.abs(at(i, j + 1) - at(i, j - 1)) > 22) colHits[j]++;
+  const structural = new Uint8Array(M); for (let j = 0; j < M; j++) if (colHits[j] > span * 0.92) { structural[j] = 1; if (j > 0) structural[j - 1] = 1; if (j < M - 1) structural[j + 1] = 1; }
+  for (let i = Math.max(1, lo); i <= Math.min(N - 2, hi); i++) { let s = 0; for (let j = 1; j < M - 1; j++) if (!structural[j] && strongAt(i, j)) s++; E[i] = s; }
+  const R = Math.max(2, Math.round(N * 0.012)), E2 = new Float32Array(N);
+  for (let i = 0; i < N; i++) { let mx = 0; for (let t = Math.max(0, i - R); t <= Math.min(N - 1, i + R); t++) mx = Math.max(mx, E[t]); E2[i] = mx; }
+  const cand = []; for (let i = lo; i <= hi; i++) if (E2[i] < 1e8) cand.push(i);
+  if (!cand.length) return a;
+  const tol = Math.max(1, Math.round(M * 0.002));   // tolera 1 ou 2 pontos de ruído
+  let pick = cand.filter(i => E2[i] <= tol);
+  if (pick.length < 6) pick = cand.slice().sort((x, y) => E2[x] - E2[y]).slice(0, Math.max(4, Math.round(N * 0.06)));   // arte sem faixa lisa: usa as menos detalhadas
+  const extra = new Float32Array(N); for (const i of pick) extra[i] = add / pick.length;
+  const out = document.createElement('canvas'); out.width = vert ? w : w + add; out.height = vert ? h + add : h; const og = out.getContext('2d'); og.imageSmoothingEnabled = true;
+  let pos = 0;
+  for (let i = 0; i < N; i++) {
+    const p0 = Math.round(pos), p1 = Math.round(pos + 1 + extra[i]); pos += 1 + extra[i]; if (p1 <= p0) continue;
+    if (vert) og.drawImage(src, 0, i, w, 1, 0, p0, w, p1 - p0); else og.drawImage(src, i, 0, 1, h, p0, 0, p1 - p0, h);
+  }
+  return out;
+}
 function artFor(s) {
   const m = getModel(s.model), a = m._art, ar = a.width / a.height, r = s.W / s.H;
-  // diferença pequena de formato (até 20%): só redimensiona a arte por igual, sem costuras (nada quebra; a diferença quase não se nota)
-  if (m.kind !== 'tela' || Math.abs(r - ar) / ar < 0.2) return a;
-  const key = r.toFixed(2);
-  if (!m._fit[key]) { m._fit = {}; m._fit[key] = carve(a, r); }
+  if (m.kind !== 'tela' || Math.abs(r - ar) / ar < 0.012) return a;
+  const key = 'f' + r.toFixed(3);
+  if (!m._fit[key]) { m._fit = {}; m._fit[key] = stretchFlat(a, r); }
   return m._fit[key];
 }
 function newObj(m) {
@@ -1701,20 +1740,22 @@ function measExtentX() { const xs = cur.calib.pts.map(q => q[0]), span = Math.ma
 function screenResizeHandles(s) {
   const c = screenCorners(cur, s), M = (a, b) => mid(c[a], c[b]), k = kxy(cur), MIN_W = 10, MIN_H = 4;
   const done = () => { s.auto = false; s.custom = true; };
+  // telas: sempre na proporção real do modelo (nunca deformam); racks: Shift estica livre
+  const realRatio = s.type === 'screen' ? modelH(getModel(s.model)) / getModel(s.model).W : s.H / s.W, free = () => s.type !== 'screen' && window.__shift;
   const corner = (fx, fy) => v => {
-    const q = toPlane(cur, v), ratio = s.H / s.W, ax = fx ? s.x : s.x + s.W, ay = fy ? s.y : s.y + s.H * k;
+    const q = toPlane(cur, v), ratio = realRatio, ax = fx ? s.x : s.x + s.W, ay = fy ? s.y : s.y + s.H * k;
     const W = Math.max(MIN_W, Math.abs(q[0] - ax)), Hc = W * ratio;
     s.x = +(fx ? ax : ax - W).toFixed(1); s.y = +(fy ? ay : ay - Hc * k).toFixed(1); s.W = +W.toFixed(1); s.H = +Hc.toFixed(1); done();
   };
-  // bordas: mantêm a proporção (a tela cresce por igual, centrada no outro eixo). Shift: estica livre.
+  // bordas: mantêm a proporção (cresce por igual, centrada no outro eixo)
   const edgeX = right => v => {
     const q = toPlane(cur, v), x1 = s.x + s.W, nw = Math.max(MIN_W, right ? q[0] - s.x : x1 - Math.min(q[0], x1 - MIN_W));
-    if (!window.__shift) { const cy = s.y + s.H * k / 2, nh = nw * s.H / s.W; s.H = +nh.toFixed(1); s.y = +(cy - nh * k / 2).toFixed(1); }
+    if (!free()) { const cy = s.y + s.H * k / 2, nh = nw * realRatio; s.H = +nh.toFixed(1); s.y = +(cy - nh * k / 2).toFixed(1); }
     if (!right) s.x = +(x1 - nw).toFixed(1); s.W = +nw.toFixed(1); done();
   };
   const edgeY = bottom => v => {
     const q = toPlane(cur, v), y1 = s.y + s.H * k, nh = Math.max(MIN_H, bottom ? (q[1] - s.y) / k : (y1 - Math.min(q[1], y1 - MIN_H * k)) / k);
-    if (!window.__shift) { const cx = s.x + s.W / 2, nw = nh * s.W / s.H; s.W = +nw.toFixed(1); s.x = +(cx - nw / 2).toFixed(1); }
+    if (!free()) { const cx = s.x + s.W / 2, nw = nh / realRatio; s.W = +nw.toFixed(1); s.x = +(cx - nw / 2).toFixed(1); }
     if (!bottom) s.y = +(y1 - nh * k).toFixed(1); s.H = +nh.toFixed(1); done();
   };
   return [{pt: c[0], set: corner(0, 0)}, {pt: c[1], set: corner(1, 0)}, {pt: c[2], set: corner(1, 1)}, {pt: c[3], set: corner(0, 1)},
@@ -2390,8 +2431,10 @@ ov.addEventListener('mousedown', e => {
         if (!cur.calib) { cur.calib = {wl: [a, b], wcm: v, hl: null, hcm: 0}; rebuildCalib(cur); }
         else changeCalib(cur, c => { c.wl = [a, b]; c.wcm = v; });
         tool = cur.calib.hl ? 'select' : 'measH'; render(); refreshUI();   // fluxo: largura -> altura
+        if (cur.calib.hl) maybeAutoFix();
       } else {
         changeCalib(cur, c => { c.hl = [a, b]; c.hcm = v; c.floor = null; c.ceil = null; c.noFloor = false; c.noCeil = false; });
+        if (maybeAutoFix(() => goTab('elem'))) return;
         render(); goTab('elem');                                            // fluxo: altura -> elementos
       }
     });
@@ -2699,7 +2742,7 @@ function refreshUI() {
   }
   for (const [el, has, key] of [['#floorTxt', fl, 'floor'], ['#ceilTxt', ce, 'ceil']])
     $(el).innerHTML = !has ? '—' : `<span style="color:#3ccf6e;font-weight:600">✓ marcado</span>${cb[key] ? '' : ' (pela altura)'}`;
-  $('#bDelH').classList.toggle('hide', !(cb && cb.hl));
+  $('#bDelH').classList.toggle('hide', !(cb && cb.hl)); $('#autoFix').checked = defaults.autoFix !== false;
   { const raw = rawRatio(cur), off = Math.abs(raw - 1) > 0.04, show = off || !!(cur && cur.origBlob), mode = (cb && cb.scaleMode) || 'xy';
     $('#scaleBox').classList.toggle('hide', !show);
     $('#scaleSeg').classList.toggle('hide', !off); $('#scaleHelp').classList.toggle('hide', !off); $('#bFixPhoto').classList.toggle('hide', !off); $('#bOrigPhoto').classList.toggle('hide', !(cur && cur.origBlob));
@@ -2884,7 +2927,7 @@ async function fixPhoto() {
   p.calib.scaleMode = 'xy';
   await setPhotoImage(p, img, blob);
   selectPhoto(p); goTab('medida'); render(); refreshUI(); listSig = null; renderList(); scheduleSave();
-  flash(`Foto corrigida: ${raw > 1 ? 'largura' : 'altura'} ajustada em ${Math.round(Math.abs(1 - (raw > 1 ? 1 / raw : raw)) * 100)}%. Tudo ficou na proporção real.`);
+  flash(`A foto estava esticada: ${raw > 1 ? 'largura' : 'altura'} corrigida em ${Math.round(Math.abs(1 - (raw > 1 ? 1 / raw : raw)) * 100)}%. Agora parede, objetos e tela estão na proporção real (dá para voltar na aba Medida).`);
 }
 async function origPhoto() {
   const p = cur; if (!p || !p.origBlob) return;
@@ -2894,11 +2937,19 @@ async function origPhoto() {
   selectPhoto(p); goTab('medida'); render(); refreshUI(); listSig = null; renderList(); scheduleSave();
   flash('Voltou à foto original.');
 }
+// foto esticada (diferença de escala acima de 6%): corrige sozinha logo depois de marcar as medidas
+function maybeAutoFix(then) {
+  if (!cur || !cur.calib || !cur.calib.hl || defaults.autoFix === false) return false;
+  if (Math.abs(rawRatio(cur) - 1) <= 0.06) return false;
+  fixPhoto().then(() => { if (then) then(); });
+  return true;
+}
+$('#autoFix').onchange = () => { defaults.autoFix = $('#autoFix').checked; saveDefaults(); };
 $('#bFixPhoto').onclick = fixPhoto; $('#bOrigPhoto').onclick = origPhoto;
 $$('#scaleSeg button').forEach(b => b.onclick = () => { if (!cur || !cur.calib) return; pushUndo(); changeCalib(cur, c => { c.scaleMode = b.dataset.sm; }); render(); refreshUI(); });
 $('#bDelH').onclick = () => { if (!cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hl = null; }); render(); refreshUI(); };
-$('#calW').addEventListener('change', () => { const v = +$('#calW').value; if (!(v > 0) || !cur || !cur.calib) return; pushUndo(); changeCalib(cur, c => { c.wcm = v; }); render(); refreshUI(); });
-$('#calH').addEventListener('change', () => { const v = +$('#calH').value; if (!(v > 0) || !cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hcm = v; }); render(); refreshUI(); });
+$('#calW').addEventListener('change', () => { const v = +$('#calW').value; if (!(v > 0) || !cur || !cur.calib) return; pushUndo(); changeCalib(cur, c => { c.wcm = v; }); render(); refreshUI(); maybeAutoFix(); });
+$('#calH').addEventListener('change', () => { const v = +$('#calH').value; if (!(v > 0) || !cur || !cur.calib || !cur.calib.hl) return; pushUndo(); changeCalib(cur, c => { c.hcm = v; }); render(); refreshUI(); maybeAutoFix(); });
 // elementos
 const selScreen = () => (cur && cur.calib && sel && sel.type === 'screen' ? sel : null);
 $('#bNewModel').onclick = () => openModels(null, true);
