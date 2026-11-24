@@ -334,10 +334,10 @@ details.fold[open]{padding-bottom:10px}
         <div class="seg" id="scaleSeg"><button data-sm="xy">Pelas duas</button><button data-sm="h">Pela altura</button><button data-sm="w">Pela largura</button></div>
         <p class="small" id="scaleHelp" style="margin:0"></p>
         <div class="fixbox" id="fixBox">
-          <b>Melhor: corrigir a foto</b>
+          <b>Foto corrigida numa versão anterior</b>
           <span class="small" id="fixTxt"></span>
-          <div class="mwbtn"><button class="btn sm" id="bFixPhoto">Corrigir a foto</button><button class="link hide" id="bOrigPhoto">Voltar à foto original</button></div>
-          <label class="chk" style="margin:6px 0 0;background:none;border:0;padding:0"><input type="checkbox" id="autoFix"><span>Corrigir sozinho ao marcar as medidas</span></label>
+          <div class="mwbtn"><button class="btn sm hide" id="bFixPhoto">Corrigir a foto</button><button class="link hide" id="bOrigPhoto">Voltar à foto original</button></div>
+          <label class="chk hide" style="margin:6px 0 0;background:none;border:0;padding:0"><input type="checkbox" id="autoFix"><span>Corrigir sozinho ao marcar as medidas</span></label>
         </div>
       </div>
       <div class="links"><button class="link" id="bDelH">Remover altura</button></div>
@@ -1812,10 +1812,10 @@ function screenResizeHandles(s) {
   const c = screenCorners(cur, s), M = (a, b) => mid(c[a], c[b]), k = kxy(cur), MIN_W = 10, MIN_H = 4;
   const done = () => { s.auto = false; s.custom = true; };
   // telas: sempre na proporção real do modelo (nunca deformam); racks: Shift estica livre
-  const realRatio = s.type === 'screen' ? modelH(getModel(s.model)) / getModel(s.model).W : s.H / s.W, free = () => s.type !== 'screen' && window.__shift;
+  const realRatio = s.type === 'screen' ? (s.custom ? s.H / s.W : modelH(getModel(s.model)) / getModel(s.model).W) : s.H / s.W, free = () => !!window.__shift;   // Shift: só o lado puxado
   const corner = (fx, fy) => v => {
     const q = toPlane(cur, v), ratio = realRatio, ax = fx ? s.x : s.x + s.W, ay = fy ? s.y : s.y + s.H * k;
-    const W = Math.max(MIN_W, Math.abs(q[0] - ax)), Hc = W * ratio;
+    const W = Math.max(MIN_W, Math.abs(q[0] - ax)), Hc = free() ? Math.max(MIN_H, Math.abs(q[1] - ay) / k) : W * ratio;   // canto com Shift: largura e altura livres
     s.x = +(fx ? ax : ax - W).toFixed(1); s.y = +(fy ? ay : ay - Hc * k).toFixed(1); s.W = +W.toFixed(1); s.H = +Hc.toFixed(1); done();
   };
   // bordas: mantêm a proporção (cresce por igual, centrada no outro eixo)
@@ -2868,8 +2868,9 @@ function refreshUI() {
     $('#bSideDel').classList.toggle('hide', !sd); }
   { const raw = rawRatio(cur), off = Math.abs(raw - 1) > 0.04, show = off || !!(cur && cur.origBlob), mode = (cb && cb.scaleMode) || 'xy';
     $('#scaleBox').classList.toggle('hide', !show);
-    $('#scaleSeg').classList.toggle('hide', !off); $('#scaleHelp').classList.toggle('hide', !off); $('#bFixPhoto').classList.toggle('hide', !off); $('#bOrigPhoto').classList.toggle('hide', !(cur && cur.origBlob));
-    $('#fixTxt').textContent = off ? `Desfaz o esticamento da própria foto: ela ${raw > 1 ? 'encolhe na largura' : 'encolhe na altura'} até as duas escalas ficarem iguais. Parede, objetos e tela ficam com a proporção real; o que já foi colocado acompanha e a imagem baixada sai corrigida.` : 'Foto corrigida: largura e altura agora têm a mesma escala.';
+    $('#scaleSeg').classList.toggle('hide', !off); $('#scaleHelp').classList.toggle('hide', !off); $('#bFixPhoto').classList.add('hide'); $('#bOrigPhoto').classList.toggle('hide', !(cur && cur.origBlob));
+    $('#fixBox').classList.toggle('hide', !(cur && cur.origBlob));
+    $('#fixTxt').textContent = 'Esta foto foi encolhida por uma versão anterior do app. Volte à original para usar os pixels originais (o que foi colocado acompanha).';
     if (!off) $('#scaleTxt').innerHTML = '';
     if (off) {
       $$('#scaleSeg button').forEach(b => b.classList.toggle('on', b.dataset.sm === mode));
@@ -3064,6 +3065,7 @@ async function origPhoto() {
 }
 // foto esticada (diferença de escala acima de 6%): corrige sozinha logo depois de marcar as medidas
 function maybeAutoFix(then) {
+  return false;   // a foto nunca é alterada: a tela é composta no mesmo espaço da foto
   if (!cur || !cur.calib || !cur.calib.hl || defaults.autoFix === false) return false;
   if (Math.abs(rawRatio(cur) - 1) <= 0.06) return false;
   fixPhoto().then(() => { if (then) then(); });
