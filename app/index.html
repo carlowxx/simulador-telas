@@ -341,6 +341,10 @@ details.fold[open]{padding-bottom:10px}
         </div>
       </div>
       <div class="links"><button class="link" id="bDelH">Remover altura</button></div>
+      <h5 class="sect">Parede lateral (profundidade)</h5>
+      <div class="mrow"><span class="mdot" style="background:#f5c542"></span><b>Lateral</b><span class="small" id="sideTxt">—</span><button class="btn sm" id="bSide">Marcar</button></div>
+      <p class="small" style="margin:0">Para a parede que vem na sua direção. Clique 4 pontos: <b style="color:var(--text)">1</b> topo e <b style="color:var(--text)">2</b> base da quina (onde ela encontra a parede do fundo), <b style="color:var(--text)">3</b> topo e <b style="color:var(--text)">4</b> base num ponto mais à frente, e diga a distância até a quina. O que você colocar nela fica em perspectiva.</p>
+      <div class="links"><button class="link hide" id="bSideDel">Remover parede lateral</button></div>
       <h5 class="sect">Conferir</h5>
       <div class="mrow"><span class="mdot" style="background:#0ea5a4"></span><b>Régua</b><span class="small" id="rulerTxt"></span><button class="btn sm" id="bRuler">Medir</button></div>
       <p class="small" style="margin:0">Meça qualquer coisa na foto (porta, botoeira) para conferir com o croqui. Não sai na imagem baixada.</p>
@@ -879,6 +883,35 @@ function newObj(m) {
 /* ---------------- medida ----------------
    Horizontal pela largura (linha azul); posições verticais (piso, base, teto) pela altura (linha vermelha).
    O formato dos elementos usa só a escala da largura (kxy), então nada deforma. */
+/* ---------------- profundidade (3D) ----------------
+   Câmera estimada olhando de frente para a parede do fundo (principal). Uma parede lateral opcional (4 pontos +
+   distância até a quina) dá o ponto de fuga e a distância da câmera; daí tudo vira 3D de verdade:
+   - itens na parede lateral ficam em perspectiva (crescem ao se aproximar);
+   - rack e condulete são caixas 3D (faces calculadas pela câmera) e se escondem um atrás do outro pela profundidade. */
+let WALL = null, WALL_U = 0, pendingWall = null, sidePend = null;
+function inWall(w, fn, ref) { const pw = WALL, pu = WALL_U; WALL = w === 'side' ? 'side' : null; WALL_U = ref ? ref[0] : 0; try { return fn(); } finally { WALL = pw; WALL_U = pu; } }
+const wallOf = it => (it && it.wall === 'side' && cur && cur.calib && cur.calib.sideH) ? 'side' : null;
+const refPt = it => !it ? null : it.pts ? (it.pts.length ? [(it.pts[0][0] + it.pts[it.pts.length - 1][0]) / 2, (it.pts[0][1] + it.pts[it.pts.length - 1][1]) / 2] : null) : it.x != null ? [it.x + (it.W || 0) / 2, it.y + (it.H || 0) / 2] : null;
+function lineX(a, b, c, d) { const x1 = b[0] - a[0], y1 = b[1] - a[1], x2 = d[0] - c[0], y2 = d[1] - c[1], den = x1 * y2 - y1 * x2; if (Math.abs(den) < 1e-9) return null; const t = ((c[0] - a[0]) * y2 - (c[1] - a[1]) * x2) / den; return [a[0] + x1 * t, a[1] + y1 * t]; }
+function proj(p, P) { const c = p.calib.cam, Z = Math.max(1, P[2]); return [c.cx + c.fx * P[0] / Z, c.cy + c.fy * P[1] / Z]; }
+// ponto 3D de um ponto da parede (em cm), afastado "o" cm da parede para dentro do ambiente
+function wall3(p, w, q, o = 0) {
+  const c = p.calib.cam;
+  if (w === 'side' && c.Xs != null) { const sg = Math.sign(c.Xs) || 1; return [c.Xs - sg * o, q[1] + c.oy, c.Zb - q[0]]; }
+  return [q[0] + c.ox, q[1] + c.oy, c.Zb - o];
+}
+// a foto clicada fica na parede lateral? (do lado de lá da quina)
+function wallAtImg(pt) {
+  const c = cur && cur.calib; if (!c || !c.side || !c.sideH || !c.cam || c.cam.Xs == null) return null;
+  const [TC, BC] = c.side.pts, t = (pt[1] - TC[1]) / ((BC[1] - TC[1]) || 1), xc = TC[0] + (BC[0] - TC[0]) * t;
+  return (c.cam.Xs > 0 ? pt[0] > xc + 2 : pt[0] < xc - 2) ? 'side' : null;
+}
+// profundidade de cada item (distância da câmera): os mais longe são desenhados primeiro
+function depthKey(p, it) {
+  const ref = refPt(it); if (!ref || !p.calib.cam) return 0;
+  const off = it.type === 'box' ? (it.D || 0) * 0.7 : it.type === 'screen' ? 6 : it.type === 'pipe' ? (it.d || 3) / 2 + 1 : 1.5;
+  return wall3(p, wallOf(it), ref, off)[2];
+}
 function rebuildCalib(p) {
   const c = p.calib; if (!c) return;
   let [A, B] = c.wl; if (B[0] < A[0]) { [A, B] = [B, A]; c.wl = [A, B]; }
@@ -893,21 +926,37 @@ function rebuildCalib(p) {
   const w = c.wcm, h = c.hl ? c.hcm : 100;
   c.pts = [A, [A[0] + sx * w, A[1]], [A[0] + sx * w, A[1] + sy * h], [A[0], A[1] + sy * h]];
   c.w = w; c.h = h;
+  // câmera: sem parede lateral, foco estimado em 0,75 × a largura da foto; com ela, ponto de fuga e distância reais
+  let cx = p.w / 2, cy = p.h * 0.45, Zb = 0.75 * p.w / sx, Xs = null;
+  const sd = c.side;
+  if (sd && sd.pts && sd.pts.length === 4 && sd.dcm > 0) {
+    const [TC, BC, TF, BF] = sd.pts, vp = lineX(TC, TF, BC, BF);
+    if (vp && Math.abs(vp[0] - p.w / 2) < p.w * 1.5 && Math.abs(vp[1] - p.h / 2) < p.h * 1.5) { cx = vp[0]; cy = vp[1]; }
+    const xc = (TC[0] + BC[0]) / 2, xf = (TF[0] + BF[0]) / 2, rho = (xf - cx) / (xc - cx);
+    if (isFinite(rho) && rho > 1.02) { Zb = rho * sd.dcm / (rho - 1); Xs = (xc - cx) / sx; }
+  }
+  c.cam = {cx, cy, Zb, fx: sx * Zb, fy: sy * Zb, ox: (A[0] - cx) / sx, oy: (A[1] - cy) / sy, Xs};
+  if (Xs != null) {
+    const P3 = q => { const Z = Math.max(1, Zb - q[0]); return [cx + c.cam.fx * Xs / Z, cy + c.cam.fy * (q[1] + c.cam.oy) / Z]; };
+    const src = [[0, 0], [100, 0], [100, 100], [0, 100]], H = homography(src, src.map(P3));
+    if (H) { c.sideH = H; c.sideHi = hInv(H); } else { delete c.sideH; delete c.sideHi; }
+  } else { delete c.sideH; delete c.sideHi; }
 }
 function getCalib(p) {
   const c = p && p.calib; if (!c) return null;
+  if (WALL === 'side' && c.sideH) return {H: c.sideH, Hi: c.sideHi};   // item na parede lateral: perspectiva dela
   const H = homography([[0, 0], [c.w, 0], [c.w, c.h], [0, c.h]], c.pts); if (!H) return null;
   return {H, Hi: hInv(H)};
 }
 const toImg = (p, q) => hApply(getCalib(p).H, q[0], q[1]);
 const toPlane = (p, q) => hApply(getCalib(p).Hi, q[0], q[1]);
 function kxy() { return 1; }   // o plano já está em cm reais nas duas direções
-const pxPerCm = p => (p.calib.pts[1][0] - p.calib.pts[0][0]) / p.calib.w;
+const pxPerCm = p => (WALL === 'side' && p.calib.cam && p.calib.cam.Xs != null) ? p.calib.cam.fy / Math.max(1, p.calib.cam.Zb - WALL_U) : (p.calib.pts[1][0] - p.calib.pts[0][0]) / p.calib.w;
 const hPlane = (p, s) => s.H * kxy(p);
 function floorImg(p) { const c = p && p.calib; if (!c || c.noFloor) return null; if (c.floor) return c.floor; return c.hl ? (c.hl[0][1] > c.hl[1][1] ? c.hl[0] : c.hl[1]) : null; }
 function ceilImg(p) { const c = p && p.calib; if (!c || c.noCeil) return null; if (c.ceil) return c.ceil; return c.hl ? (c.hl[0][1] < c.hl[1][1] ? c.hl[0] : c.hl[1]) : null; }
-const floorPlaneY = p => { const f = floorImg(p); return f ? toPlane(p, f)[1] : null; };
-const ceilPlaneY = p => { const f = ceilImg(p); return f ? toPlane(p, f)[1] : null; };
+const floorPlaneY = p => inWall(null, () => { const f = floorImg(p); return f ? toPlane(p, f)[1] : null; });   // a altura vale para as duas paredes
+const ceilPlaneY = p => inWall(null, () => { const f = ceilImg(p); return f ? toPlane(p, f)[1] : null; });
 const FOLGA_TETO = 2;
 const screensOf = p => p.items.filter(i => i.type === 'screen');
 // posição automática: centro do local; base a X cm do piso; se não couber, encosta no teto com 2 cm de folga
@@ -921,12 +970,14 @@ function autoPlace(p, s) {
   if (top != null) s.y = +top.toFixed(1);
 }
 // ao mudar a medida, os elementos ficam no mesmo lugar da foto (o tamanho real se ajusta)
-function changeCalib(p, fn) {
+function changeCalib(p, fn) { return inWall(null, () => changeCalib0(p, fn)); }
+function changeCalib0(p, fn) {
   const oldC = p.calib ? clone(p.calib) : null, oldH = oldC && getCalib(p);
   fn(p.calib); rebuildCalib(p);
   const nc = getCalib(p);
   if (!nc) { p.calib = oldC; return false; }
   if (oldH) for (const it of p.items) {
+    if (it.wall === 'side') continue;   // itens da parede lateral ficam em cm dela
     if (it.type === 'screen' || it.type === 'box') {
       const ci = hApply(oldH.H, it.x + it.W / 2, it.y), q = hApply(nc.Hi, ci[0], ci[1]);
       it.x = +(q[0] - it.W / 2).toFixed(1); it.y = +q[1].toFixed(1);
@@ -1122,16 +1173,13 @@ function origPixels(p) {
 }
 const canPtsImg = (p, s) => s.pts.map(q => toImg(p, q));
 function canQuads(p, s) {
-  // largura em cm reais; o eixo vertical do plano usa outra escala, então monta em pixels da foto
-  const pts = canPtsImg(p, s), c = p.calib, hw = s.width * pxPerCm(p) / 2, out = [], n = pts.length;
+  // monta o retângulo de cada trecho no plano da parede (em cm) e projeta: largura certa até em perspectiva
+  const hw = s.width / 2, pts = s.pts, out = [], n = pts.length;
   for (let i = 0; i < n - 1; i++) {
-    const a = pts[i], b = pts[i + 1];
-    let dx = b[0] - a[0], dy = b[1] - a[1]; const L = Math.hypot(dx, dy); if (L < 1e-6) continue;
-    dx /= L; dy /= L;
-    // só estende nas emendas (cantos); as duas pontas terminam exatamente onde foram marcadas
-    const e0 = i > 0 ? hw : 0, e1 = i < n - 2 ? hw : 0, nx = -dy, ny = dx;
+    const a = pts[i], b = pts[i + 1]; let dx = b[0] - a[0], dy = b[1] - a[1]; const L = Math.hypot(dx, dy); if (L < 1e-6) continue; dx /= L; dy /= L;
+    const e0 = i > 0 ? hw : 0, e1 = i < n - 2 ? hw : 0, nx = -dy, ny = dx;   // só estende nas emendas
     out.push([[a[0] - dx * e0 + nx * hw, a[1] - dy * e0 + ny * hw], [b[0] + dx * e1 + nx * hw, b[1] + dy * e1 + ny * hw],
-      [b[0] + dx * e1 - nx * hw, b[1] + dy * e1 - ny * hw], [a[0] - dx * e0 - nx * hw, a[1] - dy * e0 - ny * hw]]);
+      [b[0] + dx * e1 - nx * hw, b[1] + dy * e1 - ny * hw], [a[0] - dx * e0 - nx * hw, a[1] - dy * e0 - ny * hw]].map(q => toImg(p, q)));
   }
   return out;
 }
@@ -1279,6 +1327,12 @@ function syncCans(p) {
     if (c.type !== 'can' || !c.link) continue;
     const s = p.items.find(i => i.type === 'screen' && i.id === c.link);
     if (!s) { delete c.link; delete c.toCeil; continue; }
+    if (s.wall === 'side') c.wall = 'side'; else delete c.wall;
+    inWall(wallOf(s), () => syncCan1(p, c, s), [s.x + s.W / 2, s.y]);
+  }
+}
+function syncCan1(p, c, s) {
+  {
     const x = s.x + s.W / 2; let top = c.pts[c.pts.length - 1][1];
     // "até o teto": segue o teto marcado; sem teto, vai até o alto da foto
     gapInfo.delete(c);
@@ -1337,9 +1391,10 @@ function warpTex(g, p, c, tex, br, noise) {
 /* Caixa que sai da parede (rack, condulete): a moldura marcada fica na parede e a frente, mais perto da
    câmera, aparece maior e afastada do centro da foto. Perspectiva aproximada (foco ≈ 0,75 × largura da foto). */
 function boxGeom(p, b) {
-  const hp = hPlane(p, b), back = [[b.x, b.y], [b.x + b.W, b.y], [b.x + b.W, b.y + hp], [b.x, b.y + hp]].map(q => toImg(p, q));
-  const Z = 0.75 * p.w / Math.max(1e-6, pxPerCm(p)), D = clamp(b.D || 0, 0, Z * 0.5), k = Z / (Z - D), vp = [p.w / 2, p.h * 0.45];
-  return {back, front: back.map(q => [vp[0] + (q[0] - vp[0]) * k, vp[1] + (q[1] - vp[1]) * k]), D};
+  const w = wallOf(b), hp = hPlane(p, b), cam = p.calib.cam, D = clamp(b.D || 0, 0, cam.Zb * 0.5);
+  const rect = [[b.x, b.y], [b.x + b.W, b.y], [b.x + b.W, b.y + hp], [b.x, b.y + hp]];
+  const B3 = rect.map(q => wall3(p, w, q, 0)), F3 = rect.map(q => wall3(p, w, q, D));
+  return {back: B3.map(P => proj(p, P)), front: F3.map(P => proj(p, P)), D, B3, F3, w, rect};
 }
 function condTex(col, w, h) {   // condulete em pé: bocais com rosca, corpo fundido, tampa com 2 parafusos
   const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'), b = col.base, m = col.metal;
@@ -1468,21 +1523,36 @@ function boxTex(b, tw, th) {
   if (texCache.size > 40) texCache.clear(); texCache.set(key, t); return t;
 }
 function drawBox(g, p, b, quick) {
-  const {back, front, D} = boxGeom(p, b), isRack = b.kind === 'rack';
+  const gm = boxGeom(p, b), {back, front, D, w} = gm, isRack = b.kind === 'rack';
   if (quick) { polyPath(g, front); g.fillStyle = isRack ? 'rgba(30,31,34,.92)' : 'rgba(170,174,178,.92)'; g.fill(); return; }
-  const col = isRack ? (RACK_COLORS[b.color] || RACK_COLORS.preto) : (PIPE_COLORS[b.color] || PIPE_COLORS.galv), ppc = pxPerCm(p), br = autoBright(p, back);
-  wallShadow(g, p, back, D * ppc * 0.45 + 1, Math.max(1, D * ppc * 0.35), isRack ? 0.55 : 0.6);
-  // laterais: só as voltadas para a câmera ficam à mostra; a frente cobre as outras
-  const ins = isRack ? [0, 0, 1, 1] : (b.ori === 'h' ? [0.12, 0.03, 0.88, 0.97] : [0.03, 0.12, 0.97, 0.88]);
-  const rq = q => [quadAt(q, ins[0], ins[1]), quadAt(q, ins[2], ins[1]), quadAt(q, ins[2], ins[3]), quadAt(q, ins[0], ins[3])];
-  const bk = rq(back), fr = rq(front), shade = [1.18, 0.82, 0.55, 0.82];   // topo, direita, base, esquerda
+  const col = isRack ? (RACK_COLORS[b.color] || RACK_COLORS.preto) : (PIPE_COLORS[b.color] || PIPE_COLORS.galv), br = autoBright(p, back), kpx = dist(back[0], back[1]) / Math.max(1, b.W);
+  wallShadow(g, p, back, D * kpx * 0.45 + 1, Math.max(1, D * kpx * 0.35), 0.6);
+  // corpo em 3D: só as faces viradas para a câmera aparecem, da mais longe para a mais perto
+  const ins = isRack ? [0, 0, 1, 1] : (b.ori === 'h' ? [0.12, 0.03, 0.88, 0.97] : [0.03, 0.12, 0.97, 0.88]), hp = hPlane(p, b);
+  const ri = [[b.x + b.W * ins[0], b.y + hp * ins[1]], [b.x + b.W * ins[2], b.y + hp * ins[1]], [b.x + b.W * ins[2], b.y + hp * ins[3]], [b.x + b.W * ins[0], b.y + hp * ins[3]]];
+  const bi = ri.map(q => wall3(p, w, q, 0)), fi = ri.map(q => wall3(p, w, q, gm.D));
+  const avg = arr => [0, 1, 2].map(k => arr.reduce((s, P) => s + P[k], 0) / arr.length), ctr = avg([...bi, ...fi]), faces = [];
   for (let i = 0; i < 4; i++) {
-    const a = i, c2 = (i + 1) % 4, m0 = mid(bk[a], bk[c2]), m1 = mid(fr[a], fr[c2]), k = shade[i] * br;
-    const gr = g.createLinearGradient(m0[0], m0[1], m1[0], m1[1]); gr.addColorStop(0, rgb(col.base, k * 0.6)); gr.addColorStop(1, rgb(col.base, k));
-    g.fillStyle = gr; polyPath(g, [bk[a], bk[c2], fr[c2], fr[a]]); g.fill();
+    const q3 = [bi[i], bi[(i + 1) % 4], fi[(i + 1) % 4], fi[i]], fc = avg(q3), n = [fc[0] - ctr[0], fc[1] - ctr[1], fc[2] - ctr[2]];
+    if (n[0] * fc[0] + n[1] * fc[1] + n[2] * fc[2] < 0) faces.push({q3, fc, n});
   }
+  faces.sort((x, y) => y.fc[2] - x.fc[2]);
+  for (const f of faces) {
+    const q2 = f.q3.map(P => proj(p, P)), nl = Math.hypot(...f.n) || 1, ny = f.n[1] / nl, k = (ny < -0.6 ? 1.16 : ny > 0.6 ? 0.52 : 0.8) * br;
+    const m0 = mid(q2[0], q2[1]), m1 = mid(q2[2], q2[3]), gr = g.createLinearGradient(m0[0], m0[1], m1[0], m1[1]);
+    gr.addColorStop(0, rgb(col.base, k * 0.5)); gr.addColorStop(1, rgb(col.base, k));   // mais escuro junto da parede
+    g.fillStyle = gr; polyPath(g, q2); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = Math.max(0.6, kpx * 0.12); g.beginPath(); g.moveTo(q2[2][0], q2[2][1]); g.lineTo(q2[3][0], q2[3][1]); g.stroke();
+  }
+  // frente com a textura (rack, condulete ou a foto real da peça)
+  const flip = w === 'side' && p.calib.cam.Xs < 0, ft = flip ? [front[1], front[0], front[3], front[2]] : front;
   const wpx = Math.max(dist(front[0], front[1]), dist(front[3], front[2])), hpx = Math.max(dist(front[0], front[3]), dist(front[1], front[2]));
-  warpTex(g, p, front, boxTex(b, clamp(Math.round(wpx * 1.5), 8, 1600), clamp(Math.round(hpx * 1.5), 8, 1600)), br, 2.5);
+  warpTex(g, p, ft, boxTex(b, clamp(Math.round(wpx * 1.5), 8, 1600), clamp(Math.round(hpx * 1.5), 8, 1600)), br, 2.5);
+  // quinas da frente: luz em cima, sombra embaixo (dá volume, tira o aspecto de imagem colada)
+  const lw = Math.max(0.8, kpx * 0.25), seg = (a2, b2, s) => { g.strokeStyle = s; g.beginPath(); g.moveTo(a2[0], a2[1]); g.lineTo(b2[0], b2[1]); g.stroke(); };
+  g.save(); g.lineWidth = lw; g.lineCap = 'round';
+  seg(front[0], front[1], 'rgba(255,255,255,.22)'); seg(front[3], front[0], 'rgba(255,255,255,.1)'); seg(front[2], front[3], 'rgba(0,0,0,.35)'); seg(front[1], front[2], 'rgba(0,0,0,.2)');
+  g.restore();
 }
 /* Eletroduto: eixo de retas e curvas (raio 4 × diâmetro) e cilindro desenhado ponto a ponto pela distância ao eixo.
    Luz vinda do lado oposto à sombra, brilho estreito (metal) ou suave (PVC), reflexo do ambiente e bordas escurecendo. */
@@ -1718,11 +1788,12 @@ function render() {
   ctx.filter = 'none'; ctx.drawImage(cur.img, 0, 0);
   if (cur.calib) {
     syncCans(cur);
-    for (const it of cur.items) if (it.type === 'box' && it.kind === 'rack') drawBox(ctx, cur, it, fast);
-    for (const it of cur.items) if (it.type === 'can') drawCan(ctx, cur, it, fast);
-    for (const it of cur.items) if (it.type === 'pipe') drawPipe(ctx, cur, it, fast);
-    for (const it of cur.items) if (it.type === 'box' && it.kind !== 'rack') drawBox(ctx, cur, it, fast);
-    for (const it of cur.items) if (it.type === 'screen') drawScreen(ctx, cur, it, fast);
+    // do mais longe para o mais perto: o rack (fundo de 35 cm) fica na frente do condulete e do eletroduto
+    const ord = cur.items.filter(it => it.type !== 'mark').map((it, i) => [it, depthKey(cur, it), i]).sort((a, b) => (b[1] - a[1]) || (a[2] - b[2]));
+    for (const [it] of ord) inWall(wallOf(it), () => {
+      if (it.type === 'can') drawCan(ctx, cur, it, fast); else if (it.type === 'pipe') drawPipe(ctx, cur, it, fast);
+      else if (it.type === 'box') drawBox(ctx, cur, it, fast); else if (it.type === 'screen') drawScreen(ctx, cur, it, fast);
+    }, refPt(it));
   }
   for (const it of cur.items) if (it.type === 'mark') drawMark(ctx, cur, it);
   if (!fast) scheduleSave();
@@ -1763,6 +1834,11 @@ function screenResizeHandles(s) {
 }
 const clampPt = v => [clamp(v[0], 0, cur.w), clamp(v[1], 0, cur.h)];
 function getHandles() {
+  const w = wallOf(sel), ref = refPt(sel), H = inWall(w, getHandles0, ref);
+  if (w) for (const h of H) if (!h.kind) { const f = h.set; h.set = v => inWall(w, () => f(v), ref); }
+  return H;
+}
+function getHandles0() {
   const H = []; if (!cur) return H;
   if (cur.calib && curTab === 'medida' && !tool.startsWith('meas') && !asking) {
     cur.calib.wl.forEach((q, i) => H.push({pt: q, kind: 'w', set: v => changeCalib(cur, c => { c.wl[i] = edgeSnap(v, 'x'); })}));
@@ -1786,7 +1862,12 @@ function getHandles() {
   }
   return H;
 }
+const CREATE_TOOLS = ['place', 'canline', 'can', 'pipe', 'curva', 'cond', 'rack'];
 function drawOverlay() {
+  const w = CREATE_TOOLS.includes(tool) ? (pending.length ? pendingWall : (mouse ? wallAtImg(mouse) : null)) : (drag && drag.it ? wallOf(drag.it) : wallOf(sel));
+  return inWall(w, drawOverlay0, refPt(drag && drag.it ? drag.it : sel));
+}
+function drawOverlay0() {
   const {dpr, sc} = css;
   octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, ov.width, ov.height);
   if (!cur) return;
@@ -1870,6 +1951,20 @@ function drawOverlay() {
     if (b) { const hw = defaults.canCm * pxPerCm(cur) / 2, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * hw, ny = dx / l * hw;
       poly([[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny], [b[0] - nx, b[1] - ny], [a[0] - nx, a[1] - ny]], true); octx.fillStyle = 'rgba(255,210,63,.25)'; octx.fill(); octx.strokeStyle = '#ffd23f'; octx.lineWidth = 1.5; octx.stroke(); }
   }
+  { const sd = c && c.side, show = sd && (curTab === 'medida' || CREATE_TOOLS.includes(tool) || tool === 'canup'), sp = tool === 'measSide' ? (sidePend || pending) : [];
+    if (show && tool !== 'measSide') {
+      const [TC, BC, TF, BF] = sd.pts; octx.setLineDash([7, 5]); octx.strokeStyle = 'rgba(245,197,66,.95)'; octx.lineWidth = 1.8; poly([TC, TF, BF, BC], true); octx.stroke(); octx.setLineDash([]);
+      if (curTab === 'medida') { const m = mid(TF, BF), q = P(m); tag(q[0], q[1], cm(sd.dcm) + ' cm até a quina', '#b8901c'); }
+    }
+    if (sp.length) {
+      const pts = sp.slice(); if (!sidePend && mouse && pts.length < 4) pts.push(mouse);
+      octx.strokeStyle = '#f5c542'; octx.lineWidth = 2;
+      if (pts.length >= 2) { poly([pts[0], pts[1]], false); octx.stroke(); }
+      if (pts.length >= 3) { poly([pts[0], pts[2]], false); octx.stroke(); }
+      if (pts.length >= 4) { poly([pts[1], pts[3]], false); octx.stroke(); poly([pts[2], pts[3]], false); octx.stroke(); }
+      pts.forEach((q, i) => { const s = P(q); octx.fillStyle = '#f5c542'; octx.beginPath(); octx.arc(s[0], s[1], 5, 0, 7); octx.fill(); octx.fillStyle = '#1a1000'; octx.font = '700 10px Segoe UI'; octx.textAlign = 'center'; octx.textBaseline = 'middle'; octx.fillText(String(i + 1), s[0], s[1] + 0.5); octx.textAlign = 'start'; octx.textBaseline = 'alphabetic'; });
+    }
+  }
   if (pending.length && (tool === 'can' || tool === 'pipe' || tool === 'mark')) {
     octx.strokeStyle = '#ffd23f'; octx.lineWidth = 1.5;
     if (tool === 'mark') { const [a, b] = pending; poly([a, [b[0], a[1]], b, [a[0], b[1]]], true); }
@@ -1892,10 +1987,10 @@ function drawOverlay() {
     }
   }
   if (c && curTab === 'infra') {
-    for (const it of cur.items) if (isInfra(it)) for (const q of connectorsOf(it)) {
+    for (const it of cur.items) if (isInfra(it)) inWall(wallOf(it), () => { for (const q of connectorsOf(it)) {
       const s = P(toImg(cur, q)); octx.fillStyle = 'rgba(56,189,248,.95)'; octx.strokeStyle = '#fff'; octx.lineWidth = 1.5;
       octx.beginPath(); octx.arc(s[0], s[1], 3.5, 0, 7); octx.fill(); octx.stroke();
-    }
+    } }, refPt(it));
     if (snapHit && (drag || tool === 'pipe')) { const s = P(toImg(cur, snapHit)); octx.strokeStyle = '#38bdf8'; octx.lineWidth = 2.5; octx.beginPath(); octx.arc(s[0], s[1], 10, 0, 7); octx.stroke(); }
   }
   for (const h of getHandles()) {
@@ -1904,7 +1999,7 @@ function drawOverlay() {
     octx.fillStyle = '#ffd23f'; octx.strokeStyle = '#000'; octx.lineWidth = 1; octx.beginPath(); octx.rect(s[0] - 4.5, s[1] - 4.5, 9, 9); octx.fill(); octx.stroke();
   }
   // lupa nos cliques de precisão
-  if (mouse && !asking && (tool.startsWith('meas') || ['place', 'can', 'canup', 'canline', 'pipe', 'curva', 'cond', 'rack', 'check'].includes(tool) || (drag && drag.kind === 'handle'))) {
+  if (mouse && !asking && (tool.startsWith('meas') || ['place', 'can', 'canup', 'canline', 'pipe', 'curva', 'cond', 'rack', 'check', 'measSide'].includes(tool) || (drag && drag.kind === 'handle'))) {
     const R = 58, Z = 4, m = P(mouse); let lx = m[0] + 22, ly = m[1] + 22;
     if (lx + 2 * R > css.W) lx = m[0] - 22 - 2 * R; if (ly + 2 * R > css.H) ly = m[1] - 22 - 2 * R;
     const sw = (2 * R / Z) / sc;
@@ -2141,7 +2236,7 @@ const TOUR = [
   [null, 'Bem-vindo ao Simulador de Telas', 'Em um minuto você vê o caminho inteiro, da foto da vistoria até a imagem pronta. Dá para pular agora e rever depois no botão <b>?</b> do topo.'],
   ['.condo', '1. Projeto', 'Ao abrir, o app pede o <b>nome do projeto</b>, que vira a pasta onde tudo é salvo. Clique na <b>pastinha</b> para trocar o nome ou o <b>local de armazenamento</b>.'],
   ['#bOpen', '2. Abra as fotos', 'Clique em <b>Abrir</b> ou arraste as fotos da vistoria para o app. Também abre o arquivo editável (<b>.simtela</b>) de um trabalho anterior.'],
-  ['.tabs button[data-tab="medida"]', '3. Medida', 'Marque a <b>largura</b> (linha azul) e sempre a <b>altura</b> do teto ao piso (linha vermelha), com as medidas do croqui. Sem a altura, as medidas verticais são só estimadas. A <b>régua</b> confere qualquer medida. Se o ajuste automático atrapalhar, desligue na própria aba.'],
+  ['.tabs button[data-tab="medida"]', '3. Medida', 'Marque a <b>largura</b> (linha azul) e sempre a <b>altura</b> do teto ao piso (linha vermelha), com as medidas do croqui. Sem a altura, as medidas verticais são só estimadas. Se uma parede vem na sua direção, marque a <b>parede lateral</b> para trabalhar nela em perspectiva. A <b>régua</b> confere qualquer medida. Se o ajuste automático atrapalhar, desligue na própria aba.'],
   ['.tabs button[data-tab="elem"]', '4. Telas', 'Clique em <b>Colocar tela</b> e marque o local com 2 cliques. Ela entra no tamanho real, com a base a 190 cm e a canaleta até o teto. Selecione a tela para ajustar sombra, brilho e reflexos.'],
   ['.tabs button[data-tab="canaleta"]', '5. Canaleta', 'Cada tela já entra com a canaleta <b>até o teto</b>. Para pôr uma sem tela, use <b>Canaleta reta</b>: 1 clique e ela sobe até o teto. A largura ajusta nos botões <b>−</b> e <b>+</b>, e o <kbd>Shift</kbd> deixa reta seguindo a parede.'],
   ['.tabs button[data-tab="infra"]', '6. Infra', '<b>Rack</b>, <b>eletroduto</b>, <b>curva</b> e <b>condulete</b>, no tamanho real. As peças se encaixam pelas pontas (pontos azuis), <kbd>R</kbd> gira e <kbd>Shift</kbd> deixa em 90°. Você pode enviar a foto real de cada peça.'],
@@ -2253,7 +2348,8 @@ function photoAxes() {
 }
 // leva o ponto para a reta que passa por "from" na direção do eixo mais próximo (force: Shift; senão só se estiver a menos de tol°)
 function axisSnap(from, pt, force, tol = 6) {
-  const {v, h} = photoAxes(), dx = pt[0] - from[0], dy = pt[1] - from[1], L = Math.hypot(dx, dy); if (L < 1e-6) return pt;
+  let {v, h} = photoAxes(); const dx = pt[0] - from[0], dy = pt[1] - from[1], L = Math.hypot(dx, dy); if (L < 1e-6) return pt;
+  if (WALL === 'side' && cur.calib.cam) { const c = cur.calib.cam, hx = c.cx - from[0], hy = c.cy - from[1], hl = Math.hypot(hx, hy) || 1; h = [hx / hl, hy / hl]; }
   const angTo = d => Math.acos(clamp(Math.abs(dx * d[0] + dy * d[1]) / L, 0, 1)) * 180 / Math.PI, av = angTo(v), ah = angTo(h);
   const d = av <= ah ? v : h; if (!force && (defaults.autoSnap === false || Math.min(av, ah) > tol)) return pt;
   const t = dx * d[0] + dy * d[1]; return [from[0] + d[0] * t, from[1] + d[1] * t];
@@ -2266,6 +2362,7 @@ function canSnap(pt) { // ponto no plano da parede; Shift trava em 90° (pelos e
 }
 // canaleta reta: sobe pela parede (na inclinação da linha vermelha). Com teto marcado, termina rente a ele.
 function canLineTop(a) {
+  if (WALL === 'side') { const q = toPlane(cur, a), cy = ceilPlaneY(cur); return cy != null && cy < q[1] ? toImg(cur, [q[0], cy]) : null; }
   const ceil = ceilImg(cur); if (!ceil) return null; const {v} = photoAxes(); if (v[1] > -1e-3 && v[1] < 1e-3) return null;
   const xi = a[0] + v[0] * (ceil[1] - a[1]) / v[1], ey = ceilEdgeY(cur, xi, ceil[1], defaults.canCm * pxPerCm(cur) / 2), t = (ey - a[1]) / v[1];
   return t < 0 ? [a[0] + v[0] * t, a[1] + v[1] * t] : null;
@@ -2273,16 +2370,18 @@ function canLineTop(a) {
 function addCanLine(a, b) {
   if (dist(a, b) * css.sc < 6) return;
   pushUndo(); const lo = a[1] > b[1] ? a : b, hi = a[1] > b[1] ? b : a;
-  const it = {type: 'can', id: newId(), pts: [toPlane(cur, lo), toPlane(cur, hi)], width: defaults.canCm, color: defaults.color, shine: defaults.canShine ?? 1};
+  const it = {type: 'can', id: newId(), pts: [toPlane(cur, lo), toPlane(cur, hi)], width: defaults.canCm, color: defaults.color, shine: defaults.canShine ?? 1}; if (WALL === 'side') it.wall = 'side';
   cur.items.push(it); sel = it; pending = []; render(); refreshUI();
 }
-function finishCan() {   // termina a canaleta livre ou o eletroduto
+function finishCan() { return inWall(pendingWall, finishCan0); }
+function finishCan0() {   // termina a canaleta livre ou o eletroduto
   const pts = []; for (const q of pending) if (!pts.length || dist(q, pts[pts.length - 1]) > 0.3) pts.push(q);
   pending = [];
   if (pts.length >= 2) {
     pushUndo();
     const it = tool === 'pipe' ? {type: 'pipe', id: newId(), pts, d: defaults.pipeD, color: defaults.pipeColor, bend: defaults.pipeBend, clamp: defaults.pipeClamp}
       : {type: 'can', id: newId(), pts, width: defaults.canCm, color: defaults.color, shine: defaults.canShine ?? 1};
+    if (WALL === 'side') it.wall = 'side';
     cur.items.push(it); sel = it;
   }
   tool = 'select'; render(); refreshUI();
@@ -2295,7 +2394,7 @@ function canUpTarget() {
 }
 function canFor(s, topY, toCeil) {
   const x = s.x + s.W / 2;
-  return {type: 'can', id: newId(), pts: [[x, s.y + 1], [x, Math.min(topY ?? s.y - 30, s.y - 1)]], width: defaults.canCm, color: defaults.color, shine: defaults.canShine ?? 1, link: s.id, toCeil: !!toCeil};
+  return {type: 'can', id: newId(), pts: [[x, s.y + 1], [x, Math.min(topY ?? s.y - 30, s.y - 1)]], width: defaults.canCm, color: defaults.color, shine: defaults.canShine ?? 1, link: s.id, toCeil: !!toCeil, ...(s.wall === 'side' ? {wall: 'side'} : {})};
 }
 function makeCanUp(s, topY, toCeil) { pushUndo(); const it = canFor(s, topY, toCeil); cur.items.push(it); sel = it; tool = 'select'; render(); refreshUI(); }
 // tamanho padrão do condulete pela bitola do eletroduto (3/4" ≈ 6,5 × 12 cm)
@@ -2306,6 +2405,7 @@ function newBox(kind, q) {
   const b = kind === 'rack' ? {type: 'box', id: newId(), kind, color: defaults.rackColor, W: defaults.rackW, H: defaults.rackH, D: defaults.rackD}
     : Object.assign({type: 'box', id: newId(), kind: 'condulete', color: defaults.condColor, ori: defaults.condOri, d: defaults.pipeD, D: Math.max(4, defaults.pipeD * 1.6)}, condDims(defaults.pipeD, defaults.condOri));
   b.x = +(q[0] - b.W / 2).toFixed(1); b.y = +(q[1] - b.H * k / 2).toFixed(1);
+  if (WALL === 'side') b.wall = 'side';
   return b;
 }
 /* Conexões: cada peça de infra tem pontos nas pontas (eletroduto e curva: as duas pontas; condulete: os dois
@@ -2321,7 +2421,7 @@ function connectorsOf(it) {
   }
   return [];
 }
-function otherConnectors(ex) { const out = []; if (!cur) return out; for (const it of cur.items) if (it !== ex && isInfra(it)) for (const q of connectorsOf(it)) out.push(q); return out; }
+function otherConnectors(ex) { const out = []; if (!cur) return out; for (const it of cur.items) if (it !== ex && isInfra(it) && wallOf(it) === WALL) for (const q of connectorsOf(it)) out.push(q); return out; }
 const snapTol = () => 14 / css.sc / pxPerCm(cur);
 function snapToConnector(q, ex) {
   let best = null, bd = snapTol();
@@ -2365,10 +2465,37 @@ function rotateSel(ccw) {
   saveDefaults(); render(); refreshUI();
 }
 function placeCurva(q) {
-  pushUndo(); const it = {type: 'pipe', kind: 'curva', id: newId(), d: defaults.pipeD, color: defaults.pipeColor, bend: 'curva', clamp: false, ori: defaults.curvaOri, pts: curvaPts(q, defaults.pipeD, defaults.curvaOri)};
+  pushUndo(); const it = {type: 'pipe', kind: 'curva', id: newId(), d: defaults.pipeD, color: defaults.pipeColor, bend: 'curva', clamp: false, ori: defaults.curvaOri, pts: curvaPts(q, defaults.pipeD, defaults.curvaOri)}; if (WALL === 'side') it.wall = 'side';
   cur.items.push(it); snapItem(it); sel = it; render(); refreshUI();
 }
 function placeBox(kind, q) { pushUndo(); const b = newBox(kind, q); cur.items.push(b); snapItem(b); sel = b; if (kind === 'rack') tool = 'select'; render(); refreshUI(); }
+// cria o item que a ferramenta coloca (já dentro da parede certa)
+function createAt(pt) {
+  if (tool === 'place') {
+    if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return true; }
+    if (!pending.length) { pending = [pt]; refreshUI(); drawOverlay(); return true; }
+    const a = pending[0], qa = toPlane(cur, a), qb = toPlane(cur, [pt[0], a[1]]), single = Math.abs(a[0] - pt[0]) * css.sc < 6; pending = [];
+    pushUndo();
+    const s = newObj(getModel(defaults.model)); if (WALL === 'side') s.wall = 'side';
+    s.region = single ? [qa[0], qa[0]] : [Math.min(qa[0], qb[0]), Math.max(qa[0], qb[0])]; s.regionY = qa[1];
+    autoPlace(cur, s); cur.items.push(s);
+    if (defaults.autoCan && getModel(s.model).kind === 'tela') cur.items.push(canFor(s, null, true));   // canaleta até o teto, já junto
+    sel = s; tool = 'select'; render(); refreshUI(); return true;
+  }
+  if (tool === 'canline') {
+    if (!pending.length) {
+      const top = canLineTop(pt);
+      if (top) { addCanLine(pt, top); return true; }   // teto marcado: 1 clique e ela sobe até ele
+      pending = [pt]; drawOverlay(); refreshUI(); return true;
+    }
+    addCanLine(pending[0], axisSnap(pending[0], pt, true)); return true;
+  }
+  if (tool === 'canup' && canupTarget) { makeCanUp(canupTarget, toPlane(cur, pt)[1], false); return true; }
+  if (tool === 'can' || tool === 'pipe') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return true; } pending.push(canSnap(pt)); drawOverlay(); return true; }
+  if (tool === 'curva') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return true; } placeCurva(toPlane(cur, pt)); return true; }
+  if (tool === 'cond' || tool === 'rack') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return true; } placeBox(tool, toPlane(cur, pt)); return true; }
+  return false;
+}
 const evPt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * cur.w, (e.clientY - r.top) / r.height * cur.h]; };
 function hitMeas(pt) {
   if (!cur.calib || curTab !== 'medida') return null;
@@ -2384,20 +2511,18 @@ function hitTest(pt, only) {
   for (let i = its.length - 1; i >= 0; i--) { const it = its[i]; if (it.type !== 'mark' || !ok('mark')) continue;
     const [a, b, c, d] = it.r; if (pt[0] >= Math.min(a, c) - tol && pt[0] <= Math.max(a, c) + tol && pt[1] >= Math.min(b, d) - tol && pt[1] <= Math.max(b, d) + tol) return it; }
   if (!cur.calib) return null;
-  if (ok('screen')) for (let i = its.length - 1; i >= 0; i--) if (its[i].type === 'screen' && inPoly(pt, screenCorners(cur, its[i]))) return its[i];
+  if (ok('screen')) for (let i = its.length - 1; i >= 0; i--) if (its[i].type === 'screen' && inWall(wallOf(its[i]), () => inPoly(pt, screenCorners(cur, its[i])), refPt(its[i]))) return its[i];
   if (ok('box')) for (let i = its.length - 1; i >= 0; i--) { const it = its[i]; if (it.type !== 'box') continue; const gm = boxGeom(cur, it); if (inPoly(pt, gm.front) || inPoly(pt, gm.back)) return it; }
-  if (ok('pipe')) for (let i = its.length - 1; i >= 0; i--) { const it = its[i]; if (it.type !== 'pipe') continue;
-    const pts = canPtsImg(cur, it), q = pipeQuads(cur, it), w = q.length ? dist(q[0][0], q[0][3]) / 2 : 0;
-    for (let k = 0; k < pts.length - 1; k++) if (segDist(pt, pts[k], pts[k + 1]) < Math.max(tol, w)) return it; }
-  if (ok('can')) for (let i = its.length - 1; i >= 0; i--) { const it = its[i]; if (it.type !== 'can') continue;
-    const pts = canPtsImg(cur, it), q = canQuads(cur, it), w = q.length ? dist(q[0][0], q[0][3]) / 2 : 0;
-    for (let k = 0; k < pts.length - 1; k++) if (segDist(pt, pts[k], pts[k + 1]) < Math.max(tol, w)) return it; }
+  const onLine = it => inWall(wallOf(it), () => { const pts = canPtsImg(cur, it), q = it.type === 'pipe' ? pipeQuads(cur, it) : canQuads(cur, it), w = q.length ? dist(q[0][0], q[0][3]) / 2 : 0;
+    for (let k = 0; k < pts.length - 1; k++) if (segDist(pt, pts[k], pts[k + 1]) < Math.max(tol, w)) return true; return false; }, refPt(it));
+  if (ok('pipe')) for (let i = its.length - 1; i >= 0; i--) if (its[i].type === 'pipe' && onLine(its[i])) return its[i];
+  if (ok('can')) for (let i = its.length - 1; i >= 0; i--) if (its[i].type === 'can' && onLine(its[i])) return its[i];
   return null;
 }
 function startMove(it, pt) {
   sel = it; pushUndo(true);
   curTab = it.type === 'mark' ? 'marcacao' : it.type === 'screen' ? 'elem' : it.type === 'can' ? 'canaleta' : 'infra';
-  drag = {kind: 'move', it, start: pt, startPl: cur.calib ? toPlane(cur, pt) : null, orig: clone(it), moved: false};
+  drag = {kind: 'move', it, start: pt, startPl: cur.calib ? inWall(wallOf(it), () => toPlane(cur, pt), refPt(it)) : null, orig: clone(it), moved: false};
 }
 
 ov.addEventListener('mousedown', e => {
@@ -2406,7 +2531,7 @@ ov.addEventListener('mousedown', e => {
   if (asking) { endAsk(true); return; }
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const pt = evPt(e); mouse = pt;
-  const precise = tool === 'check' || tool === 'canline' || tool.startsWith('meas') || tool === 'can' || tool === 'pipe' || tool === 'canup' || (tool === 'place' && pending.length);
+  const precise = tool === 'check' || tool === 'measSide' || tool === 'canline' || tool.startsWith('meas') || tool === 'can' || tool === 'pipe' || tool === 'canup' || (tool === 'place' && pending.length);
   if (!precise) {
     let h = null, best = 9 / css.sc;
     for (const c of getHandles()) { const dd = dist(c.pt, pt); if (dd < best) { best = dd; h = c; } }
@@ -2446,35 +2571,28 @@ ov.addEventListener('mousedown', e => {
     if (floorImg(cur) && ceilImg(cur) && !screensOf(cur).length) { goTab('elem'); return; }
     refreshUI(); return;
   }
+  if (tool === 'measSide') {
+    pending.push(pt); if (pending.length < 4) { drawOverlay(); refreshUI(); return; }
+    const pts = pending.slice(0, 4); pending = []; sidePend = pts; drawOverlay();
+    askCm(mid(pts[2], pts[3]), cur.calib.side ? cur.calib.side.dcm : '', 'Distância até a quina:', v => {
+      sidePend = null;
+      if (v == null) { tool = 'select'; render(); refreshUI(); return; }
+      pushUndo(); const old = cur.calib.side; cur.calib.side = {pts, dcm: v}; rebuildCalib(cur);
+      if (!cur.calib.sideH) { cur.calib.side = old; rebuildCalib(cur); tool = 'select'; render(); refreshUI(); flash('Não deu para calcular: os pontos 3 e 4 precisam estar mais à frente (mais perto de você) que a quina, e na mesma parede.'); return; }
+      tool = 'select'; render(); refreshUI(); flash('Parede lateral marcada: tela, canaleta e infra colocadas nela ficam em perspectiva.');
+    });
+    return;
+  }
   if (tool === 'check') {
     if (!cur.calib) { flash('Marque a medida da parede primeiro.'); return; }
     if (!pending.length) { pending = [pt]; drawOverlay(); refreshChrome(); return; }
     const b = checkSnap(pt); if (dist(pending[0], b) * css.sc > 4) cur.checks.push({a: pending[0], b});
     pending = []; scheduleSave(); refreshUI(); drawOverlay(); return;
   }
-  if (tool === 'place') {
-    if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; }
-    if (!pending.length) { pending = [pt]; refreshUI(); drawOverlay(); return; }
-    const a = pending[0], qa = toPlane(cur, a), qb = toPlane(cur, [pt[0], a[1]]), single = Math.abs(a[0] - pt[0]) * css.sc < 6; pending = [];
-    pushUndo();
-    const s = newObj(getModel(defaults.model));
-    s.region = single ? [qa[0], qa[0]] : [Math.min(qa[0], qb[0]), Math.max(qa[0], qb[0])]; s.regionY = qa[1];
-    autoPlace(cur, s); cur.items.push(s);
-    if (defaults.autoCan && getModel(s.model).kind === 'tela') cur.items.push(canFor(s, null, true));   // canaleta até o teto, já junto
-    sel = s; tool = 'select'; render(); refreshUI(); return;
+  if (CREATE_TOOLS.includes(tool) || tool === 'canup') {
+    if (!pending.length) pendingWall = tool === 'canup' ? wallOf(canupTarget) : wallAtImg(pt);
+    if (inWall(pendingWall, () => createAt(pt))) return;
   }
-  if (tool === 'canline') {
-    if (!pending.length) {
-      const top = canLineTop(pt);
-      if (top) { addCanLine(pt, top); return; }   // teto marcado: 1 clique e ela sobe até ele
-      pending = [pt]; drawOverlay(); refreshUI(); return;
-    }
-    addCanLine(pending[0], axisSnap(pending[0], pt, true)); return;
-  }
-  if (tool === 'canup' && canupTarget) { makeCanUp(canupTarget, toPlane(cur, pt)[1], false); return; }
-  if (tool === 'can' || tool === 'pipe') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; } pending.push(canSnap(pt)); drawOverlay(); return; }
-  if (tool === 'curva') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; } placeCurva(toPlane(cur, pt)); return; }
-  if (tool === 'cond' || tool === 'rack') { if (!cur.calib) { flash('Marque a medida da parede primeiro (aba Medida).'); return; } placeBox(tool, toPlane(cur, pt)); return; }
   if (tool === 'mark') {
     const hit = hitTest(pt, 'mark');
     if (hit) { startMove(hit, pt); render(); refreshUI(); return; }
@@ -2526,14 +2644,14 @@ window.addEventListener('mousemove', e => {
       let dx = pt[0] - drag.start[0], dy = pt[1] - drag.start[1];
       dx = clamp(dx, -Math.min(o.r[0], o.r[2]), cur.w - Math.max(o.r[0], o.r[2])); dy = clamp(dy, -Math.min(o.r[1], o.r[3]), cur.h - Math.max(o.r[1], o.r[3]));
       it.r = [o.r[0] + dx, o.r[1] + dy, o.r[2] + dx, o.r[3] + dy];
-    } else {
+    } else inWall(wallOf(it), () => {
       const q = toPlane(cur, pt); let dx = q[0] - drag.startPl[0], dy = q[1] - drag.startPl[1];
       if (window.__shift) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }   // Shift: só na horizontal ou na vertical
       if (it.type === 'screen' || it.type === 'box') { it.x = +(o.x + dx).toFixed(2); it.y = +(o.y + dy).toFixed(2); it.auto = false; }
       if ((it.type === 'can' && !it.link) || it.type === 'pipe') it.pts = o.pts.map(v => [v[0] + dx, v[1] + dy]);
       guides = []; if ((it.type === 'screen' || it.type === 'box') && !window.__shift && !window.__alt) alignSnap(it);
       if (isInfra(it)) { snapHit = null; snapItem(it); }
-    }
+    }, refPt(o));
     fast = true; requestRender();
   }
 }, true);
@@ -2601,9 +2719,9 @@ function pasteClip() {
 // guias de alinhamento: ao arrastar tela, rack ou condulete, gruda no centro da medida e nas bordas/centros dos outros
 function alignSnap(it) {
   const c = cur.calib, tx = 6 / css.sc / pxPerCm(cur), ty = 6 / css.sc / ((c.pts[3][1] - c.pts[0][1]) / c.h);
-  const xs = [[c.w / 2, 'centro da medida']], ys = [];
+  const xs = WALL === 'side' ? [] : [[c.w / 2, 'centro da medida']], ys = [];
   if (it.region && it.region[1] - it.region[0] > 1) xs.push([(it.region[0] + it.region[1]) / 2, 'centro do local']);
-  for (const o of cur.items) { if (o === it || (o.type !== 'screen' && o.type !== 'box')) continue; xs.push([o.x], [o.x + o.W / 2], [o.x + o.W]); ys.push([o.y], [o.y + o.H / 2], [o.y + o.H]); }
+  for (const o of cur.items) { if (o === it || (o.type !== 'screen' && o.type !== 'box') || wallOf(o) !== wallOf(it)) continue; xs.push([o.x], [o.x + o.W / 2], [o.x + o.W]); ys.push([o.y], [o.y + o.H / 2], [o.y + o.H]); }
   let bx = null, by = null;
   for (const [v, lb] of xs) for (const m of [it.x, it.x + it.W / 2, it.x + it.W]) { const d = v - m; if (Math.abs(d) < tx && (!bx || Math.abs(d) < Math.abs(bx[0]))) bx = [d, v, lb]; }
   for (const [v] of ys) for (const m of [it.y, it.y + it.H / 2, it.y + it.H]) { const d = v - m; if (Math.abs(d) < ty && (!by || Math.abs(d) < Math.abs(by[0]))) by = [d, v]; }
@@ -2675,6 +2793,7 @@ function hintHtml() {
     case 'measW': return `<b>Largura</b>: clique no ${ini} de algo com medida conhecida (parede, porta) · <kbd>Shift</kbd> reta`;
     case 'measH': return `<b>Altura</b>: clique no ${ini}, do teto ao piso · <kbd>Shift</kbd> reta · <kbd>Esc</kbd> pula`;
     case 'measFloor': return 'Clique no <b>piso</b>, rente à parede';
+    case 'measSide': return ['<b>Parede lateral</b>: clique no <b>topo da quina</b> (onde ela encontra a parede do fundo)', 'Clique na <b>base da quina</b>', 'Clique no <b>topo da parede lateral</b>, num ponto mais à frente', 'Clique na <b>base</b>, alinhada com o ponto 3'][Math.min(3, pending.length)] + ' · <kbd>Esc</kbd> cancela';
     case 'check': return `<b>Régua</b>: clique no ${ini} do que quer medir · <kbd>Shift</kbd> reta · <kbd>Esc</kbd> sai`;
     case 'measCeil': return 'Clique no <b>teto</b>, rente à parede';
     case 'place': return !cur.calib ? 'Marque a <b>medida</b> da parede primeiro' : pending.length ? 'Clique no <b>fim</b> do local (ou no mesmo ponto para centralizar ali)' : `<b>${models.length ? getModel(defaults.model).name : ''}</b>: clique no início do local onde vai ficar (ex.: um lado da parede)`;
@@ -2743,6 +2862,10 @@ function refreshUI() {
   for (const [el, has, key] of [['#floorTxt', fl, 'floor'], ['#ceilTxt', ce, 'ceil']])
     $(el).innerHTML = !has ? '—' : `<span style="color:#3ccf6e;font-weight:600">✓ marcado</span>${cb[key] ? '' : ' (pela altura)'}`;
   $('#bDelH').classList.toggle('hide', !(cb && cb.hl)); $('#autoFix').checked = defaults.autoFix !== false;
+  { const sd = cb && cb.side, ok = sd && cb.sideH, bs = $('#bSide'); bs.disabled = !(cb && cb.hl); bs.style.opacity = bs.disabled ? '.45' : '';
+    bs.classList.toggle('on', tool === 'measSide'); bs.textContent = tool === 'measSide' ? `Ponto ${(sidePend || pending).length + 1} de 4…` : sd ? 'Refazer' : 'Marcar';
+    $('#sideTxt').innerHTML = !sd ? '—' : ok ? `<span style="color:#3ccf6e;font-weight:600">✓ ${cm(sd.dcm)} cm</span>` : '<span style="color:#e5a13a">pontos não fecham</span>';
+    $('#bSideDel').classList.toggle('hide', !sd); }
   { const raw = rawRatio(cur), off = Math.abs(raw - 1) > 0.04, show = off || !!(cur && cur.origBlob), mode = (cb && cb.scaleMode) || 'xy';
     $('#scaleBox').classList.toggle('hide', !show);
     $('#scaleSeg').classList.toggle('hide', !off); $('#scaleHelp').classList.toggle('hide', !off); $('#bFixPhoto').classList.toggle('hide', !off); $('#bOrigPhoto').classList.toggle('hide', !(cur && cur.origBlob));
@@ -2899,6 +3022,8 @@ $('#bMeasW').onclick = () => { if (!cur) return; endAsk(false); sel = null; setT
 $('#bMeasH').onclick = () => { if (!cur || !cur.calib) return; endAsk(false); sel = null; setTool('measH'); render(); };
 $('#bFloor').onclick = () => { if (!cur || !cur.calib) return; sel = null; setTool('measFloor'); render(); };
 $('#bCeil').onclick = () => { if (!cur || !cur.calib) return; sel = null; setTool('measCeil'); render(); };
+$('#bSide').onclick = () => { if (!cur || !cur.calib || !cur.calib.hl) { flash('Marque antes a largura e a altura da parede do fundo.'); return; } endAsk(false); sel = null; sidePend = null; setTool(tool === 'measSide' ? 'select' : 'measSide'); render(); };
+$('#bSideDel').onclick = () => { if (!cur || !cur.calib) return; pushUndo(); delete cur.calib.side; rebuildCalib(cur); for (const it of cur.items) delete it.wall; render(); refreshUI(); flash('Parede lateral removida: os itens dela voltaram para a parede do fundo.'); };
 $('#bRuler').onclick = () => { if (!cur || !cur.calib) return; endAsk(false); sel = null; setTool(tool === 'check' ? 'select' : 'check'); render(); };
 $('#bRulerClr').onclick = () => { if (!cur) return; cur.checks = []; scheduleSave(); refreshUI(); drawOverlay(); };
 /* Corrigir a foto: numa foto esticada (comum em lente grande-angular), encolhe a direção esticada para as duas escalas
@@ -2906,7 +3031,7 @@ $('#bRulerClr').onclick = () => { if (!cur) return; cur.checks = []; scheduleSav
 function rawRatio(p) { const c = p && p.calib; return c && c.hl ? (dist(c.wl[0], c.wl[1]) / c.wcm) / (Math.abs(c.hl[1][1] - c.hl[0][1]) / c.hcm) : 1; }
 async function setPhotoImage(p, img, blob) {
   const W = img.naturalWidth, H = img.naturalHeight, kx = W / p.w, ky = H / p.h, S = q => q && [q[0] * kx, q[1] * ky], c = p.calib;
-  if (c) { c.wl = c.wl.map(S); if (c.hl) c.hl = c.hl.map(S); if (c.floor) c.floor = S(c.floor); if (c.ceil) c.ceil = S(c.ceil); }
+  if (c) { if (c.side) c.side.pts = c.side.pts.map(S); c.wl = c.wl.map(S); if (c.hl) c.hl = c.hl.map(S); if (c.floor) c.floor = S(c.floor); if (c.ceil) c.ceil = S(c.ceil); }
   for (const it of p.items) if (it.type === 'mark') { it.r = [it.r[0] * kx, it.r[1] * ky, it.r[2] * kx, it.r[3] * ky]; if (it.lo) it.lo = [it.lo[0] * kx, it.lo[1] * ky]; }
   p.checks = (p.checks || []).map(k => ({a: S(k.a), b: S(k.b)}));
   p.img = img; p.blob = blob; p.w = W; p.h = H;
