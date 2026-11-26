@@ -529,6 +529,7 @@ details.fold[open]{padding-bottom:10px}
   <div class="row">Tipo <select id="mKind"><option value="tela">Tela / TV</option><option value="rack">Rack / infraestrutura</option></select></div>
   <div class="row">Largura <input type="number" class="fld" id="mW" step="0.1"> cm &nbsp; Altura <input type="number" class="fld" id="mH" step="0.1" placeholder="auto"> cm</div>
   <div class="row">Base a <input type="number" class="fld" id="mBase" step="1" placeholder="livre"> cm do piso &nbsp; Inclinação <input type="number" class="fld" id="mTilt" step="1" style="width:56px"> °</div>
+  <div class="row" id="mDepthRow">Profundidade <input type="number" class="fld" id="mDepth" step="0.5" min="0" placeholder="3"> cm <span class="small">&nbsp;quanto o aparelho sai da parede (dá a lateral e a sombra; 0 = colado)</span></div>
   <p class="small" id="mInfo"></p>
   <div class="dlgfoot"><button class="btn danger" id="mDel">Excluir este modelo</button><span class="sp"></span><button class="btn" id="mNew">+ Novo</button><button class="btn primary" id="mOk">Pronto</button></div>
 </dialog>
@@ -745,14 +746,14 @@ function placeholderArt(m) {
   return c;
 }
 async function loadModelArt(m) {
-  m._fit = {};
+  m._fit = {}; delete m._shell; delete m._cols;
   try { m._art = m.blob ? prepArt(await loadImg(URL.createObjectURL(m.blob))) : placeholderArt(m); }
   catch (e) { m._art = placeholderArt(m); }
   const t = document.createElement('canvas'); t.width = 220; t.height = Math.max(1, Math.round(220 * m._art.height / m._art.width));
   t.getContext('2d').drawImage(m._art, 0, 0, t.width, t.height); m._thumb = t.toDataURL();
 }
 const modelH = m => m.H || +(m.W / (m._art.width / m._art.height)).toFixed(1);
-const saveModels = () => idb.set('models', models.map(({_art, _fit, _thumb, ...r}) => r));
+const saveModels = () => idb.set('models', models.map(({_art, _fit, _thumb, _shell, _cols, ...r}) => r));
 async function initModels() {
   models = await idb.get('models');
   if (!Array.isArray(models) || !models.length) {
@@ -963,6 +964,9 @@ function rebuildCalib(p) {
   const w = c.wcm, h = c.hl ? c.hcm : 100;
   c.pts = [A, [A[0] + sx * w, A[1]], [A[0] + sx * w, A[1] + sy * h], [A[0], A[1] + sy * h]];
   c.w = w; c.h = h;
+  // linhas de referência com altura (ex.: porta a 210) entram na régua: a vertical passa a ter perspectiva e bate com todas
+  const vf = vertFit(p, c, A, sx, sy); c.vfit = !!vf;
+  if (vf) c.pts = [[0, 0], [w, 0], [w, h], [0, h]].map(q => hApply(vf, q[0], q[1]));
   // câmera: sem parede lateral, foco estimado em 0,75 × a largura da foto; com ela, ponto de fuga e distância reais
   let cx = p.w / 2, cy = p.h * 0.45, Zb = 0.75 * p.w / sx, Xs = null;
   const sd = c.side;
@@ -978,6 +982,32 @@ function rebuildCalib(p) {
     const src = [[0, 0], [100, 0], [100, 100], [0, 100]], H = homography(src, src.map(P3));
     if (H) { c.sideH = H; c.sideHi = hInv(H); } else { delete c.sideH; delete c.sideHi; }
   } else { delete c.sideH; delete c.sideHi; }
+}
+/* Régua vertical com perspectiva. Numa foto com a câmera um pouco inclinada (ou lente grande-angular), um centímetro
+   lá em cima não ocupa os mesmos pixels que um centímetro perto do piso; a escala linear (só piso e teto) erra no meio.
+   Com piso (0), topo da linha vermelha (altura marcada) e as linhas de referência (ex.: porta a 210), acha a curva
+   y = (a·h + b) / (g·h + 1), que passa por todos esses pontos, e monta a perspectiva do plano a partir dela. */
+function vertFit(p, c, A, sx, sy) {
+  const rs = (c.refs || []).filter(r => r.cm > 0 && r.img); if (!c.hl || !rs.length || c.scaleMode === 'h' || c.scaleMode === 'w') return null;
+  const yb = Math.max(c.hl[0][1], c.hl[1][1]), yt = Math.min(c.hl[0][1], c.hl[1][1]);
+  if (c.floor && Math.abs(c.floor[1] - yb) > 4) return null;          // o piso precisa ser o pé da linha vermelha
+  const P = [[0, yb], [c.hcm, yt], ...rs.map(r => [r.cm, r.img[1]])];
+  // mínimos quadrados de  a·h + b − g·h·y = y
+  const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], V = [0, 0, 0];
+  for (const [h, y] of P) { const row = [h, 1, -h * y]; for (let i = 0; i < 3; i++) { V[i] += row[i] * y; for (let j = 0; j < 3; j++) M[i][j] += row[i] * row[j]; } }
+  const det = m => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  const D0 = det(M); if (!isFinite(D0) || Math.abs(D0) < 1e-12) return null;
+  const sol = [0, 1, 2].map(k => det(M.map((r, i) => r.map((v, j) => j === k ? V[i] : v))) / D0), [al, be, ga] = sol;
+  // tem de ser uma régua de verdade: sobe sempre, sem dobrar, e sem perspectiva exagerada
+  const hMax = Math.max(c.hcm, ...rs.map(r => r.cm)) * 1.15 + 20; let dmin = 9, dmax = 0;
+  for (let h = -20; h <= hMax; h += 5) { const den = ga * h + 1; if (!(den > 0.25) || (al - be * ga) / (den * den) >= 0) return null; dmin = Math.min(dmin, den); dmax = Math.max(dmax, den); }
+  if (dmax / dmin > 3) return null;
+  // plano: Y = Yf − h (Yf = posição do piso na régua linear, para nada mudar de lugar sem necessidade)
+  const Yf = (yb - A[1]) / sy, Dn = 1 + ga * Yf; if (!(Math.abs(Dn) > 1e-6)) return null;
+  const a2 = -al / Dn, b2 = (be + al * Yf) / Dn, c2 = -ga / Dn;
+  // a linha azul (largura) continua exata na altura em que foi marcada; as verticais convergem para o centro da foto
+  const Yw = (A[1] - b2) / (a2 - A[1] * c2), ww = 1 + c2 * Yw, cxv = p.w / 2; if (!(ww > 0.3)) return null;
+  return [sx * ww, cxv * c2, A[0] * ww - cxv * c2 * Yw, 0, a2, b2, 0, c2, 1];
 }
 function getCalib(p) {
   const c = p && p.calib; if (!c) return null;
@@ -1105,7 +1135,7 @@ function drawScreenAmbient(g, p, s, c, hpx) {
     const cols = artCols(m), lm = mid(TL, BL), rm = mid(TR, BR), gr = g.createLinearGradient(lm[0], lm[1], rm[0], rm[1]);
     cols.forEach((cc, i) => gr.addColorStop((i + 0.5) / cols.length, `rgb(${cc})`));
     const cx = (TL[0] + TR[0] + BR[0] + BL[0]) / 4, cy = (TL[1] + TR[1] + BR[1] + BL[1]) / 4;
-    g.save(); g.globalCompositeOperation = 'screen'; g.globalAlpha = clamp(0.55 * glow, 0, 0.9); g.filter = `blur(${Math.max(2, hpx * 0.3)}px)`; g.fillStyle = gr;
+    g.save(); g.globalCompositeOperation = 'screen'; g.globalAlpha = clamp(0.55 * glow * (screenDepth(s) ? 0.35 : 1), 0, 0.9); g.filter = `blur(${Math.max(2, hpx * 0.3)}px)`; g.fillStyle = gr;
     polyPath(g, c.map(q => [cx + (q[0] - cx) * 1.05, cy + (q[1] - cy) * 1.1 + hpx * 0.07])); g.fill(); g.restore();
   }
   if (wr > 0.02) {   // parede brilhante: reflexo espelhado da tela logo abaixo dela, sumindo aos poucos
@@ -1125,14 +1155,49 @@ function drawScreenAmbient(g, p, s, c, hpx) {
     }
   }
 }
+/* Tela reta (sem inclinação) é um aparelho de verdade: a frente fica alguns cm à frente da parede (profundidade do
+   modelo, padrão 3 cm). A câmera vê a lateral fina do lado de lá do centro da foto, a frente cresce um pouco na
+   perspectiva e a sombra é curta e macia, do tamanho da profundidade: dá a sensação de camadas, como no Photoshop. */
+const screenDepth = s => { const m = getModel(s.model); return m.kind === 'tela' && !(s.tilt > 0.5) ? (m.depth ?? 3) : 0; };
+function screenDevice(p, s, back) {
+  const D = screenDepth(s); if (!(D > 0) || !p.calib || !p.calib.cam) return null;
+  const hp = hPlane(p, s), w = wallOf(s), rect = [[s.x, s.y], [s.x + s.W, s.y], [s.x + s.W, s.y + hp], [s.x, s.y + hp]];
+  const disp = rect.map(q => { const a = proj(p, wall3(p, w, q, 0)), b = proj(p, wall3(p, w, q, D)); return [b[0] - a[0], b[1] - a[1]]; });
+  const front = back.map((q, i) => [q[0] + disp[i][0], q[1] + disp[i][1]]);
+  const cx = back.reduce((t, q) => t + q[0], 0) / 4, cy = back.reduce((t, q) => t + q[1], 0) / 4, faces = [];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4, m = mid(back[i], back[j]), n = [m[0] - cx, m[1] - cy], dv = [(disp[i][0] + disp[j][0]) / 2, (disp[i][1] + disp[j][1]) / 2];
+    if (dv[0] * n[0] + dv[1] * n[1] < 0 && Math.hypot(...dv) > 0.15) faces.push({q: [back[i], back[j], front[j], front[i]], side: i});   // 0 topo, 1 direita, 2 base, 3 esquerda
+  }
+  return {front, faces, D};
+}
+// cor da carcaça: a borda da própria arte (moldura preta, branca...)
+function shellColor(m) {
+  if (!m._shell) { const a = m._art, c = document.createElement('canvas'); c.width = 1; c.height = 1; const g = c.getContext('2d', {willReadFrequently: true});
+    g.drawImage(a, Math.max(0, a.width * 0.012), a.height * 0.3, Math.max(1, a.width * 0.01), a.height * 0.4, 0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data;
+    m._shell = d[3] > 100 ? [d[0], d[1], d[2]] : [24, 25, 27]; }
+  return m._shell;
+}
+function drawDeviceSides(g, p, s, dev, br) {
+  const col = shellColor(getModel(s.model)), light = lightAngle(p) * Math.PI / 180, lx = Math.cos(light), ly = -Math.sin(light);
+  for (const f of dev.faces) {
+    const [b0, b1, f1, f0] = f.q, nrm = [[0, -1], [1, 0], [0, 1], [-1, 0]][f.side], lit = clamp(0.62 + 0.38 * (nrm[0] * lx + nrm[1] * ly) + (f.side === 0 ? 0.18 : f.side === 2 ? -0.18 : 0), 0.3, 1.25) * br;
+    const lift = Math.max(...col) < 70 ? 18 : 0;   // carcaça preta: a lateral pega um pouco de luz (senão vira um borrão)
+    const m0 = mid(b0, b1), m1 = mid(f0, f1), gr = g.createLinearGradient(m0[0], m0[1], m1[0], m1[1]);
+    gr.addColorStop(0, `rgb(${col.map(v => Math.round((v + lift) * lit * 0.55)).join(',')})`); gr.addColorStop(1, `rgb(${col.map(v => Math.round(clamp((v + lift) * lit, 0, 255))).join(',')})`);
+    g.fillStyle = gr; polyPath(g, f.q); g.fill();
+  }
+}
 function drawScreen(g, p, s, quick) {
-  const c = screenCorners(p, s);
+  let c = screenCorners(p, s);
   if (quick) { g.beginPath(); c.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.closePath(); g.fillStyle = 'rgba(20,20,22,.85)'; g.fill(); g.strokeStyle = '#f7931e'; g.lineWidth = Math.max(1, p.w * 0.002); g.stroke(); return; }
-  const H = homography([[0, 0], [1, 0], [1, 1], [0, 1]], c); if (!H) return;
-  const Hi = hInv(H); if (!Hi) return;
   const hpx = Math.max(dist(c[0], c[3]), dist(c[1], c[2])), wpx = Math.max(dist(c[0], c[1]), dist(c[3], c[2]));
-  const sinT = Math.sin((s.tilt || 0) * Math.PI / 180), isTela = getModel(s.model).kind === 'tela';
-  if (s.shadow > 0) {
+  const sinT = Math.sin((s.tilt || 0) * Math.PI / 180), isTela = getModel(s.model).kind === 'tela', dev = isTela ? screenDevice(p, s, c) : null;
+  if (s.shadow > 0 && dev) {
+    // aparelho na parede: sombra curta e macia (do tamanho da profundidade) + contato escuro junto da parede
+    const kpx = wpx / Math.max(1, s.W), dd = s.shadowDist ?? 1, soft = s.shadowSoft ?? 1;
+    wallShadow(g, p, c, (dev.D * kpx * 0.6 + 1) * dd, Math.max(1.2, dev.D * kpx * 0.55) * (0.5 + 0.5 * soft), s.shadow * 0.85);
+  } else if (s.shadow > 0) {
     // sombra em camadas: escura e definida perto do elemento, mais clara e difusa ao se afastar
     const [dx, dy] = shadowDir(p), dd = s.shadowDist ?? 1, soft = s.shadowSoft ?? 1, dens = s.shadow;
     const cx = (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, cy = (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4;
@@ -1149,6 +1214,9 @@ function drawScreen(g, p, s, quick) {
     quad(hpx * 0.006, 1.004); g.fill(); g.restore();
   }
   if (isTela) drawScreenAmbient(g, p, s, c, hpx);
+  if (dev) { drawDeviceSides(g, p, s, dev, s.bright == null ? autoBright(p, c) : s.bright); c = dev.front; }
+  const H = homography([[0, 0], [1, 0], [1, 1], [0, 1]], c); if (!H) return;
+  const Hi = hInv(H); if (!Hi) return;
   const env = envPixels(p), eks = env.w / p.w, ecx = (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, ecy = (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4, rf = [0, 0, 0];
   const xs = c.map(q => q[0]), ys = c.map(q => q[1]);
   const x0 = Math.max(0, Math.floor(Math.min(...xs)) - 1), x1 = Math.min(p.w, Math.ceil(Math.max(...xs)) + 1);
@@ -1189,6 +1257,12 @@ function drawScreen(g, p, s, quick) {
     d[kb] = d[kb] * (1 - a) + r / 4 + nz; d[kb + 1] = d[kb + 1] * (1 - a) + gg / 4 + nz; d[kb + 2] = d[kb + 2] * (1 - a) + b / 4 + nz;
   }
   g.putImageData(img, x0, y0);
+  if (dev) {
+    const lw = Math.max(0.7, wpx / Math.max(1, s.W) * 0.18), seg = (a2, b2, st) => { g.strokeStyle = st; g.beginPath(); g.moveTo(a2[0], a2[1]); g.lineTo(b2[0], b2[1]); g.stroke(); };
+    g.save(); g.lineWidth = lw; g.lineCap = 'round';
+    seg(c[0], c[1], 'rgba(255,255,255,.2)'); seg(c[3], c[0], 'rgba(255,255,255,.09)'); seg(c[1], c[2], 'rgba(255,255,255,.06)'); seg(c[2], c[3], 'rgba(0,0,0,.4)');
+    g.restore();
+  }
   if (isTela && sinT > 0.01) { // parte de baixo do aparelho, visível por causa da inclinação
     const dpt = Math.max(1, (hpx / Math.max(0.2, Math.cos(Math.asin(sinT)))) / s.H * 2.5 * sinT), [, , BR, BL] = c, inset = dist(BL, BR) * 0.012;
     const gr = g.createLinearGradient(0, BL[1], 0, BL[1] + dpt), lum = clamp(br, 0.6, 1.05);
@@ -2638,11 +2712,11 @@ ov.addEventListener('mousedown', e => {
     askCm(pt, h0, 'Altura (cm do piso):', v => {
       refPend = null; tool = 'select';
       if (v == null) { render(); refreshUI(); return; }
-      pushUndo(); r0.cm = v; (cur.calib.refs = cur.calib.refs || []).push(r0);
-      for (const s of screensOf(cur)) applyRef(cur, s);
+      pushUndo(); r0.cm = v; changeCalib(cur, c => { (c.refs = c.refs || []).push(r0); });
       render(); refreshUI();
-      const off = fy != null ? Math.round(fy - y0[1]) : null;
-      if (off != null && Math.abs(off - v) > Math.max(5, v * 0.04)) flash(`Linha "${r0.name}" marcada onde você clicou (${cm(v)} cm). Pelas medidas da parede ali daria ${cm(off)} cm: se a diferença for grande, confira a largura e a altura marcadas.`);
+      const off = fy != null ? Math.round(fy - y0[1]) : null, far = off != null && Math.abs(off - v) > Math.max(3, v * 0.02);
+      if (far && cur.calib.vfit) flash(`Linha "${r0.name}" marcada a ${cm(v)} cm, onde você clicou. A régua da foto foi ajustada para bater com ela (antes dava ${cm(off)} cm ali): telas e medidas agora respeitam a perspectiva.`);
+      else if (far) flash(`Linha "${r0.name}" marcada onde você clicou (${cm(v)} cm). Pelas medidas da parede ali daria ${cm(off)} cm: confira a altura marcada (o pé da linha vermelha precisa estar no piso).`);
       else flash(`Linha "${r0.name}" marcada a ${cm(v)} cm do piso. Na tela, escolha Topo na linha ou Base na linha.`);
     });
     return;
@@ -3117,12 +3191,12 @@ function renderRefs() {
   if (box.dataset.sig === sig) return; box.dataset.sig = sig; box.innerHTML = '';
   for (const r of rs) {
     const row = document.createElement('div'); row.className = 'refrow';
-    row.innerHTML = `<input class="fld rname" maxlength="30"><input type="number" class="fld rh" step="0.5"><span class="small">cm</span><button class="lx" title="Remover linha">×</button>`;
+    row.innerHTML = `<input class="fld rname" maxlength="30"><input type="text" inputmode="decimal" class="fld rh"><span class="small">cm</span><button class="lx" title="Remover linha">×</button>`;
     const nm = row.querySelector('.rname'), hh = row.querySelector('.rh'), h = refHeight(cur, r); nm.value = r.name || ''; hh.value = h != null ? +h.toFixed(1) : '';
     nm.addEventListener('change', () => { r.name = nm.value.trim() || 'referência'; scheduleSave(); render(); refreshUI(); });
-    hh.addEventListener('change', () => { const v = +hh.value; if (!(v > 0)) return; pushUndo(); r.cm = v; scheduleSave(); render(); refreshUI(); });
+    hh.addEventListener('change', () => { const v = parseCm(hh.value); if (!(v > 0)) return; pushUndo(); changeCalib(cur, () => { r.cm = v; }); scheduleSave(); render(); refreshUI(); });
     for (const el of [nm, hh]) el.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
-    row.querySelector('.lx').onclick = () => { pushUndo(); cur.calib.refs = rs.filter(x => x !== r); for (const s of cur.items) if (s.refId === r.id) { delete s.refAlign; delete s.refId; } render(); refreshUI(); };
+    row.querySelector('.lx').onclick = () => { pushUndo(); for (const s of cur.items) if (s.refId === r.id) { delete s.refAlign; delete s.refId; } changeCalib(cur, c => { c.refs = rs.filter(x => x !== r); }); scheduleSave(); render(); refreshUI(); };
     box.appendChild(row);
   }
 }
@@ -3334,6 +3408,7 @@ function refreshDlg() {
   if (ae !== $('#mName')) $('#mName').value = m.name; $('#mKind').value = m.kind;
   if (ae !== $('#mW')) $('#mW').value = m.W; if (ae !== $('#mH')) $('#mH').value = m.H ?? '';
   if (ae !== $('#mBase')) $('#mBase').value = m.base ?? ''; if (ae !== $('#mTilt')) $('#mTilt').value = m.tilt || 0;
+  if (ae !== $('#mDepth')) $('#mDepth').value = m.depth ?? ''; $('#mDepthRow').classList.toggle('hide', m.kind !== 'tela' || (m.tilt || 0) > 0.5);
   const pv = $('#mPrev'), g = pv.getContext('2d'), a = m._art, k = Math.min(pv.width / a.width, pv.height / a.height) * 0.92;
   g.clearRect(0, 0, pv.width, pv.height); g.drawImage(a, (pv.width - a.width * k) / 2, (pv.height - a.height * k) / 2, a.width * k, a.height * k);
   $('#mImgInfo').textContent = m.blob ? `${a.width} × ${a.height} px` : 'sem imagem (provisória)';
@@ -3345,7 +3420,7 @@ function refreshDlg() {
   $('#mDel').classList.toggle('hide', models.length <= 1);
 }
 function modelChanged() {
-  const m = dlgModel; m._fit = {}; saveModels();
+  const m = dlgModel; m._fit = {}; delete m._shell; saveModels();
   for (const ph of photos) for (const s of screensOf(ph)) if (s.model === m.id && !s.custom) { const cx = s.x + s.W / 2; s.W = m.W; s.H = modelH(m); s.x = +(cx - s.W / 2).toFixed(1); if (s.auto && ph.calib) autoPlace(ph, s); }
   refreshDlg(); render(); refreshUI();
 }
@@ -3357,6 +3432,7 @@ $('#mW').addEventListener('change', () => { const v = +$('#mW').value; if (v > 0
 $('#mH').addEventListener('change', () => { const v = $('#mH').value; dlgModel.H = v === '' || !(+v > 0) ? null : +v; reArt(); });
 $('#mBase').addEventListener('change', () => { const v = $('#mBase').value; dlgModel.base = v === '' ? null : +v; modelChanged(); });
 $('#mTilt').addEventListener('change', () => { dlgModel.tilt = clamp(+$('#mTilt').value || 0, 0, 25); modelChanged(); });
+$('#mDepth').addEventListener('change', () => { const v = $('#mDepth').value; dlgModel.depth = v === '' ? null : clamp(+v || 0, 0, 30); modelChanged(); });
 $('#mImg').onclick = () => $('#mFile').click();
 $('#mFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; dlgModel.blob = f; await loadModelArt(dlgModel); modelChanged(); };
 $('#mNew').onclick = () => openModels(null, true);
