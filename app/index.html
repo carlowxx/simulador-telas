@@ -856,7 +856,16 @@ function stretchFlat(a, ratio) {
   // moldura: faixas do começo e do fim com a cor da borda não crescem (a moldura fica fina como na arte)
   const fr = at(N >> 1, Math.min(4, M - 1)); let top = 0, bot = N - 1;
   while (top < N / 3 && Math.abs(at(top, M >> 1) - fr) < 25) top++; while (bot > N * 2 / 3 && Math.abs(at(bot, M >> 1) - fr) < 25) bot--;
-  const guard = Math.max(2, Math.round(N * 0.015)), lo = top + guard, hi = bot - guard;
+  // moldura de verdade (ex.: a borda preta da tela residencial): a faixa de cor única que vem de cada lado para dentro.
+  // Ela fica intacta (mesmo quando a linha interna é fraca ou o conteúdo junto dela também é escuro): as bordas saem iguais à arte.
+  const j0 = Math.round(M * 0.15), j1 = Math.round(M * 0.85), cnt = Math.max(1, j1 - j0);
+  const stat = i => { let s = 0, s2 = 0; for (let j = j0; j < j1; j++) { const v = at(i, j); s += v; s2 += v * v; } const m = s / cnt; return [m, Math.sqrt(Math.max(0, s2 / cnt - m * m))]; };
+  const run = (i, dir) => { const end = dir > 0 ? N * 0.15 : N * 0.85; while ((dir > 0 ? i < end : i > end) && stat(i)[0] > 250) i += dir; if (stat(i)[0] > 250) return dir > 0 ? 0 : N - 1;
+    i += dir * Math.max(3, Math.round(N * 0.008)); const fm = stat(i)[0], i0 = i;   // pula o contorno serrilhado
+    while (Math.abs(i - i0) < N * 0.15) { const [m, sd] = stat(i); if (sd > 8 || Math.abs(m - fm) > 12) break; i += dir; } return i - dir; };
+  const fL = run(0, 1), fR = run(N - 1, -1);
+  const guard = Math.max(2, Math.round(N * 0.015)), lo = Math.max(top, fL) + guard, hi = Math.min(bot, fR) - guard;
+  if (hi - lo < N * 0.3) return a;
   // energia de cada faixa (detalhe ao longo dela) com uma margem de segurança em volta de qualquer detalhe
   const E = new Float32Array(N).fill(1e9);
   // conta os pontos com borda forte: uma faixa só é "lisa" se nenhum ponto dela cruza logo, texto ou moldura
@@ -872,9 +881,15 @@ function stretchFlat(a, ratio) {
   if (!cand.length) return a;
   const tol = Math.max(1, Math.round(M * 0.002));   // tolera 1 ou 2 pontos de ruído
   let pick = cand.filter(i => E2[i] <= tol);
-  if (pick.length < 6) pick = cand.slice().sort((x, y) => E2[x] - E2[y]).slice(0, Math.max(4, Math.round(N * 0.06)));   // arte sem faixa lisa: usa as menos detalhadas
+  const out = document.createElement('canvas'); out.width = vert ? w : w + add; out.height = vert ? h + add : h; const og = out.getContext('2d'); og.imageSmoothingEnabled = true; og.imageSmoothingQuality = 'high';
+  if (pick.length < 6) {
+    // arte sem faixa lisa (ex.: foto ocupando a tela toda): a moldura fica exatamente igual e só o miolo se ajusta, por igual
+    const n = hi - lo + 1;
+    if (vert) { og.drawImage(src, 0, 0, w, lo, 0, 0, w, lo); og.drawImage(src, 0, lo, w, n, 0, lo, w, n + add); og.drawImage(src, 0, hi + 1, w, h - hi - 1, 0, hi + 1 + add, w, h - hi - 1); }
+    else { og.drawImage(src, 0, 0, lo, h, 0, 0, lo, h); og.drawImage(src, lo, 0, n, h, lo, 0, n + add, h); og.drawImage(src, hi + 1, 0, w - hi - 1, h, hi + 1 + add, 0, w - hi - 1, h); }
+    return out;
+  }
   const extra = new Float32Array(N); for (const i of pick) extra[i] = add / pick.length;
-  const out = document.createElement('canvas'); out.width = vert ? w : w + add; out.height = vert ? h + add : h; const og = out.getContext('2d'); og.imageSmoothingEnabled = true;
   let pos = 0;
   for (let i = 0; i < N; i++) {
     const p0 = Math.round(pos), p1 = Math.round(pos + 1 + extra[i]); pos += 1 + extra[i]; if (p1 <= p0) continue;
