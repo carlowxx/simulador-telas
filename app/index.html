@@ -746,14 +746,14 @@ function placeholderArt(m) {
   return c;
 }
 async function loadModelArt(m) {
-  m._fit = {}; delete m._shell; delete m._cols;
+  m._fit = {}; delete m._shell; delete m._cols; delete m._rad;
   try { m._art = m.blob ? prepArt(await loadImg(URL.createObjectURL(m.blob))) : placeholderArt(m); }
   catch (e) { m._art = placeholderArt(m); }
   const t = document.createElement('canvas'); t.width = 220; t.height = Math.max(1, Math.round(220 * m._art.height / m._art.width));
   t.getContext('2d').drawImage(m._art, 0, 0, t.width, t.height); m._thumb = t.toDataURL();
 }
 const modelH = m => m.H || +(m.W / (m._art.width / m._art.height)).toFixed(1);
-const saveModels = () => idb.set('models', models.map(({_art, _fit, _thumb, _shell, _cols, ...r}) => r));
+const saveModels = () => idb.set('models', models.map(({_art, _fit, _thumb, _shell, _cols, _rad, ...r}) => r));
 async function initModels() {
   models = await idb.get('models');
   if (!Array.isArray(models) || !models.length) {
@@ -1164,12 +1164,27 @@ function screenDevice(p, s, back) {
   const hp = hPlane(p, s), w = wallOf(s), rect = [[s.x, s.y], [s.x + s.W, s.y], [s.x + s.W, s.y + hp], [s.x, s.y + hp]];
   const disp = rect.map(q => { const a = proj(p, wall3(p, w, q, 0)), b = proj(p, wall3(p, w, q, D)); return [b[0] - a[0], b[1] - a[1]]; });
   const front = back.map((q, i) => [q[0] + disp[i][0], q[1] + disp[i][1]]);
-  const cx = back.reduce((t, q) => t + q[0], 0) / 4, cy = back.reduce((t, q) => t + q[1], 0) / 4, faces = [];
+  const cx = back.reduce((t, q) => t + q[0], 0) / 4, cy = back.reduce((t, q) => t + q[1], 0) / 4, faces = [], rc = cornerRadius(getModel(s.model)) * s.W;
   for (let i = 0; i < 4; i++) {
     const j = (i + 1) % 4, m = mid(back[i], back[j]), n = [m[0] - cx, m[1] - cy], dv = [(disp[i][0] + disp[j][0]) / 2, (disp[i][1] + disp[j][1]) / 2];
-    if (dv[0] * n[0] + dv[1] * n[1] < 0 && Math.hypot(...dv) > 0.15) faces.push({q: [back[i], back[j], front[j], front[i]], side: i});   // 0 topo, 1 direita, 2 base, 3 esquerda
+    if (dv[0] * n[0] + dv[1] * n[1] < 0 && Math.hypot(...dv) > 0.15) {   // 0 topo, 1 direita, 2 base, 3 esquerda
+      // cantos arredondados: a lateral termina antes da quina (senão aparece uma ponta reta atrás da curva)
+      const t = clamp(rc * 0.6 / (i % 2 ? hp : s.W), 0, 0.45), L = (a2, b2, k) => [a2[0] + (b2[0] - a2[0]) * k, a2[1] + (b2[1] - a2[1]) * k];
+      faces.push({q: [L(back[i], back[j], t), L(back[i], back[j], 1 - t), L(front[i], front[j], 1 - t), L(front[i], front[j], t)], side: i});
+    }
   }
-  return {front, faces, D};
+  return {front, faces, D, rc};
+}
+// raio do canto arredondado da arte (fração da largura): onde a primeira linha opaca começa na borda
+function cornerRadius(m) {
+  if (m._rad == null) {
+    const a = m._art, k = Math.min(1, 400 / a.width), w = Math.max(8, Math.round(a.width * k)), h = Math.max(8, Math.round(a.height * k));
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d', {willReadFrequently: true}); g.drawImage(a, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data, op = (x, y) => d[(y * w + x) * 4 + 3] > 128; let y = 0;
+    while (y < h * 0.2 && !op(0, y)) y++;   // a coluna da borda só fica opaca abaixo da curva
+    m._rad = y >= h * 0.2 ? 0 : y / w;
+  }
+  return m._rad;
 }
 // cor da carcaça: a borda da própria arte (moldura preta, branca...)
 function shellColor(m) {
@@ -1260,7 +1275,9 @@ function drawScreen(g, p, s, quick) {
   if (dev) {
     const lw = Math.max(0.7, wpx / Math.max(1, s.W) * 0.18), seg = (a2, b2, st) => { g.strokeStyle = st; g.beginPath(); g.moveTo(a2[0], a2[1]); g.lineTo(b2[0], b2[1]); g.stroke(); };
     g.save(); g.lineWidth = lw; g.lineCap = 'round';
-    seg(c[0], c[1], 'rgba(255,255,255,.2)'); seg(c[3], c[0], 'rgba(255,255,255,.09)'); seg(c[1], c[2], 'rgba(255,255,255,.06)'); seg(c[2], c[3], 'rgba(0,0,0,.4)');
+    const tw2 = clamp(dev.rc / Math.max(1, s.W), 0, 0.45), th2 = clamp(dev.rc / Math.max(1, hPlane(p, s)), 0, 0.45), L = (a2, b2, k) => [a2[0] + (b2[0] - a2[0]) * k, a2[1] + (b2[1] - a2[1]) * k];
+    const sg2 = (a2, b2, t, st) => seg(L(a2, b2, t), L(a2, b2, 1 - t), st);   // filetes param antes da curva do canto
+    sg2(c[0], c[1], tw2, 'rgba(255,255,255,.2)'); sg2(c[3], c[0], th2, 'rgba(255,255,255,.09)'); sg2(c[1], c[2], th2, 'rgba(255,255,255,.06)'); sg2(c[2], c[3], tw2, 'rgba(0,0,0,.4)');
     g.restore();
   }
   if (isTela && sinT > 0.01) { // parte de baixo do aparelho, visível por causa da inclinação
