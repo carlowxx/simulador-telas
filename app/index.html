@@ -529,7 +529,7 @@ details.fold[open]{padding-bottom:10px}
   <div class="row">Tipo <select id="mKind"><option value="tela">Tela / TV</option><option value="rack">Rack / infraestrutura</option></select></div>
   <div class="row">Largura <input type="number" class="fld" id="mW" step="0.1"> cm &nbsp; Altura <input type="number" class="fld" id="mH" step="0.1" placeholder="auto"> cm</div>
   <div class="row">Base a <input type="number" class="fld" id="mBase" step="1" placeholder="livre"> cm do piso &nbsp; Inclinação <input type="number" class="fld" id="mTilt" step="1" style="width:56px"> °</div>
-  <div class="row" id="mDepthRow">Profundidade <input type="number" class="fld" id="mDepth" step="0.5" min="0" placeholder="3"> cm <span class="small">&nbsp;quanto o aparelho sai da parede (dá a lateral e a sombra; 0 = colado)</span></div>
+  <div class="row" id="mDepthRow">Profundidade <input type="number" class="fld" id="mDepth" step="0.5" min="0" placeholder="3"> cm <span class="small">&nbsp;espessura do aparelho: dá a lateral em 3D e a sombra (também nas inclinadas; 0 = sem)</span></div>
   <p class="small" id="mInfo"></p>
   <div class="dlgfoot"><button class="btn danger" id="mDel">Excluir este modelo</button><span class="sp"></span><button class="btn" id="mNew">+ Novo</button><button class="btn primary" id="mOk">Pronto</button></div>
 </dialog>
@@ -1107,6 +1107,7 @@ const VIEW_DIST_CM = 160;
 function screenCorners(p, s) {
   const hp = hPlane(p, s), c = [[s.x, s.y], [s.x + s.W, s.y], [s.x + s.W, s.y + hp], [s.x, s.y + hp]].map(q => toImg(p, q));
   const th = (s.tilt || 0) * Math.PI / 180; if (!th) return c;
+  if (screenDepth(s) > 0 && p.calib && p.calib.cam) { const dv = screenDevice(p, s); if (dv) return dv.front; }   // inclinada com profundidade: contorno = frente 3D
   // inclinada para baixo: topo um pouco mais largo, altura encurtada
   const t = (s.H / 2 * Math.sin(th)) / VIEW_DIST_CM, [TL, TR, BR, BL] = c, tm = mid(TL, TR), bm = mid(BL, BR), k = Math.cos(th);
   const nb = [tm[0] + (bm[0] - tm[0]) * k, tm[1] + (bm[1] - tm[1]) * k];
@@ -1168,12 +1169,20 @@ function drawScreenAmbient(g, p, s, c, hpx) {
 /* Tela reta (sem inclinação) é um aparelho de verdade: a frente fica alguns cm à frente da parede (profundidade do
    modelo, padrão 3 cm). A câmera vê a lateral fina do lado de lá do centro da foto, a frente cresce um pouco na
    perspectiva e a sombra é curta e macia, do tamanho da profundidade: dá a sensação de camadas, como no Photoshop. */
-const screenDepth = s => { const m = getModel(s.model); return m.kind === 'tela' && !(s.tilt > 0.5) ? (m.depth ?? 3) : 0; };
-function screenDevice(p, s, back) {
+// reta: 3 cm se o modelo não diz nada; inclinada: só quando o modelo tem profundidade (mantém o visual aprovado do elevador)
+const screenDepth = s => { const m = getModel(s.model); if (m.kind !== 'tela') return 0; return m.depth ?? ((s.tilt || 0) > 0.5 ? 0 : 3); };
+/* Aparelho em 3D. Reta: frente D cm à frente da parede. Inclinada: o aparelho gira preso pelo topo (suporte articulado),
+   a base se afasta da parede H·sen(θ) e a altura vista encolhe para H·cos(θ); a frente fica D cm à frente do fundo,
+   na direção em que a tela aponta (para baixo e para fora). Cada canto vira um ponto 3D projetado pela câmera da foto. */
+function screenDevice(p, s) {
   const D = screenDepth(s); if (!(D > 0) || !p.calib || !p.calib.cam) return null;
-  const hp = hPlane(p, s), w = wallOf(s), rect = [[s.x, s.y], [s.x + s.W, s.y], [s.x + s.W, s.y + hp], [s.x, s.y + hp]];
-  const disp = rect.map(q => { const a = proj(p, wall3(p, w, q, 0)), b = proj(p, wall3(p, w, q, D)); return [b[0] - a[0], b[1] - a[1]]; });
-  const front = back.map((q, i) => [q[0] + disp[i][0], q[1] + disp[i][1]]);
+  const th = (s.tilt || 0) * Math.PI / 180, sn = Math.sin(th), cs = Math.cos(th), hp = hPlane(p, s), w = wallOf(s);
+  const X = [s.x, s.x + s.W, s.x + s.W, s.x], Y = [s.y, s.y, s.y + hp * cs, s.y + hp * cs], O = [0, 0, hp * sn, hp * sn];
+  // posição na foto de um ponto afastado "o" cm da parede: a régua da foto dá o ponto na parede, a câmera dá o afastamento
+  const at3 = (x, y, o) => { const q = [x, y], b = toImg(p, q); if (!o) return b; const a0 = proj(p, wall3(p, w, q, 0)), a1 = proj(p, wall3(p, w, q, o)); return [b[0] + a1[0] - a0[0], b[1] + a1[1] - a0[1]]; };
+  const back = X.map((x, i) => at3(x, Y[i], O[i])), front = X.map((x, i) => at3(x, Y[i] - D * sn, O[i] + D * cs));
+  const wallQ = X.map((x, i) => toImg(p, [x, Y[i]]));   // pegada do aparelho na parede (para a sombra)
+  const disp = front.map((q, i) => [q[0] - back[i][0], q[1] - back[i][1]]);
   const cx = back.reduce((t, q) => t + q[0], 0) / 4, cy = back.reduce((t, q) => t + q[1], 0) / 4, faces = [], rc = cornerRadius(getModel(s.model)) * s.W;
   for (let i = 0; i < 4; i++) {
     const j = (i + 1) % 4, m = mid(back[i], back[j]), n = [m[0] - cx, m[1] - cy], dv = [(disp[i][0] + disp[j][0]) / 2, (disp[i][1] + disp[j][1]) / 2];
@@ -1183,7 +1192,7 @@ function screenDevice(p, s, back) {
       faces.push({q: [L(back[i], back[j], t), L(back[i], back[j], 1 - t), L(front[i], front[j], 1 - t), L(front[i], front[j], t)], side: i});
     }
   }
-  return {front, faces, D, rc};
+  return {back, front, faces, D, rc, wallQ, out: hp * sn};
 }
 // raio do canto arredondado da arte (fração da largura): onde a primeira linha opaca começa na borda
 function cornerRadius(m) {
@@ -1198,9 +1207,16 @@ function cornerRadius(m) {
 }
 // cor da carcaça: a borda da própria arte (moldura preta, branca...)
 function shellColor(m) {
-  if (!m._shell) { const a = m._art, c = document.createElement('canvas'); c.width = 1; c.height = 1; const g = c.getContext('2d', {willReadFrequently: true});
-    g.drawImage(a, Math.max(0, a.width * 0.012), a.height * 0.3, Math.max(1, a.width * 0.01), a.height * 0.4, 0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data;
-    m._shell = d[3] > 100 ? [d[0], d[1], d[2]] : [24, 25, 27]; }
+  if (!m._shell) {
+    // anel mais de fora da arte, nos quatro lados; só vale se for cor neutra (preto, cinza, branco). Arte colorida até a borda: grafite
+    const a = m._art, k = Math.min(1, 300 / Math.max(a.width, a.height)), w = Math.max(8, Math.round(a.width * k)), h = Math.max(8, Math.round(a.height * k));
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d', {willReadFrequently: true}); g.drawImage(a, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data, px = [], take = (x, y) => { const i = (y * w + x) * 4; if (d[i + 3] > 200) px.push([d[i], d[i + 1], d[i + 2]]); };
+    for (let y = Math.round(h * 0.25); y < h * 0.75; y += 2) for (const x of [1, 2, w - 3, w - 2]) take(x, y);
+    for (let x = Math.round(w * 0.25); x < w * 0.75; x += 2) for (const y of [1, 2, h - 3, h - 2]) take(x, y);
+    const avg = px.length ? [0, 1, 2].map(ch => px.reduce((t, q) => t + q[ch], 0) / px.length) : null, mx = avg && Math.max(...avg), mn = avg && Math.min(...avg);
+    m._shell = avg && (mx - mn) < 22 ? avg.map(Math.round) : [24, 25, 27];
+  }
   return m._shell;
 }
 function drawDeviceSides(g, p, s, dev, br) {
@@ -1217,11 +1233,12 @@ function drawScreen(g, p, s, quick) {
   let c = screenCorners(p, s);
   if (quick) { g.beginPath(); c.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.closePath(); g.fillStyle = 'rgba(20,20,22,.85)'; g.fill(); g.strokeStyle = '#f7931e'; g.lineWidth = Math.max(1, p.w * 0.002); g.stroke(); return; }
   const hpx = Math.max(dist(c[0], c[3]), dist(c[1], c[2])), wpx = Math.max(dist(c[0], c[1]), dist(c[3], c[2]));
-  const sinT = Math.sin((s.tilt || 0) * Math.PI / 180), isTela = getModel(s.model).kind === 'tela', dev = isTela ? screenDevice(p, s, c) : null;
+  const sinT = Math.sin((s.tilt || 0) * Math.PI / 180), isTela = getModel(s.model).kind === 'tela', dev = isTela ? screenDevice(p, s) : null;
   if (s.shadow > 0 && dev) {
     // aparelho na parede: sombra curta e macia (do tamanho da profundidade) + contato escuro junto da parede
     const kpx = wpx / Math.max(1, s.W), dd = s.shadowDist ?? 1, soft = s.shadowSoft ?? 1;
-    wallShadow(g, p, c, (dev.D * kpx * 0.6 + 1) * dd, Math.max(1.2, dev.D * kpx * 0.55) * (0.5 + 0.5 * soft), s.shadow * 0.85);
+    // inclinada: a base fica longe da parede, então a sombra vai mais longe e fica mais difusa embaixo
+    wallShadow(g, p, dev.wallQ, ((dev.D * 0.6 + dev.out * 0.5) * kpx + 1) * dd, Math.max(1.2, (dev.D * 0.55 + dev.out * 0.3) * kpx) * (0.5 + 0.5 * soft), s.shadow * (dev.out > 1 ? 0.8 : 0.85));
   } else if (s.shadow > 0) {
     // sombra em camadas: escura e definida perto do elemento, mais clara e difusa ao se afastar
     const [dx, dy] = shadowDir(p), dd = s.shadowDist ?? 1, soft = s.shadowSoft ?? 1, dens = s.shadow;
@@ -1291,7 +1308,7 @@ function drawScreen(g, p, s, quick) {
     sg2(c[0], c[1], tw2, 'rgba(255,255,255,.2)'); sg2(c[3], c[0], th2, 'rgba(255,255,255,.09)'); sg2(c[1], c[2], th2, 'rgba(255,255,255,.06)'); sg2(c[2], c[3], tw2, 'rgba(0,0,0,.4)');
     g.restore();
   }
-  if (isTela && sinT > 0.01) { // parte de baixo do aparelho, visível por causa da inclinação
+  if (isTela && sinT > 0.01 && !dev) { // parte de baixo do aparelho, visível por causa da inclinação (sem profundidade no modelo)
     const dpt = Math.max(1, (hpx / Math.max(0.2, Math.cos(Math.asin(sinT)))) / s.H * 2.5 * sinT), [, , BR, BL] = c, inset = dist(BL, BR) * 0.012;
     const gr = g.createLinearGradient(0, BL[1], 0, BL[1] + dpt), lum = clamp(br, 0.6, 1.05);
     gr.addColorStop(0, `rgb(${58 * lum | 0},${60 * lum | 0},${64 * lum | 0})`); gr.addColorStop(1, `rgb(${14 * lum | 0},${15 * lum | 0},${16 * lum | 0})`);
@@ -3436,7 +3453,7 @@ function refreshDlg() {
   if (ae !== $('#mName')) $('#mName').value = m.name; $('#mKind').value = m.kind;
   if (ae !== $('#mW')) $('#mW').value = m.W; if (ae !== $('#mH')) $('#mH').value = m.H ?? '';
   if (ae !== $('#mBase')) $('#mBase').value = m.base ?? ''; if (ae !== $('#mTilt')) $('#mTilt').value = m.tilt || 0;
-  if (ae !== $('#mDepth')) $('#mDepth').value = m.depth ?? ''; $('#mDepthRow').classList.toggle('hide', m.kind !== 'tela' || (m.tilt || 0) > 0.5);
+  if (ae !== $('#mDepth')) $('#mDepth').value = m.depth ?? ''; $('#mDepthRow').classList.toggle('hide', m.kind !== 'tela'); $('#mDepth').placeholder = (m.tilt || 0) > 0.5 ? '0' : '3';
   const pv = $('#mPrev'), g = pv.getContext('2d'), a = m._art, k = Math.min(pv.width / a.width, pv.height / a.height) * 0.92;
   g.clearRect(0, 0, pv.width, pv.height); g.drawImage(a, (pv.width - a.width * k) / 2, (pv.height - a.height * k) / 2, a.width * k, a.height * k);
   $('#mImgInfo').textContent = m.blob ? `${a.width} × ${a.height} px` : 'sem imagem (provisória)';
