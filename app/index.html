@@ -113,6 +113,14 @@ summary{cursor:pointer;color:var(--muted);font-size:13px}
 .mcard b{font-size:12.5px;line-height:1.2}
 .mcard .ed{position:absolute;right:4px;top:4px;width:22px;height:22px;border-radius:6px;background:rgba(0,0,0,.55);color:#ddd;display:none;place-items:center;font-size:12px}
 .mcard:hover .ed{display:grid}
+.mcard .mact{position:absolute;right:5px;top:5px;display:flex;gap:4px}
+.mcard .mact .ed,.mcard .mact .del{position:static;display:grid;width:24px;height:24px;border-radius:7px;background:rgba(0,0,0,.6);color:#ddd;place-items:center;font-size:12px;opacity:.55;transition:opacity .15s,background .15s,color .15s;cursor:pointer}
+.mcard:hover .mact .ed,.mcard:hover .mact .del{opacity:1}
+.mcard .mact .ed:hover{background:var(--acc);color:#111}
+.mcard .mact .del:hover{background:#c0392b;color:#fff}
+.mcard .mact svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.btn.danger{background:transparent;border:1px solid rgba(231,76,60,.55);color:#ff8a7a}
+.btn.danger:hover{background:rgba(231,76,60,.15);border-color:#e74c3c;color:#ffb3a8}
 .dialrow{display:flex;gap:12px;align-items:center;margin:6px 0 10px}
 #lDial{width:72px;height:72px;flex:none;cursor:grab;touch-action:none}
 #pill{margin:8px 18px 4px;display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid #3a2f22;border-left:3px solid var(--acc);border-radius:10px;padding:10px 12px;font-size:13px}
@@ -522,7 +530,7 @@ details.fold[open]{padding-bottom:10px}
   <div class="row">Largura <input type="number" class="fld" id="mW" step="0.1"> cm &nbsp; Altura <input type="number" class="fld" id="mH" step="0.1" placeholder="auto"> cm</div>
   <div class="row">Base a <input type="number" class="fld" id="mBase" step="1" placeholder="livre"> cm do piso &nbsp; Inclinação <input type="number" class="fld" id="mTilt" step="1" style="width:56px"> °</div>
   <p class="small" id="mInfo"></p>
-  <div class="dlgfoot"><button class="link" id="mDel">Excluir modelo</button><span class="sp"></span><button class="btn" id="mNew">+ Novo</button><button class="btn primary" id="mOk">Pronto</button></div>
+  <div class="dlgfoot"><button class="btn danger" id="mDel">Excluir este modelo</button><span class="sp"></span><button class="btn" id="mNew">+ Novo</button><button class="btn primary" id="mOk">Pronto</button></div>
 </dialog>
 
 <dialog id="dlgProj">
@@ -2891,15 +2899,16 @@ function fillColors() {
 }
 let modelsSig = '';
 function fillModels() {
-  const sig = models.map(m => m.id + m.name + m.W + modelH(m) + (m._thumb || '').length).join('|') + defaults.model;
+  const sig = models.map(m => m.id + m.name + m.W + modelH(m) + (m._thumb || '').length).join('|') + defaults.model + models.length;
   if (sig === modelsSig) return; modelsSig = sig;
   const box = $('#modelList'); box.innerHTML = '';
   for (const m of models) {
     const b = document.createElement('button'); b.className = 'mcard' + (m.id === defaults.model ? ' on' : '');
-    b.innerHTML = `<img src="${m._thumb}" alt=""><b></b><span class="small">${cm(m.W)} × ${cm(modelH(m))} cm</span><span class="ed" title="Editar modelo">✎</span>`;
+    b.innerHTML = `<img src="${m._thumb}" alt=""><b></b><span class="small">${cm(m.W)} × ${cm(modelH(m))} cm</span><span class="mact"><span class="ed" title="Editar modelo (nome, medidas, imagem)">✎</span>${models.length > 1 ? `<span class="del" title="Excluir modelo"><svg viewBox="0 0 24 24">${IC.trash}</svg></span>` : ''}</span>`;
     b.querySelector('b').textContent = m.name;
     b.onclick = () => { defaults.model = m.id; saveDefaults(); sel = null; if (cur) { tool = 'place'; pending = []; } render(); refreshUI(); };
     b.querySelector('.ed').onclick = e => { e.stopPropagation(); openModels(m.id); };
+    const del = b.querySelector('.del'); if (del) del.onclick = e => { e.stopPropagation(); deleteModel(m.id); };
     box.appendChild(b);
   }
 }
@@ -3341,13 +3350,20 @@ $('#mTilt').addEventListener('change', () => { dlgModel.tilt = clamp(+$('#mTilt'
 $('#mImg').onclick = () => $('#mFile').click();
 $('#mFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; dlgModel.blob = f; await loadModelArt(dlgModel); modelChanged(); };
 $('#mNew').onclick = () => openModels(null, true);
-$('#mDel').onclick = () => {
-  if (models.length <= 1 || !confirm(`Excluir o modelo "${dlgModel.name}"? Elementos desse modelo nas fotos abertas também saem.`)) return;
-  const id = dlgModel.id; models = models.filter(m => m.id !== id);
-  for (const ph of photos) ph.items = ph.items.filter(i => !(i.type === 'screen' && i.model === id));
+function deleteModel(id) {
+  const m = models.find(x => x.id === id); if (!m) return;
+  if (models.length <= 1) { flash('Precisa ficar pelo menos um modelo.'); return; }
+  let n = 0; for (const ph of photos) for (const i of ph.items) if (i.type === 'screen' && i.model === id) n++;
+  const warn = n ? `\n\n${n === 1 ? '1 tela nas fotos abertas usa' : n + ' telas nas fotos abertas usam'} esse modelo e ${n === 1 ? 'vai sair' : 'vão sair'} junto.` : '';
+  if (!confirm(`Excluir o modelo "${m.name}"?${warn}`)) return;
+  models = models.filter(x => x.id !== id);
+  if (n) { for (const ph of photos) { ph.items = ph.items.filter(i => !(i.type === 'screen' && i.model === id)); ph.exported = false; } scheduleSave(); }
   if (defaults.model === id) { defaults.model = models[0].id; saveDefaults(); }
-  sel = null; dlgModel = models[0]; saveModels(); refreshDlg(); render(); refreshUI();
-};
+  sel = null; if (!dlgModel || dlgModel.id === id) dlgModel = models[0];
+  saveModels(); modelsSig = null; if ($('#dlg').open) refreshDlg(); render(); refreshUI();
+  flash(`Modelo "${m.name}" excluído.`);
+}
+$('#mDel').onclick = () => deleteModel(dlgModel.id);
 $('#mOk').onclick = () => $('#dlg').close();
 $('#bModels').onclick = () => openModels();
 
