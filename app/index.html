@@ -507,7 +507,7 @@ details.fold[open]{padding-bottom:10px}
       <div id="wrap" class="hide"><canvas id="cv"></canvas></div>
     </div>
     <canvas id="ov" class="hide"></canvas>
-    <div id="ask" class="hide"><span id="askLbl"></span><input type="number" id="askIn" step="0.5"><span class="small">cm</span></div>
+    <div id="ask" class="hide"><span id="askLbl"></span><input type="text" inputmode="decimal" id="askIn" autocomplete="off"><span class="small">cm</span></div>
     <div id="zoomCtl" class="hide">
       <button id="zOut" title="Afastar (Alt + rolagem)" data-i="minus" data-s="1"></button>
       <button id="zoomTag" title="Ver a foto inteira (Ctrl+0)">100%</button>
@@ -1006,7 +1006,7 @@ function applyRef(p, s) {
   if (!s || !s.refAlign || !p.calib) return false; const r = refById(p, s.refId); if (!r) return false;
   const y = refY(p, r); s.y = +(s.refAlign === 'top' ? y : y - hPlane(p, s)).toFixed(2); s.glued = false; return true;
 }
-const refHeight = (p, r) => { const fy = floorPlaneY(p); return fy != null ? fy - refY(p, r) : null; };
+const refHeight = (p, r) => { if (r.cm != null) return r.cm; const fy = floorPlaneY(p); return fy != null ? fy - refY(p, r) : null; };
 function autoPlace(p, s) {
   const fy = floorPlaneY(p), cy = ceilPlaneY(p), hp = hPlane(p, s);
   if (s.region) s.x = +(((s.region[0] + s.region[1]) / 2) - s.W / 2).toFixed(1);
@@ -2361,7 +2361,15 @@ function askCm(ptImg, prev, label, cb) {
   el.style.left = clamp(OX + ptImg[0] * css.sc - 90, 8, Math.max(8, css.W - 210)) + 'px'; el.style.top = clamp(OY + ptImg[1] * css.sc - 56, 8, Math.max(8, css.H - 56)) + 'px';
   el.classList.remove('hide'); inp.value = prev || ''; inp.focus(); inp.select(); refreshChrome(); drawOverlay();
 }
-function endAsk(ok) { if (!asking) return; const a = asking; asking = null; $('#ask').classList.add('hide'); const v = +$('#askIn').value; a.cb(ok && v > 0 ? v : null); }
+/* Lê a medida como a pessoa escreve: "210", "210 cm", "2,10", "2.10", "2,1 m". Número pequeno com vírgula (até 9,99) é em metros. */
+function parseCm(s) {
+  s = String(s || '').trim().toLowerCase().replace(/\s+/g, ''); if (!s) return null;
+  const unit = /cm$/.test(s) ? 'cm' : /m$/.test(s) ? 'm' : '', num = s.replace(/(cm|m)$/, '').replace(',', '.'), v = parseFloat(num);
+  if (!(v > 0) || !/^\d*\.?\d*$/.test(num)) return null;
+  if (unit === 'm' || (!unit && v < 10 && num.includes('.'))) return +(v * 100).toFixed(1);
+  return v;
+}
+function endAsk(ok) { if (!asking) return; const a = asking; asking = null; $('#ask').classList.add('hide'); const v = parseCm($('#askIn').value); a.cb(ok && v > 0 ? v : null); }
 $('#askIn').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') endAsk(true); if (e.key === 'Escape') endAsk(false); });
 $('#askIn').addEventListener('blur', () => setTimeout(() => endAsk(true), 0));
 
@@ -2630,10 +2638,12 @@ ov.addEventListener('mousedown', e => {
     askCm(pt, h0, 'Altura (cm do piso):', v => {
       refPend = null; tool = 'select';
       if (v == null) { render(); refreshUI(); return; }
-      pushUndo(); if (fy != null) r0.img = inWall(null, () => toImg(cur, [y0[0], fy - v]));
-      (cur.calib.refs = cur.calib.refs || []).push(r0);
+      pushUndo(); r0.cm = v; (cur.calib.refs = cur.calib.refs || []).push(r0);
       for (const s of screensOf(cur)) applyRef(cur, s);
-      render(); refreshUI(); flash(`Linha "${r0.name}" marcada a ${cm(v)} cm do piso. Na tela, escolha Topo na linha ou Base na linha.`);
+      render(); refreshUI();
+      const off = fy != null ? Math.round(fy - y0[1]) : null;
+      if (off != null && Math.abs(off - v) > Math.max(5, v * 0.04)) flash(`Linha "${r0.name}" marcada onde você clicou (${cm(v)} cm). Pelas medidas da parede ali daria ${cm(off)} cm: se a diferença for grande, confira a largura e a altura marcadas.`);
+      else flash(`Linha "${r0.name}" marcada a ${cm(v)} cm do piso. Na tela, escolha Topo na linha ou Base na linha.`);
     });
     return;
   }
@@ -3108,9 +3118,9 @@ function renderRefs() {
   for (const r of rs) {
     const row = document.createElement('div'); row.className = 'refrow';
     row.innerHTML = `<input class="fld rname" maxlength="30"><input type="number" class="fld rh" step="0.5"><span class="small">cm</span><button class="lx" title="Remover linha">×</button>`;
-    const nm = row.querySelector('.rname'), hh = row.querySelector('.rh'), h = refHeight(cur, r); nm.value = r.name || ''; hh.value = h != null ? +h.toFixed(1) : ''; hh.disabled = h == null;
+    const nm = row.querySelector('.rname'), hh = row.querySelector('.rh'), h = refHeight(cur, r); nm.value = r.name || ''; hh.value = h != null ? +h.toFixed(1) : '';
     nm.addEventListener('change', () => { r.name = nm.value.trim() || 'referência'; scheduleSave(); render(); refreshUI(); });
-    hh.addEventListener('change', () => { const v = +hh.value, fy = floorPlaneY(cur); if (!(v >= 0) || fy == null) return; pushUndo(); const x = inWall(null, () => toPlane(cur, r.img))[0]; r.img = inWall(null, () => toImg(cur, [x, fy - v])); for (const s of cur.items) applyRef(cur, s); render(); refreshUI(); });
+    hh.addEventListener('change', () => { const v = +hh.value; if (!(v > 0)) return; pushUndo(); r.cm = v; scheduleSave(); render(); refreshUI(); });
     for (const el of [nm, hh]) el.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
     row.querySelector('.lx').onclick = () => { pushUndo(); cur.calib.refs = rs.filter(x => x !== r); for (const s of cur.items) if (s.refId === r.id) { delete s.refAlign; delete s.refId; } render(); refreshUI(); };
     box.appendChild(row);
