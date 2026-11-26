@@ -891,14 +891,24 @@ function stretchFlat(a, ratio) {
   const tol = Math.max(1, Math.round(M * 0.002));   // tolera 1 ou 2 pontos de ruído
   let pick = cand.filter(i => E2[i] <= tol);
   const out = document.createElement('canvas'); out.width = vert ? w : w + add; out.height = vert ? h + add : h; const og = out.getContext('2d'); og.imageSmoothingEnabled = true; og.imageSmoothingQuality = 'high';
-  if (pick.length < 6) {
-    // arte sem faixa lisa (ex.: foto ocupando a tela toda): a moldura fica exatamente igual e só o miolo se ajusta, por igual
+  const extra = new Float32Array(N);
+  if (pick.length >= 6) for (const i of pick) extra[i] = add / pick.length;
+  else {
+    // arte sem faixa lisa (ex.: foto ocupando a tela toda). Se a moldura é lisa dos dois lados, a diferença vai para ela,
+    // metade de cada lado: o aparelho fica com a medida real, o conteúdo não deforma e as bordas continuam simétricas
+    // raio do canto (a borda só fica opaca abaixo da curva): faixas dentro da curva não esticam, o canto continua redondo
+    let rcp = 0; while (rcp < M * 0.2 && at(1, rcp) > 250) rcp++; rcp += 2;
+    const ja = Math.max(rcp, Math.round(M * 0.02)), jb = M - ja, flat = i => { let s = 0, s2 = 0; for (let j = ja; j < jb; j++) { const v = at(i, j); if (v > 250) return 99; s += v; s2 += v * v; } const m = s / (jb - ja); return Math.sqrt(Math.max(0, s2 / (jb - ja) - m * m)); };
+    const fa = [], fb = []; for (let i = rcp; i < fL - 1; i++) if (flat(i) < 6) fa.push(i); for (let i = fR + 2; i < N - rcp; i++) if (flat(i) < 6) fb.push(i);
+    if (fa.length >= 2 && fb.length >= 2) { for (const i of fa) extra[i] = add / 2 / fa.length; for (const i of fb) extra[i] = add / 2 / fb.length; }
+    else {
+    // sem moldura lisa: a moldura fica exatamente igual e só o miolo se ajusta, por igual
     const n = hi - lo + 1;
     if (vert) { og.drawImage(src, 0, 0, w, lo, 0, 0, w, lo); og.drawImage(src, 0, lo, w, n, 0, lo, w, n + add); og.drawImage(src, 0, hi + 1, w, h - hi - 1, 0, hi + 1 + add, w, h - hi - 1); }
     else { og.drawImage(src, 0, 0, lo, h, 0, 0, lo, h); og.drawImage(src, lo, 0, n, h, lo, 0, n + add, h); og.drawImage(src, hi + 1, 0, w - hi - 1, h, hi + 1 + add, 0, w - hi - 1, h); }
     return out;
+    }
   }
-  const extra = new Float32Array(N); for (const i of pick) extra[i] = add / pick.length;
   let pos = 0;
   for (let i = 0; i < N; i++) {
     const p0 = Math.round(pos), p1 = Math.round(pos + 1 + extra[i]); pos += 1 + extra[i]; if (p1 <= p0) continue;
