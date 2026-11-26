@@ -1232,6 +1232,7 @@ function drawScreen(g, p, s, quick) {
   if (dev) { drawDeviceSides(g, p, s, dev, s.bright == null ? autoBright(p, c) : s.bright); c = dev.front; }
   const H = homography([[0, 0], [1, 0], [1, 1], [0, 1]], c); if (!H) return;
   const Hi = hInv(H); if (!Hi) return;
+  const rfK = dev ? 0.07 : 0.24, glK = dev ? 6 : 16;   // tela reta: vidro antirreflexo, preto fica preto e as cores firmes
   const env = envPixels(p), eks = env.w / p.w, ecx = (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, ecy = (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4, rf = [0, 0, 0];
   const xs = c.map(q => q[0]), ys = c.map(q => q[1]);
   const x0 = Math.max(0, Math.floor(Math.min(...xs)) - 1), x1 = Math.min(p.w, Math.ceil(Math.max(...xs)) + 1);
@@ -1257,13 +1258,13 @@ function drawScreen(g, p, s, quick) {
       if (s.gloss > 0) {
         const ex = clamp((ecx + (0.5 - u) * wpx * 1.9) * eks, 0, env.w - 1.001), ey = clamp((ecy + (v - 0.5) * hpx * 1.9 + hpx * 1.1) * eks, 0, env.h - 1.001);
         const ix2 = ex | 0, iy2 = ey | 0, fx2 = ex - ix2, fy2 = ey - iy2, e0 = (iy2 * env.w + ix2) * 4, e1 = e0 + 4, e2 = e0 + env.w * 4, e3 = e2 + 4, ed = env.d;
-        for (let ch = 0; ch < 3; ch++) rf[ch] = s.gloss * 0.24 * ((ed[e0 + ch] * (1 - fx2) + ed[e1 + ch] * fx2) * (1 - fy2) + (ed[e2 + ch] * (1 - fx2) + ed[e3 + ch] * fx2) * fy2);
-        glT = s.gloss * 16 * (1 - v) * (1 - v);
+        for (let ch = 0; ch < 3; ch++) rf[ch] = s.gloss * rfK * ((ed[e0 + ch] * (1 - fx2) + ed[e1 + ch] * fx2) * (1 - fy2) + (ed[e2 + ch] * (1 - fx2) + ed[e3 + ch] * fx2) * fy2);
+        glT = s.gloss * glK * (1 - v) * (1 - v);
       } else rf[0] = rf[1] = rf[2] = 0;
       const al = ((td[k00 + 3] * (1 - ax) + td[k10 + 3] * ax) * (1 - ay) + (td[k01 + 3] * (1 - ax) + td[k11 + 3] * ax) * ay) / 255;
       for (let ch = 0; ch < 3; ch++) {
         const val = (td[k00 + ch] * (1 - ax) + td[k10 + ch] * ax) * (1 - ay) + (td[k01 + ch] * (1 - ax) + td[k11 + ch] * ax) * ay;
-        const o = (val * br + rf[ch] + glT) * al + d[kb + ch] * (1 - al);
+        const o = (val * br + (rf[ch] + glT) * (dev ? 1 - val / 320 : 1)) * al + d[kb + ch] * (1 - al);
         if (ch === 0) r += o; else if (ch === 1) gg += o; else b += o;
       }
     }
